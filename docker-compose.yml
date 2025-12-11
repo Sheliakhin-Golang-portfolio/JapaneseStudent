@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  mariadb:
+    image: mariadb:10.11
+    container_name: japanesestudent-mariadb
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-password}
+      MYSQL_DATABASE: ${DB_NAME:-japanesestudent}
+      MYSQL_USER: ${DB_USER:-root}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-password}
+    ports:
+      - "${DB_PORT:-3306}:3306"
+    volumes:
+      - mariadb_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - japanesestudent-network
+
+  api-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: japanesestudent-api
+    environment:
+      DB_HOST: mariadb
+      DB_PORT: 3306
+      DB_USER: ${DB_USER:-root}
+      DB_PASSWORD: ${DB_PASSWORD:-password}
+      DB_NAME: ${DB_NAME:-japanesestudent}
+      SERVER_PORT: ${SERVER_PORT:-8080}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    ports:
+      - "${SERVER_PORT:-8080}:8080"
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    volumes:
+      - ./migrations:/app/migrations:ro
+    networks:
+      - japanesestudent-network
+    restart: unless-stopped
+
+volumes:
+  mariadb_data:
+
+networks:
+  japanesestudent-network:
+    driver: bridge
+
+
+
