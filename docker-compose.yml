@@ -7,12 +7,11 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-password}
       MYSQL_DATABASE: ${DB_NAME:-japanesestudent}
-      MYSQL_USER: ${DB_USER:-root}
+      MYSQL_USER: ${DB_USER:-appuser}
       MYSQL_PASSWORD: ${DB_PASSWORD:-password}
-    ports:
-      - "${DB_PORT:-3306}:3306"
     volumes:
       - mariadb_data:/var/lib/mysql
+      - ./docker-entrypoint-initdb.d:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
       interval: 10s
@@ -21,26 +20,58 @@ services:
     networks:
       - japanesestudent-network
 
-  api-server:
+  learn-service:
     build:
       context: .
-      dockerfile: Dockerfile
-    container_name: japanesestudent-api
+      dockerfile: ./services/learn-service/Dockerfile
+    container_name: japanesestudent-learn-service
     environment:
       DB_HOST: mariadb
       DB_PORT: 3306
-      DB_USER: ${DB_USER:-root}
+      DB_USER: ${DB_USER:-appuser}
       DB_PASSWORD: ${DB_PASSWORD:-password}
       DB_NAME: ${DB_NAME:-japanesestudent}
-      SERVER_PORT: ${SERVER_PORT:-8080}
+      SERVER_PORT: ${LEARN_SERVICE_PORT:-8080}
       LOG_LEVEL: ${LOG_LEVEL:-info}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-*}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_ACCESS_TOKEN_EXPIRY: ${JWT_ACCESS_TOKEN_EXPIRY:-1h}
+      JWT_REFRESH_TOKEN_EXPIRY: ${JWT_REFRESH_TOKEN_EXPIRY:-168h}
     ports:
-      - "${SERVER_PORT:-8080}:8080"
+      - "${LEARN_SERVICE_PORT:-8080}:8080"
     depends_on:
       mariadb:
         condition: service_healthy
     volumes:
-      - ./migrations:/app/migrations:ro
+      - ./services/learn-service/migrations:/app/migrations:ro
+    networks:
+      - japanesestudent-network
+    restart: unless-stopped
+
+  auth-service:
+    build:
+      context: .
+      dockerfile: ./services/auth-service/Dockerfile
+    container_name: japanesestudent-auth-service
+    environment:
+      DB_HOST: mariadb
+      DB_PORT: 3306
+      DB_USER: ${DB_USER:-appuser}
+      DB_PASSWORD: ${DB_PASSWORD:-password}
+      DB_NAME: ${DB_NAME:-japanesestudent}
+      SERVER_PORT: ${AUTH_SERVICE_PORT:-8081}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-*}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_ACCESS_TOKEN_EXPIRY: ${JWT_ACCESS_TOKEN_EXPIRY:-1h}
+      JWT_REFRESH_TOKEN_EXPIRY: ${JWT_REFRESH_TOKEN_EXPIRY:-168h}
+    ports:
+      - "${AUTH_SERVICE_PORT:-8081}:8081"
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    volumes:
+      - ./services/auth-service/migrations:/app/migrations:ro
     networks:
       - japanesestudent-network
     restart: unless-stopped
@@ -51,6 +82,3 @@ volumes:
 networks:
   japanesestudent-network:
     driver: bridge
-
-
-

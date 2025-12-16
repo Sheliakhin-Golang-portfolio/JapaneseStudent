@@ -2,11 +2,6 @@
 
 JapaneseStudent is a Go microservices-based application to help people learn hiragana/katakana alphabet, words and attend lessons.
 
-## Architecture
-
-This project uses a microservices architecture. Currently, it includes:
-- **api-server**: Handles hiragana and katakana character operations
-
 ## Tech Stack
 
 - **Backend**: Go 1.22+
@@ -14,42 +9,100 @@ This project uses a microservices architecture. Currently, it includes:
 - **Database**: MariaDB
 - **Logging**: zap (uber-go/zap)
 - **API Documentation**: Swagger/OpenAPI
+- **Authentication**: JWT (JSON Web Tokens)
+- **Password Hashing**: bcrypt
+
+## Architecture
+
+The project follows a **microservices architecture** with the following services:
+
+1. **auth-service** - User authentication and authorization (Port: 8081)
+2. **learn-service** - Character learning and test management (Port: 8080)
+
+Both services share common libraries in the `libs/` directory for:
+- Authentication middleware and JWT token generation
+- Configuration management
+- Logging
+- HTTP handlers and middleware
 
 ## Project Structure
 
 ```
 JapaneseStudent/
-├── internal/
-│   ├── config/                # Configuration management
-│   ├── handlers/              # HTTP handlers
-│   │   ├── base_handler.go    # Base handler with common functionality
-│   │   └── character_handler.go # Character endpoints handler
-│   ├── logger/                # Logger package (internal, shared)
-│   ├── middleware/            # HTTP middleware
-│   │   ├── cors.go            # CORS middleware
-│   │   ├── logger.go          # Request logging middleware
-│   │   ├── recovery.go        # Panic recovery middleware
-│   │   ├── request_id.go      # Request ID middleware
-│   │   └── request_size.go    # Request size limit middleware
-│   ├── models/                # Domain models
-│   │   └── character.go       # Character model definitions
-│   ├── repositories/          # Data access layer
-│   │   ├── character_repository.go # Character repository implementation
-│   │   └── repository_test.go # Repository unit tests
-│   └── services/              # Business logic layer
-│       ├── character_service.go # Character service implementation
-│       └── service_test.go    # Service unit tests
-├── migrations/                # Database migrations
-│   └── 000001_create_characters_table.up.sql
-├── test/                      # Integration tests
-│   └── integration/
-│       └── characters_test.go # Character endpoints integration tests
-├── configs/                  # Configuration files
-│   └── .env.example          # Environment variables example
-├── docker-compose.yml        # Docker Compose configuration
-├── Dockerfile                # Docker image definition
-├── go.mod                    # Go module dependencies
-└── go.sum                    # Go module checksums
+├── libs/                          # Shared libraries
+│   ├── auth/                      # Authentication library
+│   │   ├── middleware/            # JWT authentication middleware
+│   │   └── service/               # JWT token generation and validation
+│   ├── config/                    # Configuration management
+│   ├── handlers/                  # Base HTTP handler
+│   ├── logger/                    # Structured logging
+│   │   └── middleware/           # Request logging middleware
+│   └── middlewares/               # Shared HTTP middleware
+│       ├── cors.go                # CORS middleware
+│       ├── recovery.go            # Panic recovery middleware
+│       ├── request_id.go          # Request ID middleware
+│       └── request_size.go       # Request size limit middleware
+├── services/
+│   ├── auth-service/              # Authentication microservice
+│   │   ├── cmd/
+│   │   │   └── main.go            # Service entry point
+│   │   ├── internal/
+│   │   │   ├── handlers/          # HTTP handlers
+│   │   │   │   └── auth_handler.go
+│   │   │   ├── models/           # Domain models
+│   │   │   │   ├── user.go
+│   │   │   │   └── user_token.go
+│   │   │   ├── repositories/      # Data access layer
+│   │   │   │   ├── user_repository.go
+│   │   │   │   ├── user_repository_test.go
+│   │   │   │   ├── user_token_repository.go
+│   │   │   │   └── user_token_repository_test.go
+│   │   │   └── services/          # Business logic layer
+│   │   │       ├── auth_service.go
+│   │   │       └── auth_service_test.go
+│   │   ├── migrations/            # Database migrations
+│   │   │   ├── 000001_create_users_table.up.sql
+│   │   │   ├── 000001_create_users_table.down.sql
+│   │   │   ├── 000002_create_user_tokens_table.up.sql
+│   │   │   └── 000002_create_user_tokens_table.down.sql
+│   │   ├── test/
+│   │   │   └── integration/       # Integration tests
+│   │   │       └── auth_test.go
+│   │   ├── Dockerfile
+│   │   ├── go.mod
+│   │   └── go.sum
+│   └── learn-service/             # Learning microservice
+│       ├── cmd/
+│       │   └── main.go            # Service entry point
+│       ├── internal/
+│       │   ├── handlers/          # HTTP handlers
+│       │   │   ├── character_handler.go
+│       │   │   └── test_result_handler.go
+│       │   ├── models/           # Domain models
+│       │   │   ├── character.go
+│       │   │   └── character_learn_history.go
+│       │   ├── repositories/      # Data access layer
+│       │   │   ├── character_repository.go
+│       │   │   ├── character_learn_history_repository.go
+│       │   │   └── repository_test.go
+│       │   └── services/         # Business logic layer
+│       │       ├── character_service.go
+│       │       ├── test_result_service.go
+│       │       └── service_test.go
+│       ├── migrations/            # Database migrations
+│       │   ├── 000001_create_characters_table.up.sql
+│       │   ├── 000001_create_characters_table.down.sql
+│       │   ├── 000002_create_character_learn_history_table.up.sql
+│       │   └── 000002_create_character_learn_history_table.down.sql
+│       ├── test/
+│       │   └── integration/      # Integration tests
+│       │       └── characters_test.go
+│       ├── Dockerfile
+│       ├── go.mod
+│       └── go.sum
+├── docker-compose.yml             # Docker Compose configuration
+├── TESTING.md                     # Comprehensive testing guide
+└── README.md                      # This file
 ```
 
 ## Prerequisites
@@ -60,7 +113,9 @@ JapaneseStudent/
 
 ## Environment Variables
 
-Create a `.env` file in the root directory based on `configs/.env.example`:
+All services can use one `.env` file, create one for each other or configure environment variables in docker containers. Create `.env` files based on the following template:
+
+### Common Configuration (both services)
 
 ```env
 # Database Configuration
@@ -71,7 +126,7 @@ DB_PASSWORD=password
 DB_NAME=japanesestudent
 
 # Server Configuration
-SERVER_PORT=8080
+SERVER_PORT=8081                  # For auth-service default is 8081, for learn-service - 8080
 
 # Logging
 LOG_LEVEL=info
@@ -80,14 +135,25 @@ LOG_LEVEL=info
 # Comma-separated list of allowed origins (e.g., "http://localhost:3000,https://example.com")
 # Use "*" to allow all origins (default if not specified, useful for development)
 CORS_ALLOWED_ORIGINS=*
+
+# JWT Configuration
+# Secret key for signing JWT tokens (must be at least 32 characters for security)
+JWT_SECRET=your-secret-key-here-change-in-production-minimum-32-characters
+# Access token expiry duration (e.g., "1h", "30m", "2h")
+JWT_ACCESS_TOKEN_EXPIRY=1h
+# Refresh token expiry duration (e.g., "168h" for 7 days, "720h" for 30 days)
+JWT_REFRESH_TOKEN_EXPIRY=168h
 ```
 
 ## Local Development
 
 ### 1. Install Dependencies
 
+For each service:
+
 ```bash
-go mod download
+cd services/auth-service && go mod download
+cd ../learn-service && go mod download
 ```
 
 ### 2. Set Up Database
@@ -98,25 +164,50 @@ Start MariaDB using Docker Compose:
 docker-compose up -d mariadb
 ```
 
-Or use your own MariaDB instance and update the `.env` file accordingly.
+Or use your own MariaDB instance and update the `.env` files accordingly.
+
+Create the required databases:
+
+```sql
+CREATE DATABASE japanesestudent_auth;
+CREATE DATABASE japanesestudent_learn;
+```
+or one database for both services:
+```sql
+CREATE DATABASE japanesestudent;
+```
 
 ### 3. Run Migrations
 
-Migrations run automatically when the application starts. Alternatively, you can run them manually using the migrate tool:
+Migrations run automatically when each service starts. Alternatively, you can run them manually using the migrate tool:
 
 ```bash
-migrate -path migrations -database "mysql://user:password@tcp(localhost:3306)/japanesestudent" up
+# For auth-service
+migrate -path services/auth-service/migrations -database "mysql://user:password@tcp(localhost:3306)/japanesestudent" up
+
+# For learn-service
+migrate -path services/learn-service/migrations -database "mysql://user:password@tcp(localhost:3306)/japanesestudent" up
 ```
 
-### 4. Run the Application
+### 4. Run the Services
 
-Create a main.go file in the root directory or run your application entry point:
+#### Run auth-service:
 
 ```bash
-go run main.go
+cd services/auth-service
+go run cmd/main.go
 ```
 
-The API will be available at `http://localhost:8080`
+The auth API will be available at `http://localhost:8081`
+
+#### Run learn-service:
+
+```bash
+cd services/learn-service
+go run cmd/main.go
+```
+
+The learn API will be available at `http://localhost:8080`
 
 ## Docker Deployment
 
@@ -127,7 +218,8 @@ The API will be available at `http://localhost:8080`
 docker-compose up -d
 
 # View logs
-docker-compose logs -f api-server
+docker-compose logs -f auth-service
+docker-compose logs -f learn-service
 
 # Stop services
 docker-compose down
@@ -138,78 +230,94 @@ docker-compose down -v
 
 ## API Endpoints
 
-### Characters
+### Authentication Service (Port 8081)
 
+#### Authentication
+- `POST /api/v1/auth/register` - Register a new user
+  - Body: `{ "email": "user@example.com", "username": "username", "password": "Password123!" }`
+  - Returns: Access and refresh tokens as HTTP-only cookies
+- `POST /api/v1/auth/login` - Login with email/username and password
+  - Body: `{ "login": "user@example.com", "password": "Password123!" }`
+  - Returns: Access and refresh tokens as HTTP-only cookies
+- `POST /api/v1/auth/refresh` - Refresh access token using refresh token
+  - Body: `{ "refreshToken": "token" }` (or cookie)
+  - Returns: New access and refresh tokens
+
+### Learning Service (Port 8080)
+
+#### Characters
 - `GET /api/v1/characters?type={hr|kt}&locale={en|ru}` - Get all characters
 - `GET /api/v1/characters/row-column?type={hr|kt}&locale={en|ru}&character={char}` - Get characters by row/column
 - `GET /api/v1/characters/{id}?locale={en|ru}` - Get character by ID
 
-### Tests (not unit or integration, but user tests for alphabet knowledge)
+#### Tests (Requires Authentication)
+- `GET /api/v1/tests/{hiragana|katakana}/reading?locale={en|ru}` - Get reading test (10 random characters with options)
+- `GET /api/v1/tests/{hiragana|katakana}/writing?locale={en|ru}` - Get writing test (10 random characters)
 
-- `GET /api/v1/tests/{hiragana|katakana}/reading?locale={en|ru}` - Get reading test (10 random characters)
-- `GET /api/v1/tests/{hiragana|katakana}/writing?locale={en|ru}` - Get writing test (10 random characters with options)
+#### Test Results (Requires Authentication)
+- `POST /api/v1/test-results/{hiragana|katakana}/{reading|writing|listening}` - Submit test results
+  - Body: `{ "results": [{ "characterId": 1, "passed": true }, ...] }`
+- `GET /api/v1/test-results/history` - Get user's learning history
 
 ### API Documentation
 
+#### Auth Service
+- Swagger UI: `http://localhost:8081/swagger/index.html`
+- Swagger JSON: `http://localhost:8081/swagger/doc.json`
+
+#### Learn Service
 - Swagger UI: `http://localhost:8080/swagger/index.html`
 - Swagger JSON: `http://localhost:8080/swagger/doc.json`
 
-## API Examples
-
-### Get all hiragana characters (English)
-
-```bash
-curl "http://localhost:8080/api/v1/characters?type=hr&locale=en"
-```
-
-### Get katakana character by ID (Russian)
-
-```bash
-curl "http://localhost:8080/api/v1/characters/1?locale=ru"
-```
-
-### Get reading test (hiragana, English)
-
-Returns 10 random characters for reading practice:
-
-```bash
-curl "http://localhost:8080/api/v1/tests/hiragana/reading?locale=en"
-```
-
-### Get writing test (katakana, Russian)
-
-Returns 10 random characters with multiple choice options:
-
-```bash
-curl "http://localhost:8080/api/v1/tests/katakana/writing?locale=ru"
-```
-
 ## Testing
 
-### Run Unit Tests
+For comprehensive testing information, see [TESTING.md](./TESTING.md).
+
+### Quick Start
+
+#### Run Unit Tests
 
 ```bash
-go test ./internal/...
+# Run all unit tests
+go test ./services/.../internal/...
+
+# Run with coverage
+go test ./services/.../internal/... -cover
 ```
 
-### Run Tests with Coverage
+#### Run Integration Tests
+
+**Prerequisites:** Test databases must be configured. See TESTING.md for detailed setup instructions.
 
 ```bash
-go test -cover ./internal/...
-```
+# Run all integration tests
+go test ./services/.../test/integration/... -v
 
-### Run Integration Tests
-
-**Prerequisites:** A test database must be configured. See TESTING.md for detailed setup instructions.
-
-```bash
-go test ./test/integration/... -v
+# Run specific service integration tests
+go test ./services/auth-service/test/integration/... -v
+go test ./services/learn-service/test/integration/... -v
 ```
 
 ## Database Schema
 
-### Characters Table
+### Auth Service Database
 
+#### Users Table
+- `id` - Primary key (auto-increment)
+- `email` - Email address (unique, indexed)
+- `username` - Username (unique, indexed)
+- `password_hash` - Bcrypt hashed password
+- `role` - User role (default: 'user')
+
+#### User Tokens Table
+- `id` - Primary key (auto-increment)
+- `user_id` - Foreign key to users.id
+- `token` - Refresh token (unique, indexed)
+- `updated_at` - Timestamp
+
+### Learn Service Database
+
+#### Characters Table
 - `id` - Primary key
 - `consonant` - Consonant character
 - `vowel` - Vowel character
@@ -218,16 +326,29 @@ go test ./test/integration/... -v
 - `katakana` - Katakana character
 - `hiragana` - Hiragana character
 
+#### Character Learn History Table
+- `id` - Primary key (auto-increment)
+- `user_id` - User ID (from auth service)
+- `character_id` - Foreign key to characters.id
+- `hiragana_reading_result` - Test result (0.0-1.0)
+- `hiragana_writing_result` - Test result (0.0-1.0)
+- `hiragana_listening_result` - Test result (0.0-1.0)
+- `katakana_reading_result` - Test result (0.0-1.0)
+- `katakana_writing_result` - Test result (0.0-1.0)
+- `katakana_listening_result` - Test result (0.0-1.0)
+- Unique constraint on (user_id, character_id)
+
 ## Middleware
 
-The application includes the following middleware (in order of execution):
+Both services include the following middleware (in order of execution):
 
-1. **Request ID** (`internal/middleware/request_id.go`): Generates unique UUID for each request and adds it to the context
-2. **Recovery** (`internal/middleware/recovery.go`): Panic recovery and error handling with proper logging
-3. **Request Size Limit** (`internal/middleware/request_size.go`): Limits request body size to 10MB
-4. **CORS** (`internal/middleware/cors.go`): Cross-origin resource sharing support with configurable allowed origins
-5. **Logging** (`internal/middleware/logger.go`): Structured JSON logging with request details, method, path, status, duration, and request ID
+1. **Request ID** (`libs/middlewares/request_id.go`): Generates unique UUID for each request and adds it to the context
+2. **Recovery** (`libs/middlewares/recovery.go`): Panic recovery and error handling with proper logging
+3. **Request Size Limit** (`libs/middlewares/request_size.go`): Limits request body size to 10MB
+4. **CORS** (`libs/middlewares/cors.go`): Cross-origin resource sharing support with configurable allowed origins
+5. **Logging** (`libs/logger/middleware/logger.go`): Structured JSON logging with request details, method, path, status, duration, and request ID
 6. **Rate Limiting**: Rate limiter using go-chi/httprate (100 requests/minute per IP) - configured at router level
+7. **Authentication** (`libs/auth/middleware/auth.go`): JWT token validation for protected routes
 
 ## CORS Configuration
 
@@ -248,6 +369,23 @@ The middleware sets the following headers:
 - `Access-Control-Allow-Credentials`: `true` (when using specific origins)
 - `Access-Control-Max-Age`: `3600` seconds
 
+## Authentication
+
+The application uses JWT (JSON Web Tokens) for authentication:
+
+- **Access Tokens**: Short-lived tokens (default: 1 hour) used for API authentication
+- **Refresh Tokens**: Long-lived tokens (default: 7 days) stored in database, used to obtain new access tokens
+- **Token Storage**: Refresh tokens are stored as HTTP-only cookies for security
+- **Password Security**: Passwords are hashed using bcrypt before storage
+
+### Password Requirements
+
+- Minimum 8 characters
+- At least one lowercase letter
+- At least one uppercase letter
+- At least one number
+- At least one special character from: `!_?^&+-=|`
+
 ## Logging
 
 The application uses structured JSON logging with the following levels:
@@ -255,7 +393,7 @@ The application uses structured JSON logging with the following levels:
 - `warn` - Warnings
 - `error` - Errors
 
-All logs include request ID for tracing.
+All logs include request ID for tracing across services.
 
 ## License
 
