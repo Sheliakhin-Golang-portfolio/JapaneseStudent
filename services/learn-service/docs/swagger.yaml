@@ -1,0 +1,425 @@
+basePath: /api/v1
+definitions:
+  handlers.TestResultRequest:
+    properties:
+      results:
+        items:
+          $ref: '#/definitions/models.TestResultItem'
+        type: array
+    type: object
+  models.Character:
+    properties:
+      consonant:
+        description: defines a membership to a consonant group
+        type: string
+      englishReading:
+        type: string
+      hiragana:
+        type: string
+      id:
+        type: integer
+      katakana:
+        type: string
+      russianReading:
+        type: string
+      vowel:
+        description: defines a membership to a vowel group
+        type: string
+    type: object
+  models.CharacterResponse:
+    properties:
+      character:
+        description: Hiragana or Katakana
+        type: string
+      consonant:
+        description: Not always present, depends on the context
+        type: string
+      id:
+        type: integer
+      reading:
+        description: English or Russian reading
+        type: string
+      vowel:
+        description: Not always present, depends on the context
+        type: string
+    type: object
+  models.ReadingTestItem:
+    properties:
+      correctChar:
+        description: Correct character
+        type: string
+      id:
+        type: integer
+      reading:
+        description: English or Russian reading
+        type: string
+      wrongOptions:
+        description: Two wrong character options
+        items:
+          type: string
+        type: array
+    type: object
+  models.TestResultItem:
+    properties:
+      characterId:
+        type: integer
+      passed:
+        type: boolean
+    type: object
+  models.UserLearnHistory:
+    properties:
+      characterHiragana:
+        type: string
+      characterKatakana:
+        type: string
+      hiraganaListeningResult:
+        type: number
+      hiraganaReadingResult:
+        type: number
+      hiraganaWritingResult:
+        type: number
+      katakanaListeningResult:
+        type: number
+      katakanaReadingResult:
+        type: number
+      katakanaWritingResult:
+        type: number
+    type: object
+  models.WritingTestItem:
+    properties:
+      Character:
+        description: Correct character whose reading is to be guessed
+        type: string
+      correctReading:
+        description: English or Russian reading correct reading
+        type: string
+      id:
+        type: integer
+    type: object
+host: localhost:8080
+info:
+  contact:
+    email: shelyahin.mihail@gmail.com
+    name: API Support
+  description: API for managing hiragana and katakana characters
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  termsOfService: http://swagger.io/terms/
+  title: JapaneseStudent Characters API
+  version: "1.0"
+paths:
+  /characters:
+    get:
+      consumes:
+      - application/json
+      description: Get a list of all hiragana or katakana characters
+      parameters:
+      - description: 'Alphabet type: hr (hiragana) or kt (katakana), default: hr'
+        in: query
+        name: type
+        type: string
+      - description: 'Locale: en (English) or ru (Russian), default: en'
+        in: query
+        name: locale
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of characters
+          schema:
+            items:
+              $ref: '#/definitions/models.CharacterResponse'
+            type: array
+        "500":
+          description: Internal server error - failed to retrieve characters
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get all characters
+      tags:
+      - characters
+  /characters/{id}:
+    get:
+      consumes:
+      - application/json
+      description: Get a hiragana or katakana character by its ID
+      parameters:
+      - description: Character ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 'Locale: en (English) or ru (Russian), default: en'
+        in: query
+        name: locale
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Character details
+          schema:
+            $ref: '#/definitions/models.Character'
+        "400":
+          description: Bad request - id parameter is required or invalid id parameter
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not found - character not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error - failed to retrieve character
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get character by ID
+      tags:
+      - characters
+  /characters/row-column:
+    get:
+      consumes:
+      - application/json
+      description: Get a row or column of hiragana or katakana characters filtered
+        by consonant or vowel
+      parameters:
+      - description: 'Alphabet type: hr (hiragana) or kt (katakana), default: hr'
+        in: query
+        name: type
+        type: string
+      - description: 'Locale: en (English) or ru (Russian), default: en'
+        in: query
+        name: locale
+        type: string
+      - description: Consonant or vowel character
+        in: query
+        name: character
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of characters matching the filter
+          schema:
+            items:
+              $ref: '#/definitions/models.CharacterResponse'
+            type: array
+        "400":
+          description: Bad request - character parameter is required
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error - failed to retrieve characters
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get characters by row or column
+      tags:
+      - characters
+  /test-results/{type}/{testType}:
+    post:
+      consumes:
+      - application/json
+      description: Submit test results for hiragana or katakana reading, writing,
+        or listening tests. Requires authentication.
+      parameters:
+      - description: 'Alphabet type: hiragana or katakana'
+        in: path
+        name: type
+        required: true
+        type: string
+      - description: 'Test type: reading, writing, or listening'
+        in: path
+        name: testType
+        required: true
+        type: string
+      - description: Test results
+        in: body
+        name: results
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.TestResultRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Test results submitted successfully
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad request - invalid request body, empty results array, or
+            invalid alphabet/test type
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized - authentication required, invalid/expired token,
+            or user ID not found in context
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error - failed to process or save test results
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Submit test results
+      tags:
+      - tests
+  /test-results/history:
+    get:
+      consumes:
+      - application/json
+      description: Get all learn history records for the authenticated user. Requires
+        authentication.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of learn history records (empty array if no records found)
+          schema:
+            items:
+              $ref: '#/definitions/models.UserLearnHistory'
+            type: array
+        "401":
+          description: Unauthorized - authentication required, invalid/expired token,
+            or user ID not found in context
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error - failed to retrieve learn history
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Get user's learn history
+      tags:
+      - tests
+  /tests/{type}/reading:
+    get:
+      consumes:
+      - application/json
+      description: Get 20 random characters for reading test. Requires authentication.
+      parameters:
+      - description: 'Alphabet type: hiragana or katakana'
+        in: path
+        name: type
+        required: true
+        type: string
+      - description: 'Locale: en (English) or ru (Russian), default: en'
+        in: query
+        name: locale
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of 20 random characters for reading test
+          schema:
+            items:
+              $ref: '#/definitions/models.ReadingTestItem'
+            type: array
+        "400":
+          description: Bad request - type parameter is required or invalid alphabet
+            type/locale
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized - authentication required or invalid/expired token
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error - failed to retrieve test characters
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Get reading test
+      tags:
+      - tests
+  /tests/{type}/writing:
+    get:
+      consumes:
+      - application/json
+      description: Get 20 random characters for writing test with multiple choice
+        options. Requires authentication.
+      parameters:
+      - description: 'Alphabet type: hiragana or katakana'
+        in: path
+        name: type
+        required: true
+        type: string
+      - description: 'Locale: en (English) or ru (Russian), default: en'
+        in: query
+        name: locale
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of 20 random characters for writing test with multiple
+            choice options
+          schema:
+            items:
+              $ref: '#/definitions/models.WritingTestItem'
+            type: array
+        "400":
+          description: Bad request - type parameter is required or invalid alphabet
+            type/locale
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized - authentication required or invalid/expired token
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error - failed to retrieve test characters
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Get writing test
+      tags:
+      - tests
+securityDefinitions:
+  ApiKeyAuth:
+    description: Type "Bearer" followed by a space and JWT token.
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"
