@@ -21,6 +21,7 @@ import (
 	"github.com/japanesestudent/auth-service/internal/handlers"
 	"github.com/japanesestudent/auth-service/internal/repositories"
 	"github.com/japanesestudent/auth-service/internal/services"
+	"github.com/japanesestudent/libs/auth/middleware"
 	"github.com/japanesestudent/libs/auth/service"
 	"github.com/japanesestudent/libs/config"
 	"github.com/japanesestudent/libs/logger"
@@ -85,12 +86,18 @@ func main() {
 	// Initialize repositories
 	userRepo := repositories.NewUserRepository(db, logger.Logger)
 	userTokenRepo := repositories.NewUserTokenRepository(db, logger.Logger)
+	userSettingsRepo := repositories.NewUserSettingsRepository(db, logger.Logger)
 
 	// Initialize services
-	authService := services.NewAuthService(userRepo, userTokenRepo, tokenGenerator, logger.Logger)
+	authService := services.NewAuthService(userRepo, userTokenRepo, userSettingsRepo, tokenGenerator, logger.Logger)
+	userSettingsService := services.NewUserSettingsService(userSettingsRepo, logger.Logger)
 
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(authService, logger.Logger)
+	userSettingsHandler := handlers.NewUserSettingsHandler(userSettingsService, logger.Logger)
+
+	// Initialize auth middleware
+	authMiddleware := middleware.AuthMiddleware(tokenGenerator)
 
 	// Setup router
 	r := chi.NewRouter()
@@ -112,6 +119,8 @@ func main() {
 	r.Route("/api/v1", func(r chi.Router) {
 		// Register auth routes
 		authHandler.RegisterRoutes(r)
+		// Register user settings routes
+		userSettingsHandler.RegisterRoutes(r, authMiddleware)
 	})
 
 	// Start server

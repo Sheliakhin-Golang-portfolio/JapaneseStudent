@@ -945,7 +945,7 @@ func TestCharacterLearnHistoryRepository_GetByUserID(t *testing.T) {
 				}).
 					AddRow(1.0, 0.5, 0.0, 0.0, 0.0, 0.0, "あ", "ア").
 					AddRow(0.8, 0.9, 0.7, 0.6, 0.5, 0.4, "い", "イ")
-				mock.ExpectQuery(`SELECT DISTINCT character_learn_history.hiragana_reading_result, character_learn_history.hiragana_writing_result, character_learn_history.hiragana_listening_result, character_learn_history.katakana_reading_result, character_learn_history.katakana_writing_result, character_learn_history.katakana_listening_result, characters.hiragana, characters.katakana FROM character_learn_history JOIN characters ON character_learn_history.character_id = characters.id WHERE user_id = \? ORDER BY characters.id ASC`).
+				mock.ExpectQuery(`SELECT character_learn_history.hiragana_reading_result, character_learn_history.hiragana_writing_result, character_learn_history.hiragana_listening_result, character_learn_history.katakana_reading_result, character_learn_history.katakana_writing_result, character_learn_history.katakana_listening_result, characters.hiragana, characters.katakana FROM character_learn_history JOIN characters ON character_learn_history.character_id = characters.id WHERE user_id = \? ORDER BY characters.id ASC`).
 					WithArgs(1).
 					WillReturnRows(rows)
 			},
@@ -961,7 +961,7 @@ func TestCharacterLearnHistoryRepository_GetByUserID(t *testing.T) {
 					"katakana_reading_result", "katakana_writing_result", "katakana_listening_result",
 					"hiragana", "katakana",
 				})
-				mock.ExpectQuery(`SELECT DISTINCT character_learn_history.hiragana_reading_result, character_learn_history.hiragana_writing_result, character_learn_history.hiragana_listening_result, character_learn_history.katakana_reading_result, character_learn_history.katakana_writing_result, character_learn_history.katakana_listening_result, characters.hiragana, characters.katakana FROM character_learn_history JOIN characters ON character_learn_history.character_id = characters.id WHERE user_id = \? ORDER BY characters.id ASC`).
+				mock.ExpectQuery(`SELECT character_learn_history.hiragana_reading_result, character_learn_history.hiragana_writing_result, character_learn_history.hiragana_listening_result, character_learn_history.katakana_reading_result, character_learn_history.katakana_writing_result, character_learn_history.katakana_listening_result, characters.hiragana, characters.katakana FROM character_learn_history JOIN characters ON character_learn_history.character_id = characters.id WHERE user_id = \? ORDER BY characters.id ASC`).
 					WithArgs(999).
 					WillReturnRows(rows)
 			},
@@ -972,7 +972,7 @@ func TestCharacterLearnHistoryRepository_GetByUserID(t *testing.T) {
 			name:   "database error",
 			userID: 1,
 			setupMock: func(mock sqlmock.Sqlmock) {
-				mock.ExpectQuery(`SELECT DISTINCT character_learn_history.hiragana_reading_result, character_learn_history.hiragana_writing_result, character_learn_history.hiragana_listening_result, character_learn_history.katakana_reading_result, character_learn_history.katakana_writing_result, character_learn_history.katakana_listening_result, characters.hiragana, characters.katakana FROM character_learn_history JOIN characters ON character_learn_history.character_id = characters.id WHERE user_id = \? ORDER BY characters.id ASC`).
+				mock.ExpectQuery(`SELECT character_learn_history.hiragana_reading_result, character_learn_history.hiragana_writing_result, character_learn_history.hiragana_listening_result, character_learn_history.katakana_reading_result, character_learn_history.katakana_writing_result, character_learn_history.katakana_listening_result, characters.hiragana, characters.katakana FROM character_learn_history JOIN characters ON character_learn_history.character_id = characters.id WHERE user_id = \? ORDER BY characters.id ASC`).
 					WithArgs(1).
 					WillReturnError(errors.New("database error"))
 			},
@@ -989,7 +989,7 @@ func TestCharacterLearnHistoryRepository_GetByUserID(t *testing.T) {
 					"hiragana", "katakana",
 				}).
 					AddRow("invalid", 0.5, 0.0, 0.0, 0.0, 0.0, "あ", "ア")
-				mock.ExpectQuery(`SELECT DISTINCT character_learn_history.hiragana_reading_result, character_learn_history.hiragana_writing_result, character_learn_history.hiragana_listening_result, character_learn_history.katakana_reading_result, character_learn_history.katakana_writing_result, character_learn_history.katakana_listening_result, characters.hiragana, characters.katakana FROM character_learn_history JOIN characters ON character_learn_history.character_id = characters.id WHERE user_id = \? ORDER BY characters.id ASC`).
+				mock.ExpectQuery(`SELECT character_learn_history.hiragana_reading_result, character_learn_history.hiragana_writing_result, character_learn_history.hiragana_listening_result, character_learn_history.katakana_reading_result, character_learn_history.katakana_writing_result, character_learn_history.katakana_listening_result, characters.hiragana, characters.katakana FROM character_learn_history JOIN characters ON character_learn_history.character_id = characters.id WHERE user_id = \? ORDER BY characters.id ASC`).
 					WithArgs(1).
 					WillReturnRows(rows)
 			},
@@ -1007,7 +1007,7 @@ func TestCharacterLearnHistoryRepository_GetByUserID(t *testing.T) {
 				}).
 					AddRow(1.0, 0.5, 0.0, 0.0, 0.0, 0.0, "あ", "ア").
 					RowError(0, errors.New("row error"))
-				mock.ExpectQuery(`SELECT DISTINCT character_learn_history.hiragana_reading_result, character_learn_history.hiragana_writing_result, character_learn_history.hiragana_listening_result, character_learn_history.katakana_reading_result, character_learn_history.katakana_writing_result, character_learn_history.katakana_listening_result, characters.hiragana, characters.katakana FROM character_learn_history JOIN characters ON character_learn_history.character_id = characters.id WHERE user_id = \? ORDER BY characters.id ASC`).
+				mock.ExpectQuery(`SELECT character_learn_history.hiragana_reading_result, character_learn_history.hiragana_writing_result, character_learn_history.hiragana_listening_result, character_learn_history.katakana_reading_result, character_learn_history.katakana_writing_result, character_learn_history.katakana_listening_result, characters.hiragana, characters.katakana FROM character_learn_history JOIN characters ON character_learn_history.character_id = characters.id WHERE user_id = \? ORDER BY characters.id ASC`).
 					WithArgs(1).
 					WillReturnRows(rows)
 			},

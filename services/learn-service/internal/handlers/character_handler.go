@@ -18,6 +18,7 @@ type CharactersService interface {
 	//
 	// "alphabetType" and "locale" parameters are used to configure return type of characters (hiragana or katakana) and reading (russian or english).
 	// Please reference AlphabetType and Locale constants for correct parameters values.
+	//
 	// If wrong parameters will be used or some error will occur during data retrieve, the error will be returned together with "nil" value.
 	GetAll(ctx context.Context, alphabetType string, locale string) ([]models.CharacterResponse, error)
 	// Method GetByRowColumn retrieve hiragana/katakana characters of the same consonant or vowel group ("character" parameter) using configured repository.
@@ -29,22 +30,19 @@ type CharactersService interface {
 	// "id" parameter is used to identify the character.
 	// "locale" parameter is used to configure return type of characters (hiragana or katakana) and reading (russian or english).
 	// Please reference Locale constants for correct parameter values.
+	//
 	// If wrong parameters will be used or some error will occur during data retrieve, the error will be returned together with "nil" value.
 	GetByID(ctx context.Context, id int, localeParam string) (*models.Character, error)
 	// Method GetReadingTest retrieve a list of random characters for reading test using configured repository.
 	//
-	// "alphabetTypeStr" parameter is used to configure return type of characters (hiragana or katakana).
-	// "localeParam" parameter is used to configure return type of reading (russian or english).
-	// Please reference AlphabetType and Locale constants for correct parameters values.
-	// If wrong parameters will be used or some error will occur during data retrieve, the error will be returned together with "nil" value.
-	GetReadingTest(ctx context.Context, alphabetTypeStr string, localeParam string) ([]models.ReadingTestItem, error)
+	// "count" parameter is used to specify the number of characters to return (default: 10).
+	//
+	// Please reference GetAll method for more information about other parameters and error values.
+	GetReadingTest(ctx context.Context, alphabetTypeStr string, localeParam string, count int) ([]models.ReadingTestItem, error)
 	// Method GetWritingTest retrieve a list of random characters for writing test using configured repository.
 	//
-	// "alphabetTypeStr" parameter is used to configure return type of characters (hiragana or katakana).
-	// "localeParam" parameter is used to configure return type of reading (russian or english).
-	// Please reference AlphabetType and Locale constants for correct parameters values.
-	// If wrong parameters will be used or some error will occur during data retrieve, the error will be returned together with "nil" value.
-	GetWritingTest(ctx context.Context, alphabetTypeStr string, localeParam string) ([]models.WritingTestItem, error)
+	// Please reference GetReadingTest method for more information about parameters and error values.
+	GetWritingTest(ctx context.Context, alphabetTypeStr string, localeParam string, count int) ([]models.WritingTestItem, error)
 }
 
 // Handler handles HTTP requests for characters
@@ -84,7 +82,7 @@ func (h *CharactersHandler) RegisterRoutes(r chi.Router, authMiddleware func(htt
 // @Accept json
 // @Produce json
 // @Param type query string false "Alphabet type: hr (hiragana) or kt (katakana), default: hr"
-// @Param locale query string false "Locale: en (English) or ru (Russian), default: en"
+// @Param locale query string false "Locale: en (English), ru (Russian), or de (German - treated as English), default: en"
 // @Success 200 {array} models.CharacterResponse "List of characters"
 // @Failure 500 {object} map[string]string "Internal server error - failed to retrieve characters"
 // @Router /api/v1/characters [get]
@@ -116,7 +114,7 @@ func (h *CharactersHandler) GetAll(w http.ResponseWriter, r *http.Request) {
 // @Accept json
 // @Produce json
 // @Param type query string false "Alphabet type: hr (hiragana) or kt (katakana), default: hr"
-// @Param locale query string false "Locale: en (English) or ru (Russian), default: en"
+// @Param locale query string false "Locale: en (English), ru (Russian), or de (German - treated as English), default: en"
 // @Param character query string true "Consonant or vowel character"
 // @Success 200 {array} models.CharacterResponse "List of characters matching the filter"
 // @Failure 400 {object} map[string]string "Bad request - character parameter is required"
@@ -155,7 +153,7 @@ func (h *CharactersHandler) GetByRowColumn(w http.ResponseWriter, r *http.Reques
 // @Accept json
 // @Produce json
 // @Param id path int true "Character ID"
-// @Param locale query string false "Locale: en (English) or ru (Russian), default: en"
+// @Param locale query string false "Locale: en (English), ru (Russian), or de (German - treated as English), default: en"
 // @Success 200 {object} models.Character "Character details"
 // @Failure 400 {object} map[string]string "Bad request - id parameter is required or invalid id parameter"
 // @Failure 404 {object} map[string]string "Not found - character not found"
@@ -196,21 +194,23 @@ func (h *CharactersHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 
 // GetReadingTest handles GET /api/v1/tests/{type}/reading
 // @Summary Get reading test
-// @Description Get 20 random characters for reading test. Requires authentication.
+// @Description Get random characters for reading test. Requires authentication.
 // @Tags tests
 // @Accept json
 // @Produce json
 // @Security ApiKeyAuth
 // @Param type path string true "Alphabet type: hiragana or katakana"
-// @Param locale query string false "Locale: en (English) or ru (Russian), default: en"
-// @Success 200 {array} models.ReadingTestItem "List of 20 random characters for reading test"
-// @Failure 400 {object} map[string]string "Bad request - type parameter is required or invalid alphabet type/locale"
+// @Param locale query string false "Locale: en (English), ru (Russian), or de (German - treated as English), default: en"
+// @Param count query int false "Number of characters to return, default: 10"
+// @Success 200 {array} models.ReadingTestItem "List of random characters for reading test"
+// @Failure 400 {object} map[string]string "Bad request - type parameter is required or invalid alphabet type/locale/count"
 // @Failure 401 {object} map[string]string "Unauthorized - authentication required or invalid/expired token"
 // @Failure 500 {object} map[string]string "Internal server error - failed to retrieve test characters"
 // @Router /api/v1/tests/{type}/reading [get]
 func (h *CharactersHandler) GetReadingTest(w http.ResponseWriter, r *http.Request) {
 	typeParam := chi.URLParam(r, "type")
 	localeParam := r.URL.Query().Get("locale")
+	countStr := r.URL.Query().Get("count")
 
 	if typeParam == "" {
 		h.RespondError(w, http.StatusBadRequest, "type parameter is required")
@@ -220,7 +220,18 @@ func (h *CharactersHandler) GetReadingTest(w http.ResponseWriter, r *http.Reques
 		localeParam = "en"
 	}
 
-	items, err := h.service.GetReadingTest(r.Context(), typeParam, localeParam)
+	// Parse count parameter
+	count := 10 // default
+	if countStr != "" {
+		parsed, err := strconv.Atoi(countStr)
+		if err != nil || parsed <= 0 {
+			h.RespondError(w, http.StatusBadRequest, "invalid count parameter")
+			return
+		}
+		count = parsed
+	}
+
+	items, err := h.service.GetReadingTest(r.Context(), typeParam, localeParam, count)
 	if err != nil {
 		h.Logger.Error("failed to get reading test", zap.Error(err))
 		h.RespondError(w, http.StatusBadRequest, err.Error())
@@ -232,21 +243,23 @@ func (h *CharactersHandler) GetReadingTest(w http.ResponseWriter, r *http.Reques
 
 // GetWritingTest handles GET /api/v1/tests/{type}/writing
 // @Summary Get writing test
-// @Description Get 20 random characters for writing test with multiple choice options. Requires authentication.
+// @Description Get random characters for writing test with multiple choice options. Requires authentication.
 // @Tags tests
 // @Accept json
 // @Produce json
 // @Security ApiKeyAuth
 // @Param type path string true "Alphabet type: hiragana or katakana"
-// @Param locale query string false "Locale: en (English) or ru (Russian), default: en"
-// @Success 200 {array} models.WritingTestItem "List of 20 random characters for writing test with multiple choice options"
-// @Failure 400 {object} map[string]string "Bad request - type parameter is required or invalid alphabet type/locale"
+// @Param locale query string false "Locale: en (English), ru (Russian), or de (German - treated as English), default: en"
+// @Param count query int false "Number of characters to return, default: 10"
+// @Success 200 {array} models.WritingTestItem "List of random characters for writing test with multiple choice options"
+// @Failure 400 {object} map[string]string "Bad request - type parameter is required or invalid alphabet type/locale/count"
 // @Failure 401 {object} map[string]string "Unauthorized - authentication required or invalid/expired token"
 // @Failure 500 {object} map[string]string "Internal server error - failed to retrieve test characters"
 // @Router /api/v1/tests/{type}/writing [get]
 func (h *CharactersHandler) GetWritingTest(w http.ResponseWriter, r *http.Request) {
 	typeParam := chi.URLParam(r, "type")
 	localeParam := r.URL.Query().Get("locale")
+	countStr := r.URL.Query().Get("count")
 
 	if typeParam == "" {
 		h.RespondError(w, http.StatusBadRequest, "type parameter is required")
@@ -256,7 +269,18 @@ func (h *CharactersHandler) GetWritingTest(w http.ResponseWriter, r *http.Reques
 		localeParam = "en"
 	}
 
-	items, err := h.service.GetWritingTest(r.Context(), typeParam, localeParam)
+	// Parse count parameter
+	count := 10 // default
+	if countStr != "" {
+		parsed, err := strconv.Atoi(countStr)
+		if err != nil || parsed <= 0 {
+			h.RespondError(w, http.StatusBadRequest, "invalid count parameter")
+			return
+		}
+		count = parsed
+	}
+
+	items, err := h.service.GetWritingTest(r.Context(), typeParam, localeParam, count)
 	if err != nil {
 		h.Logger.Error("failed to get writing test", zap.Error(err))
 		h.RespondError(w, http.StatusBadRequest, err.Error())

@@ -95,6 +95,12 @@ func main() {
 	testResultService := services.NewTestResultService(historyRepo, logger.Logger)
 	testResultHandler := handlers.NewTestResultHandler(testResultService, logger.Logger)
 
+	// Initialize dictionary layers
+	wordRepo := repositories.NewWordRepository(db, logger.Logger)
+	dictionaryHistoryRepo := repositories.NewDictionaryHistoryRepository(db, logger.Logger)
+	dictionaryService := services.NewDictionaryService(wordRepo, dictionaryHistoryRepo, logger.Logger)
+	dictionaryHandler := handlers.NewDictionaryHandler(dictionaryService, logger.Logger)
+
 	// Setup router
 	r := chi.NewRouter()
 
@@ -119,6 +125,9 @@ func main() {
 
 		// Register test result routes with auth middleware
 		testResultHandler.RegisterRoutes(r, authMw)
+
+		// Register dictionary routes with auth middleware
+		dictionaryHandler.RegisterRoutes(r, authMw)
 	})
 
 	// Start server

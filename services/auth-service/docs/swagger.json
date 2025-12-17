@@ -180,6 +180,113 @@
                     }
                 }
             }
+        },
+        "/settings": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Get user settings for the authenticated user. Requires authentication.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "settings"
+                ],
+                "summary": "Get user settings",
+                "responses": {
+                    "200": {
+                        "description": "User settings",
+                        "schema": {
+                            "$ref": "#/definitions/models.UserSettingsResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized - authentication required",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Update user settings for the authenticated user. Requires authentication.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "settings"
+                ],
+                "summary": "Update user settings",
+                "parameters": [
+                    {
+                        "description": "User settings to update",
+                        "name": "settings",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.UpdateUserSettingsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad request - invalid request body or validation error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized - authentication required",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
@@ -213,6 +320,53 @@
                 },
                 "username": {
                     "type": "string"
+                }
+            }
+        },
+        "models.Language": {
+            "type": "string",
+            "enum": [
+                "en",
+                "ru",
+                "de"
+            ],
+            "x-enum-varnames": [
+                "LanguageEnglish",
+                "LanguageRussian",
+                "LanguageGerman"
+            ]
+        },
+        "models.UpdateUserSettingsRequest": {
+            "type": "object",
+            "properties": {
+                "alphabetLearnCount": {
+                    "type": "integer"
+                },
+                "language": {
+                    "$ref": "#/definitions/models.Language"
+                },
+                "newWordCount": {
+                    "type": "integer"
+                },
+                "oldWordCount": {
+                    "type": "integer"
+                }
+            }
+        },
+        "models.UserSettingsResponse": {
+            "type": "object",
+            "properties": {
+                "alphabetLearnCount": {
+                    "type": "integer"
+                },
+                "language": {
+                    "$ref": "#/definitions/models.Language"
+                },
+                "newWordCount": {
+                    "type": "integer"
+                },
+                "oldWordCount": {
+                    "type": "integer"
                 }
             }
         }

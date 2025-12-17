@@ -34,7 +34,13 @@ func seedTestData(t *testing.T, db *sql.DB) {
 	t.Helper()
 
 	// Clear existing data
-	_, err := db.Exec("DELETE FROM characters")
+	_, err := db.Exec("DELETE FROM dictionary_history")
+	require.NoError(t, err, "Failed to clear dictionary_history")
+	_, err = db.Exec("DELETE FROM words")
+	require.NoError(t, err, "Failed to clear words")
+	_, err = db.Exec("DELETE FROM character_learn_history")
+	require.NoError(t, err, "Failed to clear character_learn_history")
+	_, err = db.Exec("DELETE FROM characters")
 	require.NoError(t, err, "Failed to clear test data")
 
 	// Reset AUTO_INCREMENT to start from 1
@@ -99,8 +105,12 @@ func seedTestData(t *testing.T, db *sql.DB) {
 // cleanupTestData removes all test data
 func cleanupTestData(t *testing.T, db *sql.DB) {
 	t.Helper()
-	_, err := db.Exec("DELETE FROM character_learn_history")
+	_, err := db.Exec("DELETE FROM dictionary_history")
+	require.NoError(t, err, "Failed to cleanup dictionary_history")
+	_, err = db.Exec("DELETE FROM character_learn_history")
 	require.NoError(t, err, "Failed to cleanup character_learn_history")
+	_, err = db.Exec("DELETE FROM words")
+	require.NoError(t, err, "Failed to cleanup words")
 	_, err = db.Exec("DELETE FROM characters")
 	require.NoError(t, err, "Failed to cleanup characters")
 }
@@ -114,6 +124,11 @@ func setupTestRouter(db *sql.DB, logger *zap.Logger) chi.Router {
 	historyRepo := repositories.NewCharacterLearnHistoryRepository(db, logger)
 	testResultSvc := services.NewTestResultService(historyRepo, logger)
 	testResultHandler := handlers.NewTestResultHandler(testResultSvc, logger)
+
+	wordRepo := repositories.NewWordRepository(db, logger)
+	dictionaryHistoryRepo := repositories.NewDictionaryHistoryRepository(db, logger)
+	dictionarySvc := services.NewDictionaryService(wordRepo, dictionaryHistoryRepo, logger)
+	dictionaryHandler := handlers.NewDictionaryHandler(dictionarySvc, logger)
 
 	r := chi.NewRouter()
 	r.Route("/api/v1", func(r chi.Router) {
@@ -134,6 +149,13 @@ func setupTestRouter(db *sql.DB, logger *zap.Logger) chi.Router {
 			// Test result routes
 			r.Post("/{type}/{testType}", testResultHandler.SubmitTestResult)
 			r.Get("/history", testResultHandler.GetUserHistory)
+		})
+
+		// Register dictionary routes
+		r.Route("/words", func(r chi.Router) {
+			r.Use(authMiddleware)
+			r.Get("/", dictionaryHandler.GetWordList)
+			r.Post("/results", dictionaryHandler.SubmitWordResults)
 		})
 	})
 
@@ -222,8 +244,42 @@ func setupTestSchemaForMain(db *sql.DB) {
 		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 	`
 
+	wordsTable := `
+		CREATE TABLE IF NOT EXISTS words (
+			id INT PRIMARY KEY AUTO_INCREMENT,
+			word VARCHAR(255) NOT NULL,
+			phonetic_clues VARCHAR(255) NOT NULL,
+			russian_translation VARCHAR(255) NOT NULL,
+			english_translation VARCHAR(255) NOT NULL,
+			german_translation VARCHAR(255) NOT NULL,
+			example TEXT NOT NULL,
+			example_russian_translation TEXT NOT NULL,
+			example_english_translation TEXT NOT NULL,
+			example_german_translation TEXT NOT NULL,
+			easy_period INT NOT NULL DEFAULT 1,
+			normal_period INT NOT NULL DEFAULT 3,
+			hard_period INT NOT NULL DEFAULT 7,
+			extra_hard_period INT NOT NULL DEFAULT 14
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+	`
+
+	dictionaryHistoryTable := `
+		CREATE TABLE IF NOT EXISTS dictionary_history (
+			id INT PRIMARY KEY AUTO_INCREMENT,
+			user_id INT NOT NULL,
+			word_id INT NOT NULL,
+			next_appearance DATE NOT NULL,
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+			UNIQUE KEY unique_user_word (user_id, word_id),
+			FOREIGN KEY (word_id) REFERENCES words(id) ON DELETE CASCADE
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+	`
+
 	db.Exec(charactersTable)
 	db.Exec(historyTable)
+	db.Exec(wordsTable)
+	db.Exec(dictionaryHistoryTable)
 }
 
 func TestIntegration_GetAllCharacters(t *testing.T) {
@@ -741,13 +797,13 @@ func TestIntegration_ServiceLayer(t *testing.T) {
 	})
 
 	t.Run("GetReadingTest", func(t *testing.T) {
-		result, err := svc.GetReadingTest(ctx, "hiragana", "en")
+		result, err := svc.GetReadingTest(ctx, "hiragana", "en", 10)
 		require.NoError(t, err)
 		assert.Len(t, result, 10)
 	})
 
 	t.Run("GetWritingTest", func(t *testing.T) {
-		result, err := svc.GetWritingTest(ctx, "katakana", "ru")
+		result, err := svc.GetWritingTest(ctx, "katakana", "ru", 10)
 		require.NoError(t, err)
 		assert.Len(t, result, 10)
 	})
@@ -1087,4 +1143,324 @@ func BenchmarkIntegration_GetAll(b *testing.B) {
 		w := httptest.NewRecorder()
 		testRouter.ServeHTTP(w, req)
 	}
+}
+
+func TestIntegration_Dictionary(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration tests in short mode")
+	}
+
+	cleanupTestData(t, testDB)
+	seedTestData(t, testDB)
+	defer cleanupTestData(t, testDB)
+
+	// Seed words
+	_, err := testDB.Exec(`
+		INSERT INTO words (word, phonetic_clues, russian_translation, english_translation, german_translation, 
+		                   example, example_russian_translation, example_english_translation, example_german_translation,
+		                   easy_period, normal_period, hard_period, extra_hard_period) VALUES
+		('水', 'みず', 'вода', 'water', 'Wasser', '水を飲む', 'пить воду', 'drink water', 'Wasser trinken', 1, 3, 7, 14),
+		('火', 'ひ', 'огонь', 'fire', 'Feuer', '火をつける', 'зажечь огонь', 'light a fire', 'Feuer anzünden', 1, 3, 7, 14),
+		('風', 'かぜ', 'ветер', 'wind', 'Wind', '風が吹く', 'дует ветер', 'wind blows', 'Wind weht', 1, 3, 7, 14),
+		('木', 'き', 'дерево', 'tree', 'Baum', '木を植える', 'посадить дерево', 'plant a tree', 'Baum pflanzen', 1, 3, 7, 14),
+		('土', 'つち', 'земля', 'earth', 'Erde', '土を耕す', 'обрабатывать землю', 'till the earth', 'Erde bestellen', 1, 3, 7, 14)
+	`)
+	require.NoError(t, err, "Failed to seed words")
+
+	tests := []struct {
+		name           string
+		userID         int
+		method         string
+		url            string
+		requestBody    map[string]any
+		expectedStatus int
+		validateFunc   func(*testing.T, *httptest.ResponseRecorder)
+	}{
+		{
+			name:           "success get word list with defaults",
+			userID:         1,
+			method:         http.MethodGet,
+			url:            "/api/v1/words",
+			requestBody:    nil,
+			expectedStatus: http.StatusOK,
+			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
+				var response []models.WordResponse
+				err := json.NewDecoder(w.Body).Decode(&response)
+				require.NoError(t, err)
+				assert.Greater(t, len(response), 0)
+			},
+		},
+		{
+			name:           "success get word list with parameters",
+			userID:         1,
+			method:         http.MethodGet,
+			url:            "/api/v1/words?newCount=10&oldCount=10&locale=en",
+			requestBody:    nil,
+			expectedStatus: http.StatusOK,
+			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
+				var response []models.WordResponse
+				err := json.NewDecoder(w.Body).Decode(&response)
+				require.NoError(t, err)
+				assert.LessOrEqual(t, len(response), 20) // newCount + oldCount
+			},
+		},
+		{
+			name:           "success get word list with russian locale",
+			userID:         1,
+			method:         http.MethodGet,
+			url:            "/api/v1/words?newCount=10&oldCount=10&locale=ru",
+			requestBody:    nil,
+			expectedStatus: http.StatusOK,
+			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
+				var response []models.WordResponse
+				err := json.NewDecoder(w.Body).Decode(&response)
+				require.NoError(t, err)
+				if len(response) > 0 {
+					// Verify translation is in Russian
+					assert.NotEmpty(t, response[0].Translation)
+				}
+			},
+		},
+		{
+			name:           "invalid newCount - too low",
+			userID:         1,
+			method:         http.MethodGet,
+			url:            "/api/v1/words?newCount=5&oldCount=20&locale=en",
+			requestBody:    nil,
+			expectedStatus: http.StatusBadRequest,
+			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
+				var response map[string]string
+				err := json.NewDecoder(w.Body).Decode(&response)
+				require.NoError(t, err)
+				assert.Contains(t, response["error"], "newWordCount must be between 10 and 40")
+			},
+		},
+		{
+			name:           "invalid locale",
+			userID:         1,
+			method:         http.MethodGet,
+			url:            "/api/v1/words?newCount=20&oldCount=20&locale=fr",
+			requestBody:    nil,
+			expectedStatus: http.StatusBadRequest,
+			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
+				var response map[string]string
+				err := json.NewDecoder(w.Body).Decode(&response)
+				require.NoError(t, err)
+				assert.Contains(t, response["error"], "invalid locale")
+			},
+		},
+		{
+			name:   "success submit word results",
+			userID: 1,
+			method: http.MethodPost,
+			url:    "/api/v1/words/results",
+			requestBody: map[string]any{
+				"results": []map[string]any{
+					{"wordId": 1, "period": 3},
+					{"wordId": 2, "period": 7},
+				},
+			},
+			expectedStatus: http.StatusNoContent,
+			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
+				// Verify database records were created
+				var count int
+				err := testDB.QueryRow("SELECT COUNT(*) FROM dictionary_history WHERE user_id = ?", 1).Scan(&count)
+				require.NoError(t, err)
+				assert.Equal(t, 2, count)
+			},
+		},
+		{
+			name:   "invalid period - too low",
+			userID: 1,
+			method: http.MethodPost,
+			url:    "/api/v1/words/results",
+			requestBody: map[string]any{
+				"results": []map[string]any{
+					{"wordId": 1, "period": 0},
+				},
+			},
+			expectedStatus: http.StatusBadRequest,
+			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
+				var response map[string]string
+				err := json.NewDecoder(w.Body).Decode(&response)
+				require.NoError(t, err)
+				assert.Contains(t, response["error"], "period must be between 1 and 30")
+			},
+		},
+		{
+			name:   "invalid word ID - does not exist",
+			userID: 1,
+			method: http.MethodPost,
+			url:    "/api/v1/words/results",
+			requestBody: map[string]any{
+				"results": []map[string]any{
+					{"wordId": 999, "period": 3},
+				},
+			},
+			expectedStatus: http.StatusBadRequest,
+			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
+				var response map[string]string
+				err := json.NewDecoder(w.Body).Decode(&response)
+				require.NoError(t, err)
+				assert.Contains(t, response["error"], "word IDs do not exist")
+			},
+		},
+		{
+			name:   "empty results array",
+			userID: 1,
+			method: http.MethodPost,
+			url:    "/api/v1/words/results",
+			requestBody: map[string]any{
+				"results": []map[string]any{},
+			},
+			expectedStatus: http.StatusBadRequest,
+			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
+				var response map[string]string
+				err := json.NewDecoder(w.Body).Decode(&response)
+				require.NoError(t, err)
+				assert.Contains(t, response["error"], "results array cannot be empty")
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var req *http.Request
+			if tt.requestBody != nil {
+				body, _ := json.Marshal(tt.requestBody)
+				req = httptest.NewRequest(tt.method, tt.url, bytes.NewBuffer(body))
+				req.Header.Set("Content-Type", "application/json")
+			} else {
+				req = httptest.NewRequest(tt.method, tt.url, nil)
+			}
+			// Set userID in context for auth middleware
+			req = req.WithContext(context.WithValue(req.Context(), "userID", tt.userID))
+			w := httptest.NewRecorder()
+
+			testRouter.ServeHTTP(w, req)
+
+			assert.Equal(t, tt.expectedStatus, w.Code)
+			if tt.validateFunc != nil {
+				tt.validateFunc(t, w)
+			}
+		})
+	}
+}
+
+func TestIntegration_DictionaryRepositoryLayer(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration tests in short mode")
+	}
+
+	cleanupTestData(t, testDB)
+	seedTestData(t, testDB)
+	defer cleanupTestData(t, testDB)
+
+	// Seed words
+	_, err := testDB.Exec(`
+		INSERT INTO words (word, phonetic_clues, russian_translation, english_translation, german_translation, 
+		                   example, example_russian_translation, example_english_translation, example_german_translation,
+		                   easy_period, normal_period, hard_period, extra_hard_period) VALUES
+		('水', 'みず', 'вода', 'water', 'Wasser', '水を飲む', 'пить воду', 'drink water', 'Wasser trinken', 1, 3, 7, 14),
+		('火', 'ひ', 'огонь', 'fire', 'Feuer', '火をつける', 'зажечь огонь', 'light a fire', 'Feuer anzünden', 1, 3, 7, 14)
+	`)
+	require.NoError(t, err)
+
+	logger, _ := zap.NewDevelopment()
+	wordRepo := repositories.NewWordRepository(testDB, logger)
+	historyRepo := repositories.NewDictionaryHistoryRepository(testDB, logger)
+	ctx := context.Background()
+
+	t.Run("WordRepository GetByIDs", func(t *testing.T) {
+		words, err := wordRepo.GetByIDs(ctx, []int{1, 2}, "english_translation", "example_english_translation")
+		require.NoError(t, err)
+		assert.Len(t, words, 2)
+	})
+
+	t.Run("WordRepository GetExcludingIDs", func(t *testing.T) {
+		words, err := wordRepo.GetExcludingIDs(ctx, []int{1}, 1, "english_translation", "example_english_translation")
+		require.NoError(t, err)
+		assert.LessOrEqual(t, len(words), 1)
+	})
+
+	t.Run("WordRepository ValidateWordIDs", func(t *testing.T) {
+		valid, err := wordRepo.ValidateWordIDs(ctx, []int{1, 2})
+		require.NoError(t, err)
+		assert.True(t, valid)
+
+		valid, err = wordRepo.ValidateWordIDs(ctx, []int{999})
+		require.NoError(t, err)
+		assert.False(t, valid)
+	})
+
+	t.Run("DictionaryHistoryRepository GetOldWordIds", func(t *testing.T) {
+		// Insert history
+		_, err := testDB.Exec(`
+			INSERT INTO dictionary_history (user_id, word_id, next_appearance) VALUES
+			(1, 1, CURDATE()),
+			(1, 2, DATE_ADD(CURDATE(), INTERVAL 1 DAY))
+		`)
+		require.NoError(t, err)
+
+		wordIds, err := historyRepo.GetOldWordIds(ctx, 1, 10)
+		require.NoError(t, err)
+		assert.GreaterOrEqual(t, len(wordIds), 1)
+	})
+
+	t.Run("DictionaryHistoryRepository UpsertResults", func(t *testing.T) {
+		results := []models.WordResult{
+			{WordID: 1, Period: 3},
+			{WordID: 2, Period: 7},
+		}
+		err := historyRepo.UpsertResults(ctx, 2, results)
+		require.NoError(t, err)
+
+		// Verify records were created
+		var count int
+		err = testDB.QueryRow("SELECT COUNT(*) FROM dictionary_history WHERE user_id = ?", 2).Scan(&count)
+		require.NoError(t, err)
+		assert.Equal(t, 2, count)
+	})
+}
+
+func TestIntegration_DictionaryServiceLayer(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration tests in short mode")
+	}
+
+	cleanupTestData(t, testDB)
+	seedTestData(t, testDB)
+	defer cleanupTestData(t, testDB)
+
+	// Seed words
+	_, err := testDB.Exec(`
+		INSERT INTO words (word, phonetic_clues, russian_translation, english_translation, german_translation, 
+		                   example, example_russian_translation, example_english_translation, example_german_translation,
+		                   easy_period, normal_period, hard_period, extra_hard_period) VALUES
+		('水', 'みず', 'вода', 'water', 'Wasser', '水を飲む', 'пить воду', 'drink water', 'Wasser trinken', 1, 3, 7, 14),
+		('火', 'ひ', 'огонь', 'fire', 'Feuer', '火をつける', 'зажечь огонь', 'light a fire', 'Feuer anzünden', 1, 3, 7, 14),
+		('風', 'かぜ', 'ветер', 'wind', 'Wind', '風が吹く', 'дует ветер', 'wind blows', 'Wind weht', 1, 3, 7, 14)
+	`)
+	require.NoError(t, err)
+
+	logger, _ := zap.NewDevelopment()
+	wordRepo := repositories.NewWordRepository(testDB, logger)
+	historyRepo := repositories.NewDictionaryHistoryRepository(testDB, logger)
+	dictionarySvc := services.NewDictionaryService(wordRepo, historyRepo, logger)
+	ctx := context.Background()
+
+	t.Run("GetWordList", func(t *testing.T) {
+		words, err := dictionarySvc.GetWordList(ctx, 1, 10, 10, "en")
+		require.NoError(t, err)
+		assert.LessOrEqual(t, len(words), 20)
+	})
+
+	t.Run("SubmitWordResults", func(t *testing.T) {
+		results := []models.WordResult{
+			{WordID: 1, Period: 3},
+			{WordID: 2, Period: 7},
+		}
+		err := dictionarySvc.SubmitWordResults(ctx, 1, results)
+		require.NoError(t, err)
+	})
 }

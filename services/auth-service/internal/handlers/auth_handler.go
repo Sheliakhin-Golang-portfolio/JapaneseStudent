@@ -17,17 +17,20 @@ type AuthService interface {
 	//
 	// "email" and "username" parameters are used to identify the user.
 	// "password" parameter is used to authenticate the user.
+	//
 	// If user passed invalid credentials, or such user already exists, or some other error occurs, the error will be returned together with empty strings for access and refresh tokens.
 	Register(ctx context.Context, email, username, password string) (string, string, error)
 	// Method Login performs a user credentials validation and returns a user.
 	//
 	// "login" parameter is used to identify the user by email or username.
 	// "password" parameter is used to authenticate the user.
+	//
 	// If user passed invalid credentials, or such user does not exist, or some other error occurs, the error will be returned together with empty strings for access and refresh tokens.
 	Login(ctx context.Context, login, password string) (string, string, error)
 	// Method Refresh performs a refresh token validation and returns a new access token and refresh token.
 	//
 	// "refreshToken" parameter is used to identify the user.
+	//
 	// If refresh token is invalid or expired, or some other error occurs, the error will be returned together with empty strings for new access and refresh tokens.
 	Refresh(ctx context.Context, refreshToken string) (string, string, error)
 }
@@ -35,8 +38,7 @@ type AuthService interface {
 // AuthHandler handles authentication-related HTTP requests
 type AuthHandler struct {
 	handlers.BaseHandler
-	authService  AuthService
-	cookieDomain string
+	authService AuthService
 }
 
 // NewAuthHandler creates a new auth handler

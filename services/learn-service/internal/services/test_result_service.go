@@ -13,10 +13,9 @@ import (
 type CharacterLearnHistoryRepository interface {
 	// Method GetByUserIDAndCharacterIDs retrieves learn history records for a user and set of character IDs.
 	//
-	// "userID" parameter is used to identify the user.
 	// "characterIDs" parameter is used to identify the characters.
-	// If no records are found, an empty slice will be returned.
-	// If some error occurs during data retrieval, the error will be returned.
+	//
+	// Please reference GetByUserID method for more information about other parameters and error values.
 	GetByUserIDAndCharacterIDs(ctx context.Context, userID int, characterIDs []int) ([]models.CharacterLearnHistory, error)
 	// Method GetByUserID retrieves all learn history records for a user.
 	//
@@ -50,6 +49,7 @@ func NewTestResultService(historyRepo CharacterLearnHistoryRepository, logger *z
 // For successful results alphabetType must be either "hiragana" or "katakana".
 // testType must be either "reading", "writing", or "listening".
 // results must be a non-empty array of TestResultItem.
+//
 // If any of the parameters are invalid, or some error occurs during data processing, the error will be returned.
 func (s *testResultService) SubmitTestResults(ctx context.Context, userID int, alphabetType, testType string, results []models.TestResultItem) error {
 	// Validate alphabet type

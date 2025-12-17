@@ -21,6 +21,38 @@ definitions:
       username:
         type: string
     type: object
+  models.Language:
+    enum:
+    - en
+    - ru
+    - de
+    type: string
+    x-enum-varnames:
+    - LanguageEnglish
+    - LanguageRussian
+    - LanguageGerman
+  models.UpdateUserSettingsRequest:
+    properties:
+      alphabetLearnCount:
+        type: integer
+      language:
+        $ref: '#/definitions/models.Language'
+      newWordCount:
+        type: integer
+      oldWordCount:
+        type: integer
+    type: object
+  models.UserSettingsResponse:
+    properties:
+      alphabetLearnCount:
+        type: integer
+      language:
+        $ref: '#/definitions/models.Language'
+      newWordCount:
+        type: integer
+      oldWordCount:
+        type: integer
+    type: object
 host: localhost:8081
 info:
   contact:
@@ -144,6 +176,74 @@ paths:
       summary: Register a new user
       tags:
       - auth
+  /settings:
+    get:
+      consumes:
+      - application/json
+      description: Get user settings for the authenticated user. Requires authentication.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: User settings
+          schema:
+            $ref: '#/definitions/models.UserSettingsResponse'
+        "401":
+          description: Unauthorized - authentication required
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Get user settings
+      tags:
+      - settings
+    patch:
+      consumes:
+      - application/json
+      description: Update user settings for the authenticated user. Requires authentication.
+      parameters:
+      - description: User settings to update
+        in: body
+        name: settings
+        required: true
+        schema:
+          $ref: '#/definitions/models.UpdateUserSettingsRequest'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad request - invalid request body or validation error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized - authentication required
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Update user settings
+      tags:
+      - settings
 securityDefinitions:
   ApiKeyAuth:
     description: Type "Bearer" followed by a space and JWT token.
