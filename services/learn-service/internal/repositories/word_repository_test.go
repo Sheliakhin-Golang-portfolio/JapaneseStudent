@@ -43,18 +43,18 @@ func TestNewWordRepository(t *testing.T) {
 
 func TestWordRepository_GetByIDs(t *testing.T) {
 	tests := []struct {
-		name                  string
-		wordIds               []int
-		translationField      string
+		name                    string
+		wordIds                 []int
+		translationField        string
 		exampleTranslationField string
-		setupMock             func(sqlmock.Sqlmock)
-		expectedError         bool
-		expectedCount         int
+		setupMock               func(sqlmock.Sqlmock)
+		expectedError           bool
+		expectedCount           int
 	}{
 		{
-			name:                  "success with multiple IDs",
-			wordIds:               []int{1, 2, 3},
-			translationField:      "english_translation",
+			name:                    "success with multiple IDs",
+			wordIds:                 []int{1, 2, 3},
+			translationField:        "english_translation",
 			exampleTranslationField: "example_english_translation",
 			setupMock: func(mock sqlmock.Sqlmock) {
 				rows := sqlmock.NewRows([]string{
@@ -72,9 +72,9 @@ func TestWordRepository_GetByIDs(t *testing.T) {
 			expectedCount: 3,
 		},
 		{
-			name:                  "success with single ID",
-			wordIds:               []int{1},
-			translationField:      "russian_translation",
+			name:                    "success with single ID",
+			wordIds:                 []int{1},
+			translationField:        "russian_translation",
 			exampleTranslationField: "example_russian_translation",
 			setupMock: func(mock sqlmock.Sqlmock) {
 				rows := sqlmock.NewRows([]string{
@@ -90,18 +90,18 @@ func TestWordRepository_GetByIDs(t *testing.T) {
 			expectedCount: 1,
 		},
 		{
-			name:                  "empty wordIds slice",
-			wordIds:               []int{},
-			translationField:      "english_translation",
+			name:                    "empty wordIds slice",
+			wordIds:                 []int{},
+			translationField:        "english_translation",
 			exampleTranslationField: "example_english_translation",
-			setupMock:             func(mock sqlmock.Sqlmock) {},
-			expectedError:         false,
-			expectedCount:         0,
+			setupMock:               func(mock sqlmock.Sqlmock) {},
+			expectedError:           false,
+			expectedCount:           0,
 		},
 		{
-			name:                  "database query error",
-			wordIds:               []int{1, 2},
-			translationField:      "english_translation",
+			name:                    "database query error",
+			wordIds:                 []int{1, 2},
+			translationField:        "english_translation",
 			exampleTranslationField: "example_english_translation",
 			setupMock: func(mock sqlmock.Sqlmock) {
 				mock.ExpectQuery(`SELECT id, word, phonetic_clues, english_translation as translation, example, example_english_translation as example_translation, easy_period, normal_period, hard_period, extra_hard_period FROM words WHERE id IN \(\?,\?\)`).
@@ -109,12 +109,12 @@ func TestWordRepository_GetByIDs(t *testing.T) {
 					WillReturnError(errors.New("database error"))
 			},
 			expectedError: true,
-			expectedCount:  0,
+			expectedCount: 0,
 		},
 		{
-			name:                  "scan error",
-			wordIds:               []int{1},
-			translationField:      "english_translation",
+			name:                    "scan error",
+			wordIds:                 []int{1},
+			translationField:        "english_translation",
 			exampleTranslationField: "example_english_translation",
 			setupMock: func(mock sqlmock.Sqlmock) {
 				rows := sqlmock.NewRows([]string{
@@ -127,12 +127,12 @@ func TestWordRepository_GetByIDs(t *testing.T) {
 					WillReturnRows(rows)
 			},
 			expectedError: true,
-			expectedCount:  0,
+			expectedCount: 0,
 		},
 		{
-			name:                  "rows iteration error",
-			wordIds:               []int{1, 2},
-			translationField:      "english_translation",
+			name:                    "rows iteration error",
+			wordIds:                 []int{1, 2},
+			translationField:        "english_translation",
 			exampleTranslationField: "example_english_translation",
 			setupMock: func(mock sqlmock.Sqlmock) {
 				rows := sqlmock.NewRows([]string{
@@ -146,7 +146,7 @@ func TestWordRepository_GetByIDs(t *testing.T) {
 					WillReturnRows(rows)
 			},
 			expectedError: true,
-			expectedCount:  0,
+			expectedCount: 0,
 		},
 	}
 
@@ -175,20 +175,20 @@ func TestWordRepository_GetByIDs(t *testing.T) {
 
 func TestWordRepository_GetExcludingIDs(t *testing.T) {
 	tests := []struct {
-		name                  string
-		excludeIds            []int
-		limit                 int
-		translationField      string
+		name                    string
+		excludeIds              []int
+		limit                   int
+		translationField        string
 		exampleTranslationField string
-		setupMock             func(sqlmock.Sqlmock)
-		expectedError         bool
-		expectedCount         int
+		setupMock               func(sqlmock.Sqlmock)
+		expectedError           bool
+		expectedCount           int
 	}{
 		{
-			name:                  "success with exclusion list",
-			excludeIds:            []int{1, 2, 3},
-			limit:                 5,
-			translationField:      "english_translation",
+			name:                    "success with exclusion list",
+			excludeIds:              []int{1, 2, 3},
+			limit:                   5,
+			translationField:        "english_translation",
 			exampleTranslationField: "example_english_translation",
 			setupMock: func(mock sqlmock.Sqlmock) {
 				rows := sqlmock.NewRows([]string{
@@ -197,18 +197,18 @@ func TestWordRepository_GetExcludingIDs(t *testing.T) {
 				}).
 					AddRow(4, "木", "き", "tree", "木を植える", "plant a tree", 1, 3, 7, 14).
 					AddRow(5, "土", "つち", "earth", "土を耕す", "till the earth", 1, 3, 7, 14)
-				mock.ExpectQuery(`SELECT id, word, phonetic_clues, english_translation as translation, example, example_english_translation as example_translation, easy_period, normal_period, hard_period, extra_hard_period FROM words WHERE id NOT IN \(\?,\?,\?\) ORDER BY RAND\(\) LIMIT \?`).
-					WithArgs(1, 2, 3, 5).
+				mock.ExpectQuery(`SELECT id, word, phonetic_clues, english_translation as translation, example, example_english_translation as example_translation, easy_period, normal_period, hard_period, extra_hard_period FROM words WHERE id NOT IN \(\?,\?,\?\) ORDER BY \(EXISTS \(SELECT 1 FROM dictionary_history WHERE word_id = words\.id AND user_id = \?\)\), RAND\(\) LIMIT \?`).
+					WithArgs(1, 2, 3, 1, 5).
 					WillReturnRows(rows)
 			},
 			expectedError: false,
 			expectedCount: 2,
 		},
 		{
-			name:                  "success with empty exclusion list",
-			excludeIds:            []int{},
-			limit:                 3,
-			translationField:      "russian_translation",
+			name:                    "success with empty exclusion list",
+			excludeIds:              []int{},
+			limit:                   3,
+			translationField:        "russian_translation",
 			exampleTranslationField: "example_russian_translation",
 			setupMock: func(mock sqlmock.Sqlmock) {
 				rows := sqlmock.NewRows([]string{
@@ -218,32 +218,32 @@ func TestWordRepository_GetExcludingIDs(t *testing.T) {
 					AddRow(1, "水", "みず", "вода", "水を飲む", "пить воду", 1, 3, 7, 14).
 					AddRow(2, "火", "ひ", "огонь", "火をつける", "зажечь огонь", 1, 3, 7, 14).
 					AddRow(3, "風", "かぜ", "ветер", "風が吹く", "дует ветер", 1, 3, 7, 14)
-				mock.ExpectQuery(`SELECT id, word, phonetic_clues, russian_translation as translation, example, example_russian_translation as example_translation, easy_period, normal_period, hard_period, extra_hard_period FROM words ORDER BY RAND\(\) LIMIT \?`).
-					WithArgs(3).
+				mock.ExpectQuery(`SELECT id, word, phonetic_clues, russian_translation as translation, example, example_russian_translation as example_translation, easy_period, normal_period, hard_period, extra_hard_period FROM words ORDER BY \(EXISTS \(SELECT 1 FROM dictionary_history WHERE word_id = words\.id AND user_id = \?\)\), RAND\(\) LIMIT \?`).
+					WithArgs(1, 3).
 					WillReturnRows(rows)
 			},
 			expectedError: false,
 			expectedCount: 3,
 		},
 		{
-			name:                  "database query error",
-			excludeIds:            []int{1},
-			limit:                 5,
-			translationField:      "english_translation",
+			name:                    "database query error",
+			excludeIds:              []int{1},
+			limit:                   5,
+			translationField:        "english_translation",
 			exampleTranslationField: "example_english_translation",
 			setupMock: func(mock sqlmock.Sqlmock) {
-				mock.ExpectQuery(`SELECT id, word, phonetic_clues, english_translation as translation, example, example_english_translation as example_translation, easy_period, normal_period, hard_period, extra_hard_period FROM words WHERE id NOT IN \(\?\) ORDER BY RAND\(\) LIMIT \?`).
-					WithArgs(1, 5).
+				mock.ExpectQuery(`SELECT id, word, phonetic_clues, english_translation as translation, example, example_english_translation as example_translation, easy_period, normal_period, hard_period, extra_hard_period FROM words WHERE id NOT IN \(\?\) ORDER BY \(EXISTS \(SELECT 1 FROM dictionary_history WHERE word_id = words\.id AND user_id = \?\)\), RAND\(\) LIMIT \?`).
+					WithArgs(1, 1, 5).
 					WillReturnError(errors.New("database error"))
 			},
 			expectedError: true,
-			expectedCount:  0,
+			expectedCount: 0,
 		},
 		{
-			name:                  "scan error",
-			excludeIds:            []int{1},
-			limit:                 2,
-			translationField:      "english_translation",
+			name:                    "scan error",
+			excludeIds:              []int{1},
+			limit:                   2,
+			translationField:        "english_translation",
 			exampleTranslationField: "example_english_translation",
 			setupMock: func(mock sqlmock.Sqlmock) {
 				rows := sqlmock.NewRows([]string{
@@ -251,18 +251,18 @@ func TestWordRepository_GetExcludingIDs(t *testing.T) {
 					"example_translation", "easy_period", "normal_period", "hard_period", "extra_hard_period",
 				}).
 					AddRow("invalid", "水", "みず", "water", "水を飲む", "drink water", 1, 3, 7, 14)
-				mock.ExpectQuery(`SELECT id, word, phonetic_clues, english_translation as translation, example, example_english_translation as example_translation, easy_period, normal_period, hard_period, extra_hard_period FROM words WHERE id NOT IN \(\?\) ORDER BY RAND\(\) LIMIT \?`).
-					WithArgs(1, 2).
+				mock.ExpectQuery(`SELECT id, word, phonetic_clues, english_translation as translation, example, example_english_translation as example_translation, easy_period, normal_period, hard_period, extra_hard_period FROM words WHERE id NOT IN \(\?\) ORDER BY \(EXISTS \(SELECT 1 FROM dictionary_history WHERE word_id = words\.id AND user_id = \?\)\), RAND\(\) LIMIT \?`).
+					WithArgs(1, 1, 2).
 					WillReturnRows(rows)
 			},
 			expectedError: true,
-			expectedCount:  0,
+			expectedCount: 0,
 		},
 		{
-			name:                  "rows iteration error",
-			excludeIds:            []int{1},
-			limit:                 2,
-			translationField:      "english_translation",
+			name:                    "rows iteration error",
+			excludeIds:              []int{1},
+			limit:                   2,
+			translationField:        "english_translation",
 			exampleTranslationField: "example_english_translation",
 			setupMock: func(mock sqlmock.Sqlmock) {
 				rows := sqlmock.NewRows([]string{
@@ -271,12 +271,12 @@ func TestWordRepository_GetExcludingIDs(t *testing.T) {
 				}).
 					AddRow(2, "火", "ひ", "fire", "火をつける", "light a fire", 1, 3, 7, 14).
 					RowError(0, errors.New("row error"))
-				mock.ExpectQuery(`SELECT id, word, phonetic_clues, english_translation as translation, example, example_english_translation as example_translation, easy_period, normal_period, hard_period, extra_hard_period FROM words WHERE id NOT IN \(\?\) ORDER BY RAND\(\) LIMIT \?`).
-					WithArgs(1, 2).
+				mock.ExpectQuery(`SELECT id, word, phonetic_clues, english_translation as translation, example, example_english_translation as example_translation, easy_period, normal_period, hard_period, extra_hard_period FROM words WHERE id NOT IN \(\?\) ORDER BY \(EXISTS \(SELECT 1 FROM dictionary_history WHERE word_id = words\.id AND user_id = \?\)\), RAND\(\) LIMIT \?`).
+					WithArgs(1, 1, 2).
 					WillReturnRows(rows)
 			},
 			expectedError: true,
-			expectedCount:  0,
+			expectedCount: 0,
 		},
 	}
 
@@ -287,7 +287,7 @@ func TestWordRepository_GetExcludingIDs(t *testing.T) {
 
 			tt.setupMock(mock)
 
-			result, err := repo.GetExcludingIDs(context.Background(), tt.excludeIds, tt.limit, tt.translationField, tt.exampleTranslationField)
+			result, err := repo.GetExcludingIDs(context.Background(), 1, tt.excludeIds, tt.limit, tt.translationField, tt.exampleTranslationField)
 
 			if tt.expectedError {
 				assert.Error(t, err)
@@ -414,4 +414,3 @@ func TestWordRepository_ValidateWordIDs(t *testing.T) {
 		})
 	}
 }
-

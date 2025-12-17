@@ -12,9 +12,9 @@ import (
 
 // mockWordRepository is a mock implementation of WordRepository
 type mockWordRepository struct {
-	words      []models.WordResponse
-	valid      bool
-	err        error
+	words       []models.WordResponse
+	valid       bool
+	err         error
 	validateErr error
 }
 
@@ -25,7 +25,7 @@ func (m *mockWordRepository) GetByIDs(ctx context.Context, wordIds []int, transl
 	return m.words, nil
 }
 
-func (m *mockWordRepository) GetExcludingIDs(ctx context.Context, excludeIds []int, limit int, translationField, exampleTranslationField string) ([]models.WordResponse, error) {
+func (m *mockWordRepository) GetExcludingIDs(ctx context.Context, userId int, excludeIds []int, limit int, translationField, exampleTranslationField string) ([]models.WordResponse, error) {
 	if m.err != nil {
 		return nil, m.err
 	}
@@ -138,57 +138,57 @@ func TestDictionaryService_GetWordList(t *testing.T) {
 			expectedCount: 1,
 		},
 		{
-			name:     "invalid newCount - too low",
-			userId:   1,
-			newCount: 5,
-			oldCount: 20,
-			locale:   "en",
-			wordRepo: &mockWordRepository{},
-			historyRepo: &mockDictionaryHistoryRepository{},
+			name:          "invalid newCount - too low",
+			userId:        1,
+			newCount:      5,
+			oldCount:      20,
+			locale:        "en",
+			wordRepo:      &mockWordRepository{},
+			historyRepo:   &mockDictionaryHistoryRepository{},
 			expectedError: true,
 			errorContains: "newWordCount must be between 10 and 40",
 		},
 		{
-			name:     "invalid newCount - too high",
-			userId:   1,
-			newCount: 50,
-			oldCount: 20,
-			locale:   "en",
-			wordRepo: &mockWordRepository{},
-			historyRepo: &mockDictionaryHistoryRepository{},
+			name:          "invalid newCount - too high",
+			userId:        1,
+			newCount:      50,
+			oldCount:      20,
+			locale:        "en",
+			wordRepo:      &mockWordRepository{},
+			historyRepo:   &mockDictionaryHistoryRepository{},
 			expectedError: true,
 			errorContains: "newWordCount must be between 10 and 40",
 		},
 		{
-			name:     "invalid oldCount - too low",
-			userId:   1,
-			newCount: 20,
-			oldCount: 5,
-			locale:   "en",
-			wordRepo: &mockWordRepository{},
-			historyRepo: &mockDictionaryHistoryRepository{},
+			name:          "invalid oldCount - too low",
+			userId:        1,
+			newCount:      20,
+			oldCount:      5,
+			locale:        "en",
+			wordRepo:      &mockWordRepository{},
+			historyRepo:   &mockDictionaryHistoryRepository{},
 			expectedError: true,
 			errorContains: "oldWordCount must be between 10 and 40",
 		},
 		{
-			name:     "invalid oldCount - too high",
-			userId:   1,
-			newCount: 20,
-			oldCount: 50,
-			locale:   "en",
-			wordRepo: &mockWordRepository{},
-			historyRepo: &mockDictionaryHistoryRepository{},
+			name:          "invalid oldCount - too high",
+			userId:        1,
+			newCount:      20,
+			oldCount:      50,
+			locale:        "en",
+			wordRepo:      &mockWordRepository{},
+			historyRepo:   &mockDictionaryHistoryRepository{},
 			expectedError: true,
 			errorContains: "oldWordCount must be between 10 and 40",
 		},
 		{
-			name:     "invalid locale",
-			userId:   1,
-			newCount: 20,
-			oldCount: 20,
-			locale:   "fr",
-			wordRepo: &mockWordRepository{},
-			historyRepo: &mockDictionaryHistoryRepository{},
+			name:          "invalid locale",
+			userId:        1,
+			newCount:      20,
+			oldCount:      20,
+			locale:        "fr",
+			wordRepo:      &mockWordRepository{},
+			historyRepo:   &mockDictionaryHistoryRepository{},
 			expectedError: true,
 			errorContains: "invalid locale",
 		},
@@ -344,7 +344,7 @@ func TestDictionaryService_SubmitWordResults(t *testing.T) {
 			wordRepo: &mockWordRepository{
 				valid: true,
 			},
-			historyRepo: &mockDictionaryHistoryRepository{},
+			historyRepo:   &mockDictionaryHistoryRepository{},
 			expectedError: false,
 		},
 		{
@@ -362,8 +362,8 @@ func TestDictionaryService_SubmitWordResults(t *testing.T) {
 			results: []models.WordResult{
 				{WordID: 1, Period: 0},
 			},
-			wordRepo:    &mockWordRepository{},
-			historyRepo: &mockDictionaryHistoryRepository{},
+			wordRepo:      &mockWordRepository{},
+			historyRepo:   &mockDictionaryHistoryRepository{},
 			expectedError: true,
 			errorContains: "period must be between 1 and 30",
 		},
@@ -373,8 +373,8 @@ func TestDictionaryService_SubmitWordResults(t *testing.T) {
 			results: []models.WordResult{
 				{WordID: 1, Period: 31},
 			},
-			wordRepo:    &mockWordRepository{},
-			historyRepo: &mockDictionaryHistoryRepository{},
+			wordRepo:      &mockWordRepository{},
+			historyRepo:   &mockDictionaryHistoryRepository{},
 			expectedError: true,
 			errorContains: "period must be between 1 and 30",
 		},
@@ -387,7 +387,7 @@ func TestDictionaryService_SubmitWordResults(t *testing.T) {
 			wordRepo: &mockWordRepository{
 				valid: true,
 			},
-			historyRepo: &mockDictionaryHistoryRepository{},
+			historyRepo:   &mockDictionaryHistoryRepository{},
 			expectedError: false,
 		},
 		{
@@ -399,7 +399,7 @@ func TestDictionaryService_SubmitWordResults(t *testing.T) {
 			wordRepo: &mockWordRepository{
 				valid: true,
 			},
-			historyRepo: &mockDictionaryHistoryRepository{},
+			historyRepo:   &mockDictionaryHistoryRepository{},
 			expectedError: false,
 		},
 		{
@@ -411,7 +411,7 @@ func TestDictionaryService_SubmitWordResults(t *testing.T) {
 			wordRepo: &mockWordRepository{
 				validateErr: errors.New("database error"),
 			},
-			historyRepo: &mockDictionaryHistoryRepository{},
+			historyRepo:   &mockDictionaryHistoryRepository{},
 			expectedError: true,
 			errorContains: "failed to validate word IDs",
 		},
@@ -425,7 +425,7 @@ func TestDictionaryService_SubmitWordResults(t *testing.T) {
 			wordRepo: &mockWordRepository{
 				valid: false,
 			},
-			historyRepo: &mockDictionaryHistoryRepository{},
+			historyRepo:   &mockDictionaryHistoryRepository{},
 			expectedError: true,
 			errorContains: "one or more word IDs do not exist",
 		},
@@ -456,7 +456,7 @@ func TestDictionaryService_SubmitWordResults(t *testing.T) {
 			wordRepo: &mockWordRepository{
 				valid: true,
 			},
-			historyRepo: &mockDictionaryHistoryRepository{},
+			historyRepo:   &mockDictionaryHistoryRepository{},
 			expectedError: false,
 		},
 		{
@@ -466,8 +466,8 @@ func TestDictionaryService_SubmitWordResults(t *testing.T) {
 				{WordID: 1, Period: 3},
 				{WordID: 2, Period: 0}, // Invalid
 			},
-			wordRepo:    &mockWordRepository{},
-			historyRepo: &mockDictionaryHistoryRepository{},
+			wordRepo:      &mockWordRepository{},
+			historyRepo:   &mockDictionaryHistoryRepository{},
 			expectedError: true,
 			errorContains: "period must be between 1 and 30",
 		},
@@ -490,4 +490,3 @@ func TestDictionaryService_SubmitWordResults(t *testing.T) {
 		})
 	}
 }
-

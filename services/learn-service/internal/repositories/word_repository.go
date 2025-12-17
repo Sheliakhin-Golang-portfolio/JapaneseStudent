@@ -83,7 +83,7 @@ func (r *wordRepository) GetByIDs(ctx context.Context, wordIds []int, translatio
 }
 
 // GetExcludingIDs retrieves words not in the provided ID list
-func (r *wordRepository) GetExcludingIDs(ctx context.Context, excludeIds []int, limit int, translationField, exampleTranslationField string) ([]models.WordResponse, error) {
+func (r *wordRepository) GetExcludingIDs(ctx context.Context, userId int, excludeIds []int, limit int, translationField, exampleTranslationField string) ([]models.WordResponse, error) {
 	var query string
 	var args []any
 
@@ -93,26 +93,27 @@ func (r *wordRepository) GetExcludingIDs(ctx context.Context, excludeIds []int, 
 			SELECT id, word, phonetic_clues, %s as translation, example, %s as example_translation,
 			       easy_period, normal_period, hard_period, extra_hard_period
 			FROM words
-			ORDER BY RAND()
+			ORDER BY (EXISTS (SELECT 1 FROM dictionary_history WHERE word_id = words.id AND user_id = ?)), RAND()
 			LIMIT ?
 		`, translationField, exampleTranslationField)
-		args = []any{limit}
+		args = []any{userId, limit}
 	} else {
 		// Build query with placeholders for exclusion
 		placeholders := make([]string, len(excludeIds))
-		args = make([]any, len(excludeIds)+1)
+		args = make([]any, len(excludeIds)+2)
 		for i, id := range excludeIds {
 			placeholders[i] = "?"
 			args[i] = id
 		}
-		args[len(excludeIds)] = limit
+		args[len(excludeIds)] = userId
+		args[len(excludeIds)+1] = limit
 
 		query = fmt.Sprintf(`
 			SELECT id, word, phonetic_clues, %s as translation, example, %s as example_translation,
 			       easy_period, normal_period, hard_period, extra_hard_period
 			FROM words
 			WHERE id NOT IN (%s)
-			ORDER BY RAND()
+			ORDER BY (EXISTS (SELECT 1 FROM dictionary_history WHERE word_id = words.id AND user_id = ?)), RAND()
 			LIMIT ?
 		`, translationField, exampleTranslationField, strings.Join(placeholders, ","))
 	}

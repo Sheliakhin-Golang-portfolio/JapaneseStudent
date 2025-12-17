@@ -1378,7 +1378,7 @@ func TestIntegration_DictionaryRepositoryLayer(t *testing.T) {
 	})
 
 	t.Run("WordRepository GetExcludingIDs", func(t *testing.T) {
-		words, err := wordRepo.GetExcludingIDs(ctx, []int{1}, 1, "english_translation", "example_english_translation")
+		words, err := wordRepo.GetExcludingIDs(ctx, 1, []int{1}, 1, "english_translation", "example_english_translation")
 		require.NoError(t, err)
 		assert.LessOrEqual(t, len(words), 1)
 	})

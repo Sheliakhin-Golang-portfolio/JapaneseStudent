@@ -20,12 +20,13 @@ type WordRepository interface {
 	GetByIDs(ctx context.Context, wordIds []int, translationField, exampleTranslationField string) ([]models.WordResponse, error)
 	// GetExcludingIDs retrieves words not in the provided ID list
 	//
+	// "userId" parameter is used to identify the user.
 	// "excludeIds" parameter is used to filter words not in the provided ID list.
 	// "limit" parameter is used to specify the number of words to return.
 	// "translationField" parameter is used to specify the field to use for translation.
 	// "exampleTranslationField" parameter is used to specify the field to use for example translation.
 	// Please reference GetByIDs method for more information about other parameters and error values.
-	GetExcludingIDs(ctx context.Context, excludeIds []int, limit int, translationField, exampleTranslationField string) ([]models.WordResponse, error)
+	GetExcludingIDs(ctx context.Context, userId int, excludeIds []int, limit int, translationField, exampleTranslationField string) ([]models.WordResponse, error)
 	// ValidateWordIDs checks if all word IDs exist in the database
 	//
 	// "wordIds" parameter is used to validate if all word IDs exist in the database.
@@ -99,7 +100,7 @@ func (s *dictionaryService) GetWordList(ctx context.Context, userId, newCount, o
 		exampleTranslationField = "example_german_translation"
 	}
 
-	return s.getShuffledWordList(ctx, oldWordIds, newCount, translationField, exampleTranslationField)
+	return s.getShuffledWordList(ctx, userId, oldWordIds, newCount, translationField, exampleTranslationField)
 }
 
 // validateParameters validates the parameters for the GetWordList method
@@ -149,7 +150,7 @@ func (s *dictionaryService) validateParameters(newCount, oldCount int, locale st
 }
 
 // getShuffledWordList concurrently gets a shuffled list of old and new words for the user
-func (s *dictionaryService) getShuffledWordList(ctx context.Context, oldWordIds []int, newCount int, translationField, exampleTranslationField string) ([]models.WordResponse, error) {
+func (s *dictionaryService) getShuffledWordList(ctx context.Context, userId int, oldWordIds []int, newCount int, translationField, exampleTranslationField string) ([]models.WordResponse, error) {
 	// Prepare for concurrent operations
 	var allWords []models.WordResponse
 	wordsChan := make(chan []models.WordResponse, 2)
@@ -172,7 +173,7 @@ func (s *dictionaryService) getShuffledWordList(ctx context.Context, oldWordIds 
 
 	// Get new words (not in old word IDs list)
 	go func() {
-		words, err := s.wordRepo.GetExcludingIDs(ctx, oldWordIds, newCount, translationField, exampleTranslationField)
+		words, err := s.wordRepo.GetExcludingIDs(ctx, userId, oldWordIds, newCount, translationField, exampleTranslationField)
 		if err != nil {
 			s.logger.Error("failed to get new words", zap.Error(err))
 			wordsErrChan <- err
