@@ -45,7 +45,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Locale: en (English) or ru (Russian), default: en",
+                        "description": "Locale: en (English), ru (Russian), or de (German - treated as English), default: en",
                         "name": "locale",
                         "in": "query"
                     }
@@ -94,7 +94,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Locale: en (English) or ru (Russian), default: en",
+                        "description": "Locale: en (English), ru (Russian), or de (German - treated as English), default: en",
                         "name": "locale",
                         "in": "query"
                     },
@@ -160,7 +160,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Locale: en (English) or ru (Russian), default: en",
+                        "description": "Locale: en (English), ru (Russian), or de (German - treated as English), default: en",
                         "name": "locale",
                         "in": "query"
                     }
@@ -341,7 +341,7 @@ const docTemplate = `{
                         "ApiKeyAuth": []
                     }
                 ],
-                "description": "Get 20 random characters for reading test. Requires authentication.",
+                "description": "Get random characters for reading test. Requires authentication.",
                 "consumes": [
                     "application/json"
                 ],
@@ -362,14 +362,20 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Locale: en (English) or ru (Russian), default: en",
+                        "description": "Locale: en (English), ru (Russian), or de (German - treated as English), default: en",
                         "name": "locale",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Number of characters to return, default: 10",
+                        "name": "count",
                         "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "List of 20 random characters for reading test",
+                        "description": "List of random characters for reading test",
                         "schema": {
                             "type": "array",
                             "items": {
@@ -378,7 +384,7 @@ const docTemplate = `{
                         }
                     },
                     "400": {
-                        "description": "Bad request - type parameter is required or invalid alphabet type/locale",
+                        "description": "Bad request - type parameter is required or invalid alphabet type/locale/count",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -414,7 +420,7 @@ const docTemplate = `{
                         "ApiKeyAuth": []
                     }
                 ],
-                "description": "Get 20 random characters for writing test with multiple choice options. Requires authentication.",
+                "description": "Get random characters for writing test with multiple choice options. Requires authentication.",
                 "consumes": [
                     "application/json"
                 ],
@@ -435,14 +441,20 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Locale: en (English) or ru (Russian), default: en",
+                        "description": "Locale: en (English), ru (Russian), or de (German - treated as English), default: en",
                         "name": "locale",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Number of characters to return, default: 10",
+                        "name": "count",
                         "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "List of 20 random characters for writing test with multiple choice options",
+                        "description": "List of random characters for writing test with multiple choice options",
                         "schema": {
                             "type": "array",
                             "items": {
@@ -451,7 +463,7 @@ const docTemplate = `{
                         }
                     },
                     "400": {
-                        "description": "Bad request - type parameter is required or invalid alphabet type/locale",
+                        "description": "Bad request - type parameter is required or invalid alphabet type/locale/count",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -479,9 +491,161 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/words": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Get a mixed list of old and new words for the authenticated user. Requires authentication.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "dictionary"
+                ],
+                "summary": "Get word list",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Number of new words (10-40), default: 20",
+                        "name": "newCount",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Number of old words (10-40), default: 20",
+                        "name": "oldCount",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Locale: en, ru, or de, default: en",
+                        "name": "locale",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "List of words",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.WordResponse"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request - invalid parameters",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized - authentication required",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/words/results": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Submit word learning results with period values. Requires authentication.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "dictionary"
+                ],
+                "summary": "Submit word learning results",
+                "parameters": [
+                    {
+                        "description": "Word results",
+                        "name": "results",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.SubmitWordResultsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad request - invalid request body or validation error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized - authentication required",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
+        "handlers.SubmitWordResultsRequest": {
+            "type": "object",
+            "properties": {
+                "results": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.WordResult"
+                    }
+                }
+            }
+        },
         "handlers.TestResultRequest": {
             "type": "object",
             "properties": {
@@ -605,6 +769,55 @@ const docTemplate = `{
                 },
                 "katakanaWritingResult": {
                     "type": "number"
+                }
+            }
+        },
+        "models.WordResponse": {
+            "type": "object",
+            "properties": {
+                "easyPeriod": {
+                    "type": "integer"
+                },
+                "example": {
+                    "type": "string"
+                },
+                "exampleTranslation": {
+                    "description": "Locale-specific example translation",
+                    "type": "string"
+                },
+                "extraHardPeriod": {
+                    "type": "integer"
+                },
+                "hardPeriod": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "normalPeriod": {
+                    "type": "integer"
+                },
+                "phoneticClues": {
+                    "type": "string"
+                },
+                "translation": {
+                    "description": "Locale-specific word translation",
+                    "type": "string"
+                },
+                "word": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.WordResult": {
+            "type": "object",
+            "properties": {
+                "period": {
+                    "description": "Days (1-30)",
+                    "type": "integer"
+                },
+                "wordId": {
+                    "type": "integer"
                 }
             }
         },

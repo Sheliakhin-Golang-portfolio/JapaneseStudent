@@ -37,7 +37,9 @@ func seedTestData(t *testing.T, db *sql.DB) {
 	t.Helper()
 
 	// Clear existing data
-	_, err := db.Exec("DELETE FROM user_tokens")
+	_, err := db.Exec("DELETE FROM user_settings")
+	require.NoError(t, err, "Failed to clear user_settings")
+	_, err = db.Exec("DELETE FROM user_tokens")
 	require.NoError(t, err, "Failed to clear user_tokens")
 	_, err = db.Exec("DELETE FROM users")
 	require.NoError(t, err, "Failed to clear users")
@@ -60,7 +62,9 @@ func seedTestData(t *testing.T, db *sql.DB) {
 // cleanupTestData removes all test data
 func cleanupTestData(t *testing.T, db *sql.DB) {
 	t.Helper()
-	_, err := db.Exec("DELETE FROM user_tokens")
+	_, err := db.Exec("DELETE FROM user_settings")
+	require.NoError(t, err, "Failed to cleanup user_settings")
+	_, err = db.Exec("DELETE FROM user_tokens")
 	require.NoError(t, err, "Failed to cleanup user_tokens")
 	_, err = db.Exec("DELETE FROM users")
 	require.NoError(t, err, "Failed to cleanup users")
@@ -80,14 +84,33 @@ func getCookieValue(w *httptest.ResponseRecorder, name string) string {
 func setupTestRouter(db *sql.DB, logger *zap.Logger) chi.Router {
 	userRepo := repositories.NewUserRepository(db, logger)
 	tokenRepo := repositories.NewUserTokenRepository(db, logger)
+	userSettingsRepo := repositories.NewUserSettingsRepository(db, logger)
 	tokenGen := service.NewTokenGenerator("test-secret-key-for-integration-tests", 1*time.Hour, 7*24*time.Hour)
-	authSvc := services.NewAuthService(userRepo, tokenRepo, tokenGen, logger)
+	authSvc := services.NewAuthService(userRepo, tokenRepo, userSettingsRepo, tokenGen, logger)
 	authHandler := handlers.NewAuthHandler(authSvc, logger)
+
+	userSettingsSvc := services.NewUserSettingsService(userSettingsRepo, logger)
+	userSettingsHandler := handlers.NewUserSettingsHandler(userSettingsSvc, logger)
 
 	r := chi.NewRouter()
 	// Scope router to /api/v1 to match main.go setup
 	r.Route("/api/v1", func(r chi.Router) {
 		authHandler.RegisterRoutes(r)
+		// Mock auth middleware that extracts userID from context
+		authMiddleware := func(h http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				// For testing, extract userID from context if set
+				if userID, ok := r.Context().Value("userID").(int); ok {
+					// Use the same context key type as the middleware
+					type contextKey string
+					const userIDKey contextKey = "userID"
+					ctx := context.WithValue(r.Context(), userIDKey, userID)
+					r = r.WithContext(ctx)
+				}
+				h.ServeHTTP(w, r)
+			})
+		}
+		userSettingsHandler.RegisterRoutes(r, authMiddleware)
 	})
 
 	return r
@@ -164,8 +187,23 @@ func setupTestSchemaForMain(db *sql.DB) {
 		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 	`
 
+	userSettingsTable := `
+		CREATE TABLE IF NOT EXISTS user_settings (
+			id INT PRIMARY KEY AUTO_INCREMENT,
+			user_id INT NOT NULL UNIQUE,
+			new_word_count INT NOT NULL DEFAULT 20,
+			old_word_count INT NOT NULL DEFAULT 20,
+			alphabet_learn_count INT NOT NULL DEFAULT 10,
+			language VARCHAR(10) NOT NULL DEFAULT 'en',
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+			FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+	`
+
 	db.Exec(usersTable)
 	db.Exec(userTokensTable)
+	db.Exec(userSettingsTable)
 }
 
 func TestIntegration_Register(t *testing.T) {
@@ -652,8 +690,9 @@ func TestIntegration_ServiceLayer(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 	userRepo := repositories.NewUserRepository(testDB, logger)
 	tokenRepo := repositories.NewUserTokenRepository(testDB, logger)
+	userSettingsRepo := repositories.NewUserSettingsRepository(testDB, logger)
 	tokenGen := service.NewTokenGenerator("test-secret", 1*time.Hour, 7*24*time.Hour)
-	authSvc := services.NewAuthService(userRepo, tokenRepo, tokenGen, logger)
+	authSvc := services.NewAuthService(userRepo, tokenRepo, userSettingsRepo, tokenGen, logger)
 	ctx := context.Background()
 
 	t.Run("Register", func(t *testing.T) {
@@ -681,5 +720,217 @@ func TestIntegration_ServiceLayer(t *testing.T) {
 		assert.NotEmpty(t, newAccessToken)
 		assert.NotEmpty(t, newRefreshToken)
 		assert.NotEqual(t, refreshToken, newRefreshToken)
+	})
+}
+
+func TestIntegration_UserSettings(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration tests in short mode")
+	}
+
+	cleanupTestData(t, testDB)
+	seedTestData(t, testDB)
+	defer cleanupTestData(t, testDB)
+
+	// Create user settings for test user
+	_, err := testDB.Exec("INSERT INTO user_settings (user_id, new_word_count, old_word_count, alphabet_learn_count, language) VALUES (1, 20, 20, 10, 'en')")
+	require.NoError(t, err, "Failed to seed user settings")
+
+	tests := []struct {
+		name           string
+		userID         int
+		method         string
+		url            string
+		requestBody    map[string]any
+		expectedStatus int
+		validateFunc   func(*testing.T, *httptest.ResponseRecorder)
+	}{
+		{
+			name:           "success get user settings",
+			userID:         1,
+			method:         http.MethodGet,
+			url:            "/api/v1/settings",
+			requestBody:    nil,
+			expectedStatus: http.StatusOK,
+			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
+				var response models.UserSettingsResponse
+				err := json.NewDecoder(w.Body).Decode(&response)
+				require.NoError(t, err)
+				assert.Equal(t, 20, response.NewWordCount)
+				assert.Equal(t, 20, response.OldWordCount)
+				assert.Equal(t, 10, response.AlphabetLearnCount)
+				assert.Equal(t, models.LanguageEnglish, response.Language)
+			},
+		},
+		{
+			name:           "success update user settings - partial",
+			userID:         1,
+			method:         http.MethodPatch,
+			url:            "/api/v1/settings",
+			requestBody:    map[string]any{"newWordCount": 25},
+			expectedStatus: http.StatusNoContent,
+			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
+				// Verify database was updated
+				var newWordCount int
+				err := testDB.QueryRow("SELECT new_word_count FROM user_settings WHERE user_id = ?", 1).Scan(&newWordCount)
+				require.NoError(t, err)
+				assert.Equal(t, 25, newWordCount)
+			},
+		},
+		{
+			name:           "success update user settings - all fields",
+			userID:         1,
+			method:         http.MethodPatch,
+			url:            "/api/v1/settings",
+			requestBody:    map[string]any{"newWordCount": 30, "oldWordCount": 35, "alphabetLearnCount": 12, "language": "ru"},
+			expectedStatus: http.StatusNoContent,
+			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
+				// Verify database was updated
+				var settings models.UserSettings
+				err := testDB.QueryRow("SELECT new_word_count, old_word_count, alphabet_learn_count, language FROM user_settings WHERE user_id = ?", 1).
+					Scan(&settings.NewWordCount, &settings.OldWordCount, &settings.AlphabetLearnCount, &settings.Language)
+				require.NoError(t, err)
+				assert.Equal(t, 30, settings.NewWordCount)
+				assert.Equal(t, 35, settings.OldWordCount)
+				assert.Equal(t, 12, settings.AlphabetLearnCount)
+				assert.Equal(t, models.LanguageRussian, settings.Language)
+			},
+		},
+		{
+			name:           "invalid newWordCount - too low",
+			userID:         1,
+			method:         http.MethodPatch,
+			url:            "/api/v1/settings",
+			requestBody:    map[string]any{"newWordCount": 5},
+			expectedStatus: http.StatusBadRequest,
+			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
+				var response map[string]string
+				err := json.NewDecoder(w.Body).Decode(&response)
+				require.NoError(t, err)
+				assert.Contains(t, response["error"], "newWordCount must be between 10 and 40")
+			},
+		},
+		{
+			name:           "invalid newWordCount - too high",
+			userID:         1,
+			method:         http.MethodPatch,
+			url:            "/api/v1/settings",
+			requestBody:    map[string]any{"newWordCount": 50},
+			expectedStatus: http.StatusBadRequest,
+			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
+				var response map[string]string
+				err := json.NewDecoder(w.Body).Decode(&response)
+				require.NoError(t, err)
+				assert.Contains(t, response["error"], "newWordCount must be between 10 and 40")
+			},
+		},
+		{
+			name:           "invalid language",
+			userID:         1,
+			method:         http.MethodPatch,
+			url:            "/api/v1/settings",
+			requestBody:    map[string]any{"language": "fr"},
+			expectedStatus: http.StatusBadRequest,
+			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
+				var response map[string]string
+				err := json.NewDecoder(w.Body).Decode(&response)
+				require.NoError(t, err)
+				assert.Contains(t, response["error"], "invalid language")
+			},
+		},
+		{
+			name:           "empty request body",
+			userID:         1,
+			method:         http.MethodPatch,
+			url:            "/api/v1/settings",
+			requestBody:    map[string]any{},
+			expectedStatus: http.StatusBadRequest,
+			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
+				var response map[string]string
+				err := json.NewDecoder(w.Body).Decode(&response)
+				require.NoError(t, err)
+				assert.Contains(t, response["error"], "at least one field must be provided")
+			},
+		},
+		{
+			name:           "user settings not found",
+			userID:         999,
+			method:         http.MethodGet,
+			url:            "/api/v1/settings",
+			requestBody:    nil,
+			expectedStatus: http.StatusInternalServerError,
+			validateFunc:   nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var req *http.Request
+			if tt.requestBody != nil {
+				body, _ := json.Marshal(tt.requestBody)
+				req = httptest.NewRequest(tt.method, tt.url, bytes.NewBuffer(body))
+				req.Header.Set("Content-Type", "application/json")
+			} else {
+				req = httptest.NewRequest(tt.method, tt.url, nil)
+			}
+			// Set userID in context for auth middleware (using the same key as middleware)
+			req = req.WithContext(context.WithValue(req.Context(), "userID", tt.userID))
+			w := httptest.NewRecorder()
+
+			testRouter.ServeHTTP(w, req)
+
+			assert.Equal(t, tt.expectedStatus, w.Code)
+			if tt.validateFunc != nil {
+				tt.validateFunc(t, w)
+			}
+		})
+	}
+}
+
+func TestIntegration_UserSettingsRepositoryLayer(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration tests in short mode")
+	}
+
+	cleanupTestData(t, testDB)
+	seedTestData(t, testDB)
+	defer cleanupTestData(t, testDB)
+
+	logger, _ := zap.NewDevelopment()
+	userSettingsRepo := repositories.NewUserSettingsRepository(testDB, logger)
+	ctx := context.Background()
+
+	t.Run("Create user settings", func(t *testing.T) {
+		settings := &models.UserSettings{
+			UserID: 1,
+		}
+		err := userSettingsRepo.Create(ctx, settings)
+		require.NoError(t, err)
+	})
+
+	t.Run("GetByUserId", func(t *testing.T) {
+		settings, err := userSettingsRepo.GetByUserId(ctx, 1)
+		require.NoError(t, err)
+		assert.NotNil(t, settings)
+		assert.Equal(t, 1, settings.UserID)
+	})
+
+	t.Run("Update user settings", func(t *testing.T) {
+		settings := &models.UserSettings{
+			NewWordCount:       25,
+			OldWordCount:       30,
+			AlphabetLearnCount: 12,
+			Language:           models.LanguageRussian,
+		}
+		err := userSettingsRepo.Update(ctx, 1, settings)
+		require.NoError(t, err)
+
+		// Verify update
+		updated, err := userSettingsRepo.GetByUserId(ctx, 1)
+		require.NoError(t, err)
+		assert.Equal(t, 25, updated.NewWordCount)
+		assert.Equal(t, 30, updated.OldWordCount)
+		assert.Equal(t, 12, updated.AlphabetLearnCount)
+		assert.Equal(t, models.LanguageRussian, updated.Language)
 	})
 }

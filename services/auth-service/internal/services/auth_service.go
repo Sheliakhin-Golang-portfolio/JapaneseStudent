@@ -17,21 +17,25 @@ type UserRepository interface {
 	// Method Create inserts a new user into the database.
 	//
 	// "user" parameter is used to create a new user.
+	//
 	// If some error occurs during user creation, the error will be returned together with "nil" value.
 	Create(ctx context.Context, user *models.User) error
 	// Method GetByEmailOrUsername retrieves a user by email or username.
 	//
 	// "login" parameter is used to retrieve a user by email or username.
+	//
 	// If user with such email or username does not exist, the error will be returned together with "nil" value.
 	GetByEmailOrUsername(ctx context.Context, login string) (*models.User, error)
 	// Method ExistsByEmail checks if a user with such email exists.
 	//
 	// "email" parameter is used to check if a user with such email exists.
+	//
 	// If some error occurs during check, the error will be returned together with "false" value.
 	ExistsByEmail(ctx context.Context, email string) (bool, error)
 	// Method ExistsByUsername checks if a user with such username exists.
 	//
 	// "username" parameter is used to check if a user with such username exists.
+	//
 	// If some error occurs during check, the error will be returned together with "false" value.
 	ExistsByUsername(ctx context.Context, username string) (bool, error)
 }
@@ -41,11 +45,13 @@ type UserTokenRepository interface {
 	// Method Create inserts a new user token into the database.
 	//
 	// "userToken" parameter is used to create a new user token.
+	//
 	// If some error occurs during user token creation, the error will be returned together with "nil" value.
 	Create(ctx context.Context, userToken *models.UserToken) error
 	// Method GetByToken retrieves a user token by token string.
 	//
 	// "token" parameter is used to retrieve a user token by token string.
+	//
 	// If user token with such token does not exist, the error will be returned together with "nil" value.
 	GetByToken(ctx context.Context, token string) (*models.UserToken, error)
 	// Method UpdateToken updates a user token by old token string and new token string.
@@ -53,35 +59,40 @@ type UserTokenRepository interface {
 	// "oldToken" parameter is used to update a user token by old token string.
 	// "newToken" parameter is used to update a user token by new token string.
 	// "userID" parameter is used to update a user token by user ID.
+	//
 	// If some error occurs during user token update, the error will be returned together with "nil" value.
 	UpdateToken(ctx context.Context, oldToken, newToken string, userID int) error
 	// Method DeleteByToken deletes a user token by token string.
 	//
 	// "token" parameter is used to delete a user token by token string.
+	//
 	// If some error occurs during user token deletion, the error will be returned together with "nil" value.
 	DeleteByToken(ctx context.Context, token string) error
 }
 
 // authService implements AuthService
 type authService struct {
-	userRepo       UserRepository
-	userTokenRepo  UserTokenRepository
-	tokenGenerator *service.TokenGenerator
-	logger         *zap.Logger
+	userRepo         UserRepository
+	userTokenRepo    UserTokenRepository
+	userSettingsRepo UserSettingsRepository
+	tokenGenerator   *service.TokenGenerator
+	logger           *zap.Logger
 }
 
 // NewAuthService creates a new auth service
 func NewAuthService(
 	userRepo UserRepository,
 	userTokenRepo UserTokenRepository,
+	userSettingsRepo UserSettingsRepository,
 	tokenGenerator *service.TokenGenerator,
 	logger *zap.Logger,
 ) *authService {
 	return &authService{
-		userRepo:       userRepo,
-		userTokenRepo:  userTokenRepo,
-		tokenGenerator: tokenGenerator,
-		logger:         logger,
+		userRepo:         userRepo,
+		userTokenRepo:    userTokenRepo,
+		userSettingsRepo: userSettingsRepo,
+		tokenGenerator:   tokenGenerator,
+		logger:           logger,
 	}
 }
 
@@ -123,6 +134,18 @@ func (s *authService) Register(ctx context.Context, email, username, password st
 	if err != nil {
 		return "", "", fmt.Errorf("failed to create user: %w", err)
 	}
+
+	// Create default user settings
+	// We don`t want to break the flow of the registration process, so we create user settings in a separate goroutine.
+	// If some error occurs during user settings creation, we will log it and continue the registration process.
+	go func() {
+		userSettings := &models.UserSettings{
+			UserID: user.ID,
+		}
+		if err := s.userSettingsRepo.Create(ctx, userSettings); err != nil {
+			s.logger.Error("failed to create user settings", zap.Error(err), zap.Int("userId", user.ID))
+		}
+	}()
 
 	// Generate and save access and refresh tokens
 	return s.generateAndSaveTokens(ctx, user.ID)

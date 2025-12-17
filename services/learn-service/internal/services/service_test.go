@@ -455,7 +455,7 @@ func TestService_GetReadingTest(t *testing.T) {
 			svc := NewCharactersService(tt.mockRepo, logger)
 			ctx := context.Background()
 
-			result, err := svc.GetReadingTest(ctx, tt.alphabetType, tt.locale)
+			result, err := svc.GetReadingTest(ctx, tt.alphabetType, tt.locale, 20)
 
 			if tt.expectedError {
 				assert.Error(t, err)
@@ -549,7 +549,7 @@ func TestService_GetWritingTest(t *testing.T) {
 			svc := NewCharactersService(tt.mockRepo, logger)
 			ctx := context.Background()
 
-			result, err := svc.GetWritingTest(ctx, tt.alphabetType, tt.locale)
+			result, err := svc.GetWritingTest(ctx, tt.alphabetType, tt.locale, 20)
 
 			if tt.expectedError {
 				assert.Error(t, err)

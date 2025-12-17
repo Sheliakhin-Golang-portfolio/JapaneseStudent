@@ -17,7 +17,7 @@ JapaneseStudent is a Go microservices-based application to help people learn hir
 The project follows a **microservices architecture** with the following services:
 
 1. **auth-service** - User authentication and authorization (Port: 8081)
-2. **learn-service** - Character learning and test management (Port: 8080)
+2. **learn-service** - Character learning, word dictionary, and test management (Port: 8080)
 
 Both services share common libraries in the `libs/` directory for:
 - Authentication middleware and JWT token generation
@@ -77,23 +77,33 @@ JapaneseStudent/
 │       ├── internal/
 │       │   ├── handlers/          # HTTP handlers
 │       │   │   ├── character_handler.go
+│       │   │   ├── dictionary_handler.go
 │       │   │   └── test_result_handler.go
 │       │   ├── models/           # Domain models
 │       │   │   ├── character.go
-│       │   │   └── character_learn_history.go
+│       │   │   ├── character_learn_history.go
+│       │   │   ├── dictionary_history.go
+│       │   │   └── word.go
 │       │   ├── repositories/      # Data access layer
 │       │   │   ├── character_repository.go
 │       │   │   ├── character_learn_history_repository.go
+│       │   │   ├── dictionary_history_repository.go
+│       │   │   ├── word_repository.go
 │       │   │   └── repository_test.go
 │       │   └── services/         # Business logic layer
 │       │       ├── character_service.go
+│       │       ├── dictionary_service.go
 │       │       ├── test_result_service.go
 │       │       └── service_test.go
 │       ├── migrations/            # Database migrations
 │       │   ├── 000001_create_characters_table.up.sql
 │       │   ├── 000001_create_characters_table.down.sql
 │       │   ├── 000002_create_character_learn_history_table.up.sql
-│       │   └── 000002_create_character_learn_history_table.down.sql
+│       │   ├── 000002_create_character_learn_history_table.down.sql
+│       │   ├── 000003_create_words_table.up.sql
+│       │   ├── 000003_create_words_table.down.sql
+│       │   ├── 000004_create_dictionary_history_table.up.sql
+│       │   └── 000004_create_dictionary_history_table.down.sql
 │       ├── test/
 │       │   └── integration/      # Integration tests
 │       │       └── characters_test.go
@@ -259,6 +269,18 @@ docker-compose down -v
   - Body: `{ "results": [{ "characterId": 1, "passed": true }, ...] }`
 - `GET /api/v1/test-results/history` - Get user's learning history
 
+#### Dictionary / Words (Requires Authentication)
+- `GET /api/v1/words?newCount={10-40}&oldCount={10-40}&locale={en|ru|de}` - Get word list
+  - Query Parameters:
+    - `newCount` (optional): Number of new words to return (10-40, default: 20)
+    - `oldCount` (optional): Number of old words to return (10-40, default: 20)
+    - `locale` (optional): Translation locale - `en`, `ru`, or `de` (default: `en`)
+  - Returns: Mixed list of new and old words with locale-specific translations
+- `POST /api/v1/words/results` - Submit word learning results
+  - Body: `{ "results": [{ "wordId": 1, "period": 7 }, ...] }`
+  - `period`: Days until next appearance (1-30)
+  - Returns: 204 No Content on success
+
 ### API Documentation
 
 #### Auth Service
@@ -337,6 +359,30 @@ go test ./services/learn-service/test/integration/... -v
 - `katakana_writing_result` - Test result (0.0-1.0)
 - `katakana_listening_result` - Test result (0.0-1.0)
 - Unique constraint on (user_id, character_id)
+
+#### Words Table
+- `id` - Primary key (auto-increment)
+- `word` - Japanese word (Kanji, indexed)
+- `phonetic_clues` - Hiragana reading (phonetic clues)
+- `russian_translation` - Russian translation
+- `english_translation` - English translation
+- `german_translation` - German translation
+- `example` - Japanese example sentence
+- `example_russian_translation` - Russian translation of example
+- `example_english_translation` - English translation of example
+- `example_german_translation` - German translation of example
+- `easy_period` - Days until next appearance for easy difficulty
+- `normal_period` - Days until next appearance for normal difficulty
+- `hard_period` - Days until next appearance for hard difficulty
+- `extra_hard_period` - Days until next appearance for extra hard difficulty
+
+#### Dictionary History Table
+- `id` - Primary key (auto-increment)
+- `word_id` - Foreign key to words.id
+- `user_id` - User ID (from auth service)
+- `next_appearance` - Date when the word should appear again (indexed)
+- Unique constraint on (user_id, word_id)
+- Foreign key constraint on word_id with CASCADE delete
 
 ## Middleware
 

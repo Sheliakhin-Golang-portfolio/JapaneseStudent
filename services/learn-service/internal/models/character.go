@@ -27,6 +27,7 @@ type Locale string
 const (
 	LocaleEnglish Locale = "en"
 	LocaleRussian Locale = "ru"
+	LocaleGerman  Locale = "de"
 )
 
 // CharacterResponse represents a character in most of the API responses

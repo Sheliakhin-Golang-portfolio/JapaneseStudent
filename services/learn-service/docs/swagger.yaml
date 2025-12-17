@@ -1,5 +1,12 @@
 basePath: /api/v1
 definitions:
+  handlers.SubmitWordResultsRequest:
+    properties:
+      results:
+        items:
+          $ref: '#/definitions/models.WordResult'
+        type: array
+    type: object
   handlers.TestResultRequest:
     properties:
       results:
@@ -85,6 +92,39 @@ definitions:
       katakanaWritingResult:
         type: number
     type: object
+  models.WordResponse:
+    properties:
+      easyPeriod:
+        type: integer
+      example:
+        type: string
+      exampleTranslation:
+        description: Locale-specific example translation
+        type: string
+      extraHardPeriod:
+        type: integer
+      hardPeriod:
+        type: integer
+      id:
+        type: integer
+      normalPeriod:
+        type: integer
+      phoneticClues:
+        type: string
+      translation:
+        description: Locale-specific word translation
+        type: string
+      word:
+        type: string
+    type: object
+  models.WordResult:
+    properties:
+      period:
+        description: Days (1-30)
+        type: integer
+      wordId:
+        type: integer
+    type: object
   models.WritingTestItem:
     properties:
       Character:
@@ -119,7 +159,8 @@ paths:
         in: query
         name: type
         type: string
-      - description: 'Locale: en (English) or ru (Russian), default: en'
+      - description: 'Locale: en (English), ru (Russian), or de (German - treated
+          as English), default: en'
         in: query
         name: locale
         type: string
@@ -152,7 +193,8 @@ paths:
         name: id
         required: true
         type: integer
-      - description: 'Locale: en (English) or ru (Russian), default: en'
+      - description: 'Locale: en (English), ru (Russian), or de (German - treated
+          as English), default: en'
         in: query
         name: locale
         type: string
@@ -195,7 +237,8 @@ paths:
         in: query
         name: type
         type: string
-      - description: 'Locale: en (English) or ru (Russian), default: en'
+      - description: 'Locale: en (English), ru (Russian), or de (German - treated
+          as English), default: en'
         in: query
         name: locale
         type: string
@@ -322,29 +365,34 @@ paths:
     get:
       consumes:
       - application/json
-      description: Get 20 random characters for reading test. Requires authentication.
+      description: Get random characters for reading test. Requires authentication.
       parameters:
       - description: 'Alphabet type: hiragana or katakana'
         in: path
         name: type
         required: true
         type: string
-      - description: 'Locale: en (English) or ru (Russian), default: en'
+      - description: 'Locale: en (English), ru (Russian), or de (German - treated
+          as English), default: en'
         in: query
         name: locale
         type: string
+      - description: 'Number of characters to return, default: 10'
+        in: query
+        name: count
+        type: integer
       produces:
       - application/json
       responses:
         "200":
-          description: List of 20 random characters for reading test
+          description: List of random characters for reading test
           schema:
             items:
               $ref: '#/definitions/models.ReadingTestItem'
             type: array
         "400":
           description: Bad request - type parameter is required or invalid alphabet
-            type/locale
+            type/locale/count
           schema:
             additionalProperties:
               type: string
@@ -370,31 +418,36 @@ paths:
     get:
       consumes:
       - application/json
-      description: Get 20 random characters for writing test with multiple choice
-        options. Requires authentication.
+      description: Get random characters for writing test with multiple choice options.
+        Requires authentication.
       parameters:
       - description: 'Alphabet type: hiragana or katakana'
         in: path
         name: type
         required: true
         type: string
-      - description: 'Locale: en (English) or ru (Russian), default: en'
+      - description: 'Locale: en (English), ru (Russian), or de (German - treated
+          as English), default: en'
         in: query
         name: locale
         type: string
+      - description: 'Number of characters to return, default: 10'
+        in: query
+        name: count
+        type: integer
       produces:
       - application/json
       responses:
         "200":
-          description: List of 20 random characters for writing test with multiple
-            choice options
+          description: List of random characters for writing test with multiple choice
+            options
           schema:
             items:
               $ref: '#/definitions/models.WritingTestItem'
             type: array
         "400":
           description: Bad request - type parameter is required or invalid alphabet
-            type/locale
+            type/locale/count
           schema:
             additionalProperties:
               type: string
@@ -416,6 +469,97 @@ paths:
       summary: Get writing test
       tags:
       - tests
+  /words:
+    get:
+      consumes:
+      - application/json
+      description: Get a mixed list of old and new words for the authenticated user.
+        Requires authentication.
+      parameters:
+      - description: 'Number of new words (10-40), default: 20'
+        in: query
+        name: newCount
+        type: integer
+      - description: 'Number of old words (10-40), default: 20'
+        in: query
+        name: oldCount
+        type: integer
+      - description: 'Locale: en, ru, or de, default: en'
+        in: query
+        name: locale
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of words
+          schema:
+            items:
+              $ref: '#/definitions/models.WordResponse'
+            type: array
+        "400":
+          description: Bad request - invalid parameters
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized - authentication required
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Get word list
+      tags:
+      - dictionary
+  /words/results:
+    post:
+      consumes:
+      - application/json
+      description: Submit word learning results with period values. Requires authentication.
+      parameters:
+      - description: Word results
+        in: body
+        name: results
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.SubmitWordResultsRequest'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad request - invalid request body or validation error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized - authentication required
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Submit word learning results
+      tags:
+      - dictionary
 securityDefinitions:
   ApiKeyAuth:
     description: Type "Bearer" followed by a space and JWT token.
