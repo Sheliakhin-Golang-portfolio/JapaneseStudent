@@ -24,10 +24,10 @@ func NewTokenGenerator(secret string, accessExpiry, refreshExpiry time.Duration)
 }
 
 // GenerateTokens generates both access and refresh tokens for a user
-// Access token contains user_id in payload, refresh token does not
-func (tg *TokenGenerator) GenerateTokens(userID int) (string, string, error) {
-	// Generate access token with userID
-	accessToken, err := tg.generateAccessToken(userID)
+// Access token contains user_id and role in payload, refresh token does not
+func (tg *TokenGenerator) GenerateTokens(userID int, role int) (string, string, error) {
+	// Generate access token with userID and role
+	accessToken, err := tg.generateAccessToken(userID, role)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to generate access token: %w", err)
 	}
@@ -41,10 +41,11 @@ func (tg *TokenGenerator) GenerateTokens(userID int) (string, string, error) {
 	return accessToken, refreshToken, nil
 }
 
-// generateAccessToken creates an access token with userID in payload
-func (tg *TokenGenerator) generateAccessToken(userID int) (string, error) {
+// generateAccessToken creates an access token with userID and role in payload
+func (tg *TokenGenerator) generateAccessToken(userID int, role int) (string, error) {
 	claims := jwt.MapClaims{
 		"user_id": userID,
+		"role":    role,
 		"exp":     time.Now().Add(tg.accessTokenExpiry).Unix(),
 		"iat":     time.Now().Unix(),
 		"type":    "access",
@@ -76,8 +77,8 @@ func (tg *TokenGenerator) generateRefreshToken() (string, error) {
 	return tokenString, nil
 }
 
-// ValidateAccessToken validates an access token and returns the userID
-func (tg *TokenGenerator) ValidateAccessToken(tokenString string) (int, error) {
+// ValidateAccessToken validates an access token and returns the userID and role
+func (tg *TokenGenerator) ValidateAccessToken(tokenString string) (int, int, error) {
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (any, error) {
 		// Validate the signing method
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
@@ -87,31 +88,37 @@ func (tg *TokenGenerator) ValidateAccessToken(tokenString string) (int, error) {
 	})
 
 	if err != nil {
-		return 0, fmt.Errorf("failed to parse token: %w", err)
+		return 0, 0, fmt.Errorf("failed to parse token: %w", err)
 	}
 
 	if !token.Valid {
-		return 0, fmt.Errorf("token is invalid")
+		return 0, 0, fmt.Errorf("token is invalid")
 	}
 
 	claims, ok := token.Claims.(jwt.MapClaims)
 	if !ok {
-		return 0, fmt.Errorf("invalid token claims")
+		return 0, 0, fmt.Errorf("invalid token claims")
 	}
 
 	// Check token type
 	tokenType, ok := claims["type"].(string)
 	if !ok || tokenType != "access" {
-		return 0, fmt.Errorf("token is not an access token")
+		return 0, 0, fmt.Errorf("token is not an access token")
 	}
 
-	// Extract userID (JWT claims decode numbers as int32)
+	// Extract userID (JWT claims decode numbers as float64)
 	userIDInt, ok := claims["user_id"].(float64)
 	if !ok {
-		return 0, fmt.Errorf("user_id not found in token")
+		return 0, 0, fmt.Errorf("user_id not found in token")
 	}
 
-	return int(userIDInt), nil
+	// Extract role (JWT claims decode numbers as float64)
+	roleInt, ok := claims["role"].(float64)
+	if !ok {
+		return 0, 0, fmt.Errorf("role not found in token")
+	}
+
+	return int(userIDInt), int(roleInt), nil
 }
 
 // ValidateRefreshToken validates a refresh token

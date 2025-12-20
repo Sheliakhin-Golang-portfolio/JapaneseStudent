@@ -10,7 +10,6 @@ import (
 	"github.com/japanesestudent/auth-service/internal/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
 // setupUserTokenTestRepository creates a user token repository with a mock database
@@ -19,10 +18,7 @@ func setupUserTokenTestRepository(t *testing.T) (*userTokenRepository, sqlmock.S
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 
-	logger, err := zap.NewDevelopment()
-	require.NoError(t, err)
-
-	repo := NewUserTokenRepository(db, logger)
+	repo := NewUserTokenRepository(db)
 
 	cleanup := func() {
 		db.Close()
@@ -32,14 +28,12 @@ func setupUserTokenTestRepository(t *testing.T) (*userTokenRepository, sqlmock.S
 }
 
 func TestNewUserTokenRepository(t *testing.T) {
-	logger, _ := zap.NewDevelopment()
 	db := &sql.DB{}
 
-	repo := NewUserTokenRepository(db, logger)
+	repo := NewUserTokenRepository(db)
 
 	assert.NotNil(t, repo)
 	assert.Equal(t, db, repo.db)
-	assert.Equal(t, logger, repo.logger)
 }
 
 func TestUserTokenRepository_Create(t *testing.T) {
@@ -346,4 +340,3 @@ func TestUserTokenRepository_DeleteByToken(t *testing.T) {
 		})
 	}
 }
-

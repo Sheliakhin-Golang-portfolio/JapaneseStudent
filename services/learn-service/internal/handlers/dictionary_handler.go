@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/japanesestudent/learn-service/internal/models"
@@ -76,6 +77,7 @@ func (h *DictionaryHandler) GetWordList(w http.ResponseWriter, r *http.Request) 
 	// Extract userID from auth middleware context
 	userID, ok := middleware.GetUserID(r.Context())
 	if !ok {
+		h.Logger.Error("user ID not found in context")
 		h.RespondError(w, http.StatusUnauthorized, "user ID not found in context")
 		return
 	}
@@ -90,6 +92,7 @@ func (h *DictionaryHandler) GetWordList(w http.ResponseWriter, r *http.Request) 
 	if newCountStr != "" {
 		parsed, err := strconv.Atoi(newCountStr)
 		if err != nil {
+			h.Logger.Error("failed to parse newCount parameter", zap.Error(err))
 			h.RespondError(w, http.StatusBadRequest, "invalid newCount parameter")
 			return
 		}
@@ -101,6 +104,7 @@ func (h *DictionaryHandler) GetWordList(w http.ResponseWriter, r *http.Request) 
 	if oldCountStr != "" {
 		parsed, err := strconv.Atoi(oldCountStr)
 		if err != nil {
+			h.Logger.Error("failed to parse oldCount parameter", zap.Error(err))
 			h.RespondError(w, http.StatusBadRequest, "invalid oldCount parameter")
 			return
 		}
@@ -152,6 +156,7 @@ func (h *DictionaryHandler) SubmitWordResults(w http.ResponseWriter, r *http.Req
 	// Extract userID from auth middleware context
 	userID, ok := middleware.GetUserID(r.Context())
 	if !ok {
+		h.Logger.Error("user ID not found in context")
 		h.RespondError(w, http.StatusUnauthorized, "user ID not found in context")
 		return
 	}
@@ -159,11 +164,13 @@ func (h *DictionaryHandler) SubmitWordResults(w http.ResponseWriter, r *http.Req
 	// Parse request body
 	var req SubmitWordResultsRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.Logger.Error("failed to decode request body", zap.Error(err))
 		h.RespondError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
 	if len(req.Results) == 0 {
+		h.Logger.Error("results array cannot be empty")
 		h.RespondError(w, http.StatusBadRequest, "results array cannot be empty")
 		return
 	}
@@ -174,12 +181,13 @@ func (h *DictionaryHandler) SubmitWordResults(w http.ResponseWriter, r *http.Req
 		h.Logger.Error("failed to submit word results", zap.Error(err))
 		statusCode := http.StatusInternalServerError
 		// Check if it's a validation error
-		if err.Error() == "results list cannot be empty" ||
-			err.Error() == "one or more word IDs do not exist" ||
-			len(err.Error()) > 0 && err.Error()[:20] == "period must be between" {
+		errMsg := err.Error()
+		if errMsg == "results list cannot be empty" ||
+			errMsg == "one or more word IDs do not exist" ||
+			strings.Contains(errMsg, "period must be between") {
 			statusCode = http.StatusBadRequest
 		}
-		h.RespondError(w, statusCode, err.Error())
+		h.RespondError(w, statusCode, errMsg)
 		return
 	}
 

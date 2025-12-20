@@ -1,19 +1,14 @@
 package middleware
 
 import (
-	"context"
 	"net/http"
 	"strings"
 
 	"github.com/japanesestudent/libs/auth/service"
 )
 
-type contextKey string
-
-const userIDKey contextKey = "userID"
-
-// AuthMiddleware validates JWT access token and extracts userID
-func AuthMiddleware(tokenGenerator *service.TokenGenerator) func(http.Handler) http.Handler {
+// RoleMiddleware validates JWT access token and checks if user's role is >= requiredRole
+func RoleMiddleware(tokenGenerator *service.TokenGenerator, requiredRole int) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Extract token from Authorization header or cookie
@@ -45,8 +40,8 @@ func AuthMiddleware(tokenGenerator *service.TokenGenerator) func(http.Handler) h
 				return
 			}
 
-			// Validate token and extract userID
-			userID, _, err := tokenGenerator.ValidateAccessToken(token)
+			// Validate token and extract userID and role
+			_, role, err := tokenGenerator.ValidateAccessToken(token)
 			if err != nil {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusUnauthorized)
@@ -54,20 +49,17 @@ func AuthMiddleware(tokenGenerator *service.TokenGenerator) func(http.Handler) h
 				return
 			}
 
-			// Add userID to context
-			ctx := context.WithValue(r.Context(), userIDKey, userID)
-			next.ServeHTTP(w, r.WithContext(ctx))
+			// Check if role is sufficient
+			if role < requiredRole {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusForbidden)
+				w.Write([]byte(`{"error":"insufficient permissions"}`))
+				return
+			}
+
+			// Role is sufficient, proceed to next handler
+			next.ServeHTTP(w, r)
 		})
 	}
 }
 
-// GetUserID retrieves the user ID from context
-func GetUserID(ctx context.Context) (int, bool) {
-	userID, ok := ctx.Value(userIDKey).(int)
-	return userID, ok
-}
-
-// SetUserID sets the user ID in context (useful for testing)
-func SetUserID(ctx context.Context, userID int) context.Context {
-	return context.WithValue(ctx, userIDKey, userID)
-}

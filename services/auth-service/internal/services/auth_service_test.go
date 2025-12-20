@@ -53,6 +53,28 @@ func (m *mockUserRepository) ExistsByUsername(ctx context.Context, username stri
 	return m.existsByUsernameResult, nil
 }
 
+func (m *mockUserRepository) GetByID(ctx context.Context, userID int) (*models.User, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	return m.user, nil
+}
+
+func (m *mockUserRepository) GetAll(ctx context.Context, page, count int, role *models.Role, search string) ([]models.User, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	return []models.User{}, nil
+}
+
+func (m *mockUserRepository) Update(ctx context.Context, userID int, user *models.User) error {
+	return m.err
+}
+
+func (m *mockUserRepository) Delete(ctx context.Context, userID int) error {
+	return m.err
+}
+
 // mockUserTokenRepository is a mock implementation of UserTokenRepository
 type mockUserTokenRepository struct {
 	token          *models.UserToken
@@ -82,20 +104,20 @@ func (m *mockUserTokenRepository) DeleteByToken(ctx context.Context, token strin
 	return m.err
 }
 
-// mockUserSettingsRepository is a mock implementation of UserSettingsRepository
-type mockUserSettingsRepository struct {
+// mockUserSettingsRepositoryForAuth is a mock implementation of UserSettingsRepository for auth service tests
+type mockUserSettingsRepositoryForAuth struct {
 	err error
 }
 
-func (m *mockUserSettingsRepository) Create(ctx context.Context, userSettings *models.UserSettings) error {
+func (m *mockUserSettingsRepositoryForAuth) Create(ctx context.Context, userId int) error {
 	return m.err
 }
 
-func (m *mockUserSettingsRepository) GetByUserId(ctx context.Context, userId int) (*models.UserSettings, error) {
+func (m *mockUserSettingsRepositoryForAuth) GetByUserId(ctx context.Context, userId int) (*models.UserSettings, error) {
 	return nil, m.err
 }
 
-func (m *mockUserSettingsRepository) Update(ctx context.Context, userId int, settings *models.UserSettings) error {
+func (m *mockUserSettingsRepositoryForAuth) Update(ctx context.Context, userId int, settings *models.UserSettings) error {
 	return m.err
 }
 
@@ -103,7 +125,7 @@ func TestNewAuthService(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 	userRepo := &mockUserRepository{}
 	tokenRepo := &mockUserTokenRepository{}
-	userSettingsRepo := &mockUserSettingsRepository{}
+	userSettingsRepo := &mockUserSettingsRepositoryForAuth{}
 	tokenGen := service.NewTokenGenerator("secret", 0, 0)
 
 	svc := NewAuthService(userRepo, tokenRepo, userSettingsRepo, tokenGen, logger)
@@ -333,7 +355,7 @@ func TestAuthService_Register(t *testing.T) {
 			},
 			tokenRepo:     &mockUserTokenRepository{},
 			expectedError: true,
-			errorContains: "failed to create user",
+			errorContains: "database error", // Service returns error directly without wrapping
 		},
 		{
 			name:     "database error on token creation",
@@ -380,10 +402,14 @@ func TestAuthService_Register(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			userSettingsRepo := &mockUserSettingsRepository{}
+			userSettingsRepo := &mockUserSettingsRepositoryForAuth{}
 			svc := NewAuthService(tt.userRepo, tt.tokenRepo, userSettingsRepo, tokenGen, logger)
 
-			accessToken, refreshToken, err := svc.Register(context.Background(), tt.email, tt.username, tt.password)
+			accessToken, refreshToken, err := svc.Register(context.Background(), &models.RegisterRequest{
+				Email:    tt.email,
+				Username: tt.username,
+				Password: tt.password,
+			})
 
 			if tt.expectedError {
 				assert.Error(t, err)
@@ -492,7 +518,7 @@ func TestAuthService_Login(t *testing.T) {
 			},
 			tokenRepo:     &mockUserTokenRepository{},
 			expectedError: true,
-			errorContains: "invalid credentials",
+			errorContains: "user not found", // Service returns error directly from GetByEmailOrUsername
 		},
 		{
 			name:     "wrong password",
@@ -536,7 +562,7 @@ func TestAuthService_Login(t *testing.T) {
 			},
 			tokenRepo:     &mockUserTokenRepository{},
 			expectedError: true,
-			errorContains: "invalid credentials",
+			errorContains: "database error", // Service returns error directly from GetByEmailOrUsername
 		},
 		{
 			name:     "token generation failure",
@@ -561,10 +587,13 @@ func TestAuthService_Login(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			userSettingsRepo := &mockUserSettingsRepository{}
+			userSettingsRepo := &mockUserSettingsRepositoryForAuth{}
 			svc := NewAuthService(tt.userRepo, tt.tokenRepo, userSettingsRepo, tokenGen, logger)
 
-			accessToken, refreshToken, err := svc.Login(context.Background(), tt.login, tt.password)
+			accessToken, refreshToken, err := svc.Login(context.Background(), &models.LoginRequest{
+				Login:    tt.login,
+				Password: tt.password,
+			})
 
 			if tt.expectedError {
 				assert.Error(t, err)
@@ -587,7 +616,7 @@ func TestAuthService_Refresh(t *testing.T) {
 	tokenGen := service.NewTokenGenerator("test-secret", 1*time.Hour, 1*time.Hour)
 
 	// Generate a valid refresh token for testing
-	_, validRefreshToken, _ := tokenGen.GenerateTokens(1)
+	_, validRefreshToken, _ := tokenGen.GenerateTokens(1, int(models.RoleUser))
 
 	tests := []struct {
 		name          string
@@ -600,7 +629,12 @@ func TestAuthService_Refresh(t *testing.T) {
 		{
 			name:         "success",
 			refreshToken: validRefreshToken,
-			userRepo:     &mockUserRepository{},
+			userRepo: &mockUserRepository{
+				user: &models.User{
+					ID:   1,
+					Role: models.RoleUser,
+				},
+			},
 			tokenRepo: &mockUserTokenRepository{
 				token: &models.UserToken{
 					ID:     1,
@@ -616,7 +650,7 @@ func TestAuthService_Refresh(t *testing.T) {
 			userRepo:      &mockUserRepository{},
 			tokenRepo:     &mockUserTokenRepository{},
 			expectedError: true,
-			errorContains: "failed to refresh token",
+			errorContains: "invalid or expired refresh token", // Empty token fails validation first
 		},
 		{
 			name:          "whitespace token",
@@ -624,7 +658,7 @@ func TestAuthService_Refresh(t *testing.T) {
 			userRepo:      &mockUserRepository{},
 			tokenRepo:     &mockUserTokenRepository{},
 			expectedError: true,
-			errorContains: "failed to refresh token",
+			errorContains: "invalid or expired refresh token", // Whitespace token fails validation first
 		},
 		{
 			name:         "token not in database",
@@ -653,7 +687,12 @@ func TestAuthService_Refresh(t *testing.T) {
 		{
 			name:         "database error updating token",
 			refreshToken: validRefreshToken,
-			userRepo:     &mockUserRepository{},
+			userRepo: &mockUserRepository{
+				user: &models.User{
+					ID:   1,
+					Role: models.RoleUser,
+				},
+			},
 			tokenRepo: &mockUserTokenRepository{
 				token: &models.UserToken{
 					ID:     1,
@@ -663,13 +702,13 @@ func TestAuthService_Refresh(t *testing.T) {
 				updateTokenErr: errors.New("update error"),
 			},
 			expectedError: true,
-			errorContains: "failed to update refresh token",
+			errorContains: "update error", // Service returns error directly without wrapping
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			userSettingsRepo := &mockUserSettingsRepository{}
+			userSettingsRepo := &mockUserSettingsRepositoryForAuth{}
 			svc := NewAuthService(tt.userRepo, tt.tokenRepo, userSettingsRepo, tokenGen, logger)
 
 			// Add small delay for success case to ensure different token timestamps

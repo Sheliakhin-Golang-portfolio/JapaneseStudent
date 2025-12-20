@@ -60,7 +60,7 @@ func NewCharactersHandler(svc CharactersService, logger *zap.Logger) *Characters
 }
 
 // RegisterRoutes registers all character handler routes
-// Note: This assumes the router is already scoped to /api/v1
+// Note: This assumes the router is already scoped to /api/v3
 func (h *CharactersHandler) RegisterRoutes(r chi.Router, authMiddleware func(http.Handler) http.Handler) {
 	r.Route("/characters", func(r chi.Router) {
 		r.Get("/", h.GetAll)
@@ -75,7 +75,7 @@ func (h *CharactersHandler) RegisterRoutes(r chi.Router, authMiddleware func(htt
 	})
 }
 
-// GetAll handles GET /api/v1/characters
+// GetAll handles GET /characters
 // @Summary Get all characters
 // @Description Get a list of all hiragana or katakana characters
 // @Tags characters
@@ -85,7 +85,7 @@ func (h *CharactersHandler) RegisterRoutes(r chi.Router, authMiddleware func(htt
 // @Param locale query string false "Locale: en (English), ru (Russian), or de (German - treated as English), default: en"
 // @Success 200 {array} models.CharacterResponse "List of characters"
 // @Failure 500 {object} map[string]string "Internal server error - failed to retrieve characters"
-// @Router /api/v1/characters [get]
+// @Router /characters [get]
 func (h *CharactersHandler) GetAll(w http.ResponseWriter, r *http.Request) {
 	typeParam := r.URL.Query().Get("type")
 	localeParam := r.URL.Query().Get("locale")
@@ -107,7 +107,7 @@ func (h *CharactersHandler) GetAll(w http.ResponseWriter, r *http.Request) {
 	h.RespondJSON(w, http.StatusOK, characters)
 }
 
-// GetByRowColumn handles GET /api/v1/characters/row-column
+// GetByRowColumn handles GET /characters/row-column
 // @Summary Get characters by row or column
 // @Description Get a row or column of hiragana or katakana characters filtered by consonant or vowel
 // @Tags characters
@@ -119,7 +119,7 @@ func (h *CharactersHandler) GetAll(w http.ResponseWriter, r *http.Request) {
 // @Success 200 {array} models.CharacterResponse "List of characters matching the filter"
 // @Failure 400 {object} map[string]string "Bad request - character parameter is required"
 // @Failure 500 {object} map[string]string "Internal server error - failed to retrieve characters"
-// @Router /api/v1/characters/row-column [get]
+// @Router /characters/row-column [get]
 func (h *CharactersHandler) GetByRowColumn(w http.ResponseWriter, r *http.Request) {
 	typeParam := r.URL.Query().Get("type")
 	localeParam := r.URL.Query().Get("locale")
@@ -132,6 +132,7 @@ func (h *CharactersHandler) GetByRowColumn(w http.ResponseWriter, r *http.Reques
 		localeParam = "en"
 	}
 	if characterParam == "" {
+		h.Logger.Error("character parameter is required")
 		h.RespondError(w, http.StatusBadRequest, "character parameter is required")
 		return
 	}
@@ -146,7 +147,7 @@ func (h *CharactersHandler) GetByRowColumn(w http.ResponseWriter, r *http.Reques
 	h.RespondJSON(w, http.StatusOK, characters)
 }
 
-// GetByID handles GET /api/v1/characters/{id}
+// GetByID handles GET /characters/{id}
 // @Summary Get character by ID
 // @Description Get a hiragana or katakana character by its ID
 // @Tags characters
@@ -158,12 +159,13 @@ func (h *CharactersHandler) GetByRowColumn(w http.ResponseWriter, r *http.Reques
 // @Failure 400 {object} map[string]string "Bad request - id parameter is required or invalid id parameter"
 // @Failure 404 {object} map[string]string "Not found - character not found"
 // @Failure 500 {object} map[string]string "Internal server error - failed to retrieve character"
-// @Router /api/v1/characters/{id} [get]
+// @Router /characters/{id} [get]
 func (h *CharactersHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 	idParam := chi.URLParam(r, "id")
 	localeParam := r.URL.Query().Get("locale")
 
 	if idParam == "" {
+		h.Logger.Error("id parameter is required")
 		h.RespondError(w, http.StatusBadRequest, "id parameter is required")
 		return
 	}
@@ -173,6 +175,7 @@ func (h *CharactersHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 
 	id, err := strconv.Atoi(idParam)
 	if err != nil {
+		h.Logger.Error("failed to parse id parameter", zap.Error(err))
 		h.RespondError(w, http.StatusBadRequest, "invalid id parameter")
 		return
 	}
@@ -192,7 +195,7 @@ func (h *CharactersHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 	h.RespondJSON(w, http.StatusOK, character)
 }
 
-// GetReadingTest handles GET /api/v1/tests/{type}/reading
+// GetReadingTest handles GET /tests/{type}/reading
 // @Summary Get reading test
 // @Description Get random characters for reading test. Requires authentication.
 // @Tags tests
@@ -206,13 +209,14 @@ func (h *CharactersHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 // @Failure 400 {object} map[string]string "Bad request - type parameter is required or invalid alphabet type/locale/count"
 // @Failure 401 {object} map[string]string "Unauthorized - authentication required or invalid/expired token"
 // @Failure 500 {object} map[string]string "Internal server error - failed to retrieve test characters"
-// @Router /api/v1/tests/{type}/reading [get]
+// @Router /tests/{type}/reading [get]
 func (h *CharactersHandler) GetReadingTest(w http.ResponseWriter, r *http.Request) {
 	typeParam := chi.URLParam(r, "type")
 	localeParam := r.URL.Query().Get("locale")
 	countStr := r.URL.Query().Get("count")
 
 	if typeParam == "" {
+		h.Logger.Error("type parameter is required")
 		h.RespondError(w, http.StatusBadRequest, "type parameter is required")
 		return
 	}
@@ -225,6 +229,7 @@ func (h *CharactersHandler) GetReadingTest(w http.ResponseWriter, r *http.Reques
 	if countStr != "" {
 		parsed, err := strconv.Atoi(countStr)
 		if err != nil || parsed <= 0 {
+			h.Logger.Error("failed to parse count parameter", zap.Error(err))
 			h.RespondError(w, http.StatusBadRequest, "invalid count parameter")
 			return
 		}
@@ -241,7 +246,7 @@ func (h *CharactersHandler) GetReadingTest(w http.ResponseWriter, r *http.Reques
 	h.RespondJSON(w, http.StatusOK, items)
 }
 
-// GetWritingTest handles GET /api/v1/tests/{type}/writing
+// GetWritingTest handles GET /tests/{type}/writing
 // @Summary Get writing test
 // @Description Get random characters for writing test with multiple choice options. Requires authentication.
 // @Tags tests
@@ -255,13 +260,14 @@ func (h *CharactersHandler) GetReadingTest(w http.ResponseWriter, r *http.Reques
 // @Failure 400 {object} map[string]string "Bad request - type parameter is required or invalid alphabet type/locale/count"
 // @Failure 401 {object} map[string]string "Unauthorized - authentication required or invalid/expired token"
 // @Failure 500 {object} map[string]string "Internal server error - failed to retrieve test characters"
-// @Router /api/v1/tests/{type}/writing [get]
+// @Router /tests/{type}/writing [get]
 func (h *CharactersHandler) GetWritingTest(w http.ResponseWriter, r *http.Request) {
 	typeParam := chi.URLParam(r, "type")
 	localeParam := r.URL.Query().Get("locale")
 	countStr := r.URL.Query().Get("count")
 
 	if typeParam == "" {
+		h.Logger.Error("type parameter is required")
 		h.RespondError(w, http.StatusBadRequest, "type parameter is required")
 		return
 	}
@@ -274,6 +280,7 @@ func (h *CharactersHandler) GetWritingTest(w http.ResponseWriter, r *http.Reques
 	if countStr != "" {
 		parsed, err := strconv.Atoi(countStr)
 		if err != nil || parsed <= 0 {
+			h.Logger.Error("failed to parse count parameter", zap.Error(err))
 			h.RespondError(w, http.StatusBadRequest, "invalid count parameter")
 			return
 		}

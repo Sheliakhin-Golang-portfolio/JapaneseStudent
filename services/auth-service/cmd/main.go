@@ -84,20 +84,23 @@ func main() {
 	)
 
 	// Initialize repositories
-	userRepo := repositories.NewUserRepository(db, logger.Logger)
-	userTokenRepo := repositories.NewUserTokenRepository(db, logger.Logger)
-	userSettingsRepo := repositories.NewUserSettingsRepository(db, logger.Logger)
+	userRepo := repositories.NewUserRepository(db)
+	userTokenRepo := repositories.NewUserTokenRepository(db)
+	userSettingsRepo := repositories.NewUserSettingsRepository(db)
 
 	// Initialize services
 	authService := services.NewAuthService(userRepo, userTokenRepo, userSettingsRepo, tokenGenerator, logger.Logger)
-	userSettingsService := services.NewUserSettingsService(userSettingsRepo, logger.Logger)
+	userSettingsService := services.NewUserSettingsService(userSettingsRepo)
 
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(authService, logger.Logger)
+	adminService := services.NewAdminService(userRepo, userTokenRepo, userSettingsRepo, tokenGenerator, logger.Logger)
 	userSettingsHandler := handlers.NewUserSettingsHandler(userSettingsService, logger.Logger)
+	adminHandler := handlers.NewAdminHandler(adminService, logger.Logger)
 
 	// Initialize auth middleware
 	authMiddleware := middleware.AuthMiddleware(tokenGenerator)
+	adminMiddleware := middleware.RoleMiddleware(tokenGenerator, 3) // Admin role = 3
 
 	// Setup router
 	r := chi.NewRouter()
@@ -121,6 +124,11 @@ func main() {
 		authHandler.RegisterRoutes(r)
 		// Register user settings routes
 		userSettingsHandler.RegisterRoutes(r, authMiddleware)
+		// Register admin routes with role middleware
+		r.Group(func(r chi.Router) {
+			r.Use(adminMiddleware)
+			adminHandler.RegisterRoutes(r)
+		})
 	})
 
 	// Start server

@@ -6,7 +6,6 @@ import (
 	"math/rand"
 
 	"github.com/japanesestudent/learn-service/internal/models"
-	"go.uber.org/zap"
 )
 
 // WordRepository is the interface that wraps methods for Word table data access
@@ -16,6 +15,7 @@ type WordRepository interface {
 	// "wordIds" parameter is used to filter words by their IDs.
 	// "translationField" parameter is used to specify the field to use for translation.
 	// "exampleTranslationField" parameter is used to specify the field to use for example translation.
+	//
 	// If wrong parameters will be used or some error will occur during data retrieve, the error will be returned together with "nil" value.
 	GetByIDs(ctx context.Context, wordIds []int, translationField, exampleTranslationField string) ([]models.WordResponse, error)
 	// GetExcludingIDs retrieves words not in the provided ID list
@@ -25,11 +25,13 @@ type WordRepository interface {
 	// "limit" parameter is used to specify the number of words to return.
 	// "translationField" parameter is used to specify the field to use for translation.
 	// "exampleTranslationField" parameter is used to specify the field to use for example translation.
+	//
 	// Please reference GetByIDs method for more information about other parameters and error values.
 	GetExcludingIDs(ctx context.Context, userId int, excludeIds []int, limit int, translationField, exampleTranslationField string) ([]models.WordResponse, error)
 	// ValidateWordIDs checks if all word IDs exist in the database
 	//
 	// "wordIds" parameter is used to validate if all word IDs exist in the database.
+	//
 	// Please reference GetByIDs method for more information about other parameters and error values.
 	ValidateWordIDs(ctx context.Context, wordIds []int) (bool, error)
 }
@@ -54,19 +56,16 @@ type DictionaryHistoryRepository interface {
 type dictionaryService struct {
 	wordRepo              WordRepository
 	dictionaryHistoryRepo DictionaryHistoryRepository
-	logger                *zap.Logger
 }
 
 // NewDictionaryService creates a new dictionary service
 func NewDictionaryService(
 	wordRepo WordRepository,
 	dictionaryHistoryRepo DictionaryHistoryRepository,
-	logger *zap.Logger,
 ) *dictionaryService {
 	return &dictionaryService{
 		wordRepo:              wordRepo,
 		dictionaryHistoryRepo: dictionaryHistoryRepo,
-		logger:                logger,
 	}
 }
 
@@ -75,14 +74,12 @@ func NewDictionaryService(
 // Please reference validateParameters method for more information about parameters and error values.
 func (s *dictionaryService) GetWordList(ctx context.Context, userId, newCount, oldCount int, locale string) ([]models.WordResponse, error) {
 	if err := s.validateParameters(newCount, oldCount, locale); err != nil {
-		s.logger.Error("failed to validate word list", zap.Error(err))
 		return nil, err
 	}
 
 	// Get old word IDs from dictionary history
 	oldWordIds, err := s.dictionaryHistoryRepo.GetOldWordIds(ctx, userId, oldCount)
 	if err != nil {
-		s.logger.Error("failed to get old word IDs", zap.Error(err))
 		return nil, fmt.Errorf("failed to get old word IDs: %w", err)
 	}
 
@@ -142,7 +139,6 @@ func (s *dictionaryService) validateParameters(newCount, oldCount int, locale st
 	for range 3 {
 		err := <-errChan
 		if err != nil {
-			s.logger.Error("failed to validate word list", zap.Error(err))
 			return err
 		}
 	}
@@ -164,7 +160,6 @@ func (s *dictionaryService) getShuffledWordList(ctx context.Context, userId int,
 		}
 		words, err := s.wordRepo.GetByIDs(ctx, oldWordIds, translationField, exampleTranslationField)
 		if err != nil {
-			s.logger.Error("failed to get old words", zap.Error(err))
 			wordsErrChan <- err
 			return
 		}
@@ -175,7 +170,6 @@ func (s *dictionaryService) getShuffledWordList(ctx context.Context, userId int,
 	go func() {
 		words, err := s.wordRepo.GetExcludingIDs(ctx, userId, oldWordIds, newCount, translationField, exampleTranslationField)
 		if err != nil {
-			s.logger.Error("failed to get new words", zap.Error(err))
 			wordsErrChan <- err
 			return
 		}
@@ -188,7 +182,6 @@ func (s *dictionaryService) getShuffledWordList(ctx context.Context, userId int,
 		case words := <-wordsChan:
 			allWords = append(allWords, words...)
 		case err := <-wordsErrChan:
-			s.logger.Error("failed to get words", zap.Error(err))
 			return nil, err
 		}
 	}
@@ -223,7 +216,6 @@ func (s *dictionaryService) SubmitWordResults(ctx context.Context, userId int, r
 	// Validate all word IDs exist
 	valid, err := s.wordRepo.ValidateWordIDs(ctx, wordIds)
 	if err != nil {
-		s.logger.Error("failed to validate word IDs", zap.Error(err))
 		return fmt.Errorf("failed to validate word IDs: %w", err)
 	}
 	if !valid {

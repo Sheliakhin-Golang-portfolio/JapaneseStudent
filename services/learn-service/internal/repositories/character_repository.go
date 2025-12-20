@@ -8,19 +8,16 @@ import (
 	"strings"
 
 	"github.com/japanesestudent/learn-service/internal/models"
-	"go.uber.org/zap"
 )
 
 type charactersRepository struct {
-	db     *sql.DB
-	logger *zap.Logger
+	db *sql.DB
 }
 
 // NewCharactersRepository creates a new instance of the CharacterRepository interface
-func NewCharactersRepository(db *sql.DB, logger *zap.Logger) *charactersRepository {
+func NewCharactersRepository(db *sql.DB) *charactersRepository {
 	return &charactersRepository{
-		db:     db,
-		logger: logger,
+		db: db,
 	}
 }
 
@@ -56,7 +53,6 @@ func (r *charactersRepository) GetAll(ctx context.Context, alphabetType models.A
 
 	rows, err := r.db.QueryContext(ctx, query)
 	if err != nil {
-		r.logger.Error("failed to query characters", zap.Error(err))
 		return nil, fmt.Errorf("failed to query characters: %w", err)
 	}
 	defer rows.Close()
@@ -65,14 +61,12 @@ func (r *charactersRepository) GetAll(ctx context.Context, alphabetType models.A
 	for rows.Next() {
 		var char models.CharacterResponse
 		if err := rows.Scan(&char.ID, &char.Consonant, &char.Vowel, &char.Character, &char.Reading); err != nil {
-			r.logger.Error("failed to scan character", zap.Error(err))
 			return nil, fmt.Errorf("failed to scan character: %w", err)
 		}
 		characters = append(characters, char)
 	}
 
 	if err := rows.Err(); err != nil {
-		r.logger.Error("error iterating rows", zap.Error(err))
 		return nil, fmt.Errorf("error iterating rows: %w", err)
 	}
 
@@ -112,7 +106,6 @@ func (r *charactersRepository) GetByRowColumn(ctx context.Context, alphabetType 
 
 	rows, err := r.db.QueryContext(ctx, query, character, character)
 	if err != nil {
-		r.logger.Error("failed to query characters by row/column", zap.Error(err))
 		return nil, fmt.Errorf("failed to query characters: %w", err)
 	}
 	defer rows.Close()
@@ -122,7 +115,6 @@ func (r *charactersRepository) GetByRowColumn(ctx context.Context, alphabetType 
 		var char models.CharacterResponse
 		var consonant, vowel string
 		if err := rows.Scan(&char.ID, &consonant, &vowel, &char.Character, &char.Reading); err != nil {
-			r.logger.Error("failed to scan character", zap.Error(err))
 			return nil, fmt.Errorf("failed to scan character: %w", err)
 		}
 		// Populate the field that matches the search parameter
@@ -138,7 +130,6 @@ func (r *charactersRepository) GetByRowColumn(ctx context.Context, alphabetType 
 	}
 
 	if err := rows.Err(); err != nil {
-		r.logger.Error("error iterating rows", zap.Error(err))
 		return nil, fmt.Errorf("error iterating rows: %w", err)
 	}
 
@@ -185,7 +176,6 @@ func (r *charactersRepository) GetByID(ctx context.Context, id int, locale model
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("character not found")
 		}
-		r.logger.Error("failed to query character by id", zap.Error(err), zap.Int("id", id))
 		return nil, fmt.Errorf("failed to query character: %w", err)
 	}
 
@@ -231,7 +221,6 @@ func (r *charactersRepository) GetRandomForReadingTest(ctx context.Context, alph
 
 	rows, err := r.db.QueryContext(ctx, query, count)
 	if err != nil {
-		r.logger.Error("failed to query random characters for reading test", zap.Error(err))
 		return nil, fmt.Errorf("failed to query characters: %w", err)
 	}
 	defer rows.Close()
@@ -243,7 +232,6 @@ func (r *charactersRepository) GetRandomForReadingTest(ctx context.Context, alph
 	for rows.Next() {
 		var testItem models.ReadingTestItem
 		if err := rows.Scan(&testItem.ID, &testItem.CorrectChar, &testItem.Reading); err != nil {
-			r.logger.Error("failed to scan reading test item", zap.Error(err))
 			return nil, fmt.Errorf("failed to scan item: %w", err)
 		}
 		testItem.WrongOptions = make([]string, 0, 2)
@@ -252,7 +240,6 @@ func (r *charactersRepository) GetRandomForReadingTest(ctx context.Context, alph
 	}
 
 	if err := rows.Err(); err != nil {
-		r.logger.Error("error iterating rows", zap.Error(err))
 		return nil, fmt.Errorf("error iterating rows: %w", err)
 	}
 
@@ -272,7 +259,6 @@ func (r *charactersRepository) GetRandomForReadingTest(ctx context.Context, alph
 		`, charField, charField, strings.Join(charPlaceholders, ","), charField, charField)
 	wrongRows, err := r.db.QueryContext(ctx, wrongQuery, correctChars...)
 	if err != nil {
-		r.logger.Error("failed to query wrong options", zap.Error(err))
 		return nil, fmt.Errorf("failed to query wrong options: %w", err)
 	}
 	defer wrongRows.Close()
@@ -332,7 +318,6 @@ func (r *charactersRepository) GetRandomForWritingTest(ctx context.Context, alph
 
 	rows, err := r.db.QueryContext(ctx, query, count)
 	if err != nil {
-		r.logger.Error("failed to query random characters for writing test", zap.Error(err))
 		return nil, fmt.Errorf("failed to query characters: %w", err)
 	}
 	defer rows.Close()
@@ -341,16 +326,230 @@ func (r *charactersRepository) GetRandomForWritingTest(ctx context.Context, alph
 	for rows.Next() {
 		var item models.WritingTestItem
 		if err := rows.Scan(&item.ID, &item.Character, &item.CorrectReading); err != nil {
-			r.logger.Error("failed to scan writing test item", zap.Error(err))
 			return nil, fmt.Errorf("failed to scan item: %w", err)
 		}
 		items = append(items, item)
 	}
 
 	if err := rows.Err(); err != nil {
-		r.logger.Error("error iterating rows", zap.Error(err))
 		return nil, fmt.Errorf("error iterating rows: %w", err)
 	}
 
 	return items, nil
+}
+
+// GetAllForAdmin retrieves all characters ordered by ID for admin endpoints
+func (r *charactersRepository) GetAllForAdmin(ctx context.Context) ([]models.Character, error) {
+	query := `
+		SELECT id, consonant, vowel, katakana, hiragana
+		FROM characters
+		ORDER BY id
+	`
+
+	rows, err := r.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query characters: %w", err)
+	}
+	defer rows.Close()
+
+	var characters []models.Character
+	for rows.Next() {
+		var char models.Character
+		err := rows.Scan(
+			&char.ID,
+			&char.Consonant,
+			&char.Vowel,
+			&char.Katakana,
+			&char.Hiragana,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan character: %w", err)
+		}
+		characters = append(characters, char)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating rows: %w", err)
+	}
+
+	return characters, nil
+}
+
+// GetByID retrieves a character by ID
+func (r *charactersRepository) GetByIDAdmin(ctx context.Context, id int) (*models.Character, error) {
+	query := `
+		SELECT consonant, vowel, english_reading, russian_reading, katakana, hiragana
+		FROM characters
+		WHERE id = ?
+		LIMIT 1
+	`
+
+	char := &models.Character{}
+	err := r.db.QueryRowContext(ctx, query, id).Scan(
+		&char.Consonant,
+		&char.Vowel,
+		&char.EnglishReading,
+		&char.RussianReading,
+		&char.Katakana,
+		&char.Hiragana,
+	)
+
+	if err == sql.ErrNoRows {
+		return nil, fmt.Errorf("character not found")
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to get character by ID: %w", err)
+	}
+
+	char.ID = id
+	return char, nil
+}
+
+// ExistsByVowelConsonant checks if a character with the given vowel and consonant exists
+func (r *charactersRepository) ExistsByVowelConsonant(ctx context.Context, vowel, consonant string) (bool, error) {
+	query := `SELECT EXISTS(SELECT * FROM characters WHERE vowel = ? AND consonant = ?)`
+
+	var exists bool
+	err := r.db.QueryRowContext(ctx, query, vowel, consonant).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("failed to check character existence: %w", err)
+	}
+
+	return exists, nil
+}
+
+// ExistsByKatakanaOrHiragana checks if a character with the given katakana or hiragana exists
+func (r *charactersRepository) ExistsByKatakanaOrHiragana(ctx context.Context, katakana, hiragana string) (bool, error) {
+	if katakana == "" && hiragana == "" {
+		return false, fmt.Errorf("katakana and hiragana cannot be both empty")
+	}
+
+	whereClauses := []string{}
+	args := []any{}
+	if katakana != "" {
+		whereClauses = append(whereClauses, "katakana = ?")
+		args = append(args, katakana)
+	}
+	if hiragana != "" {
+		whereClauses = append(whereClauses, "hiragana = ?")
+		args = append(args, hiragana)
+	}
+	query := fmt.Sprintf(`SELECT EXISTS(SELECT * FROM characters WHERE %s)`, strings.Join(whereClauses, " OR "))
+
+	var exists bool
+	err := r.db.QueryRowContext(ctx, query, args...).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("failed to check character existence: %w", err)
+	}
+
+	return exists, nil
+}
+
+// Create inserts a new character into the database
+func (r *charactersRepository) Create(ctx context.Context, character *models.Character) error {
+	query := `
+		INSERT INTO characters (consonant, vowel, english_reading, russian_reading, katakana, hiragana)
+		VALUES (?, ?, ?, ?, ?, ?)
+	`
+
+	result, err := r.db.ExecContext(ctx, query,
+		character.Consonant,
+		character.Vowel,
+		character.EnglishReading,
+		character.RussianReading,
+		character.Katakana,
+		character.Hiragana,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create character: %w", err)
+	}
+
+	id, err := result.LastInsertId()
+	if err != nil {
+		return fmt.Errorf("failed to get last insert id: %w", err)
+	}
+
+	character.ID = int(id)
+	return nil
+}
+
+// Update updates character fields (partial update)
+func (r *charactersRepository) Update(ctx context.Context, id int, character *models.Character) error {
+	// Build dynamic UPDATE query based on provided fields
+	var setParts []string
+	var args []any
+
+	if character.Consonant != "" {
+		setParts = append(setParts, "consonant = ?")
+		args = append(args, character.Consonant)
+	}
+	if character.Vowel != "" {
+		setParts = append(setParts, "vowel = ?")
+		args = append(args, character.Vowel)
+	}
+	if character.EnglishReading != "" {
+		setParts = append(setParts, "english_reading = ?")
+		args = append(args, character.EnglishReading)
+	}
+	if character.RussianReading != "" {
+		setParts = append(setParts, "russian_reading = ?")
+		args = append(args, character.RussianReading)
+	}
+	if character.Katakana != "" {
+		setParts = append(setParts, "katakana = ?")
+		args = append(args, character.Katakana)
+	}
+	if character.Hiragana != "" {
+		setParts = append(setParts, "hiragana = ?")
+		args = append(args, character.Hiragana)
+	}
+
+	if len(setParts) == 0 {
+		return fmt.Errorf("no fields to update")
+	}
+
+	query := fmt.Sprintf(`
+		UPDATE characters
+		SET %s
+		WHERE id = ?
+	`, strings.Join(setParts, ", "))
+
+	args = append(args, id)
+
+	result, err := r.db.ExecContext(ctx, query, args...)
+	if err != nil {
+		return fmt.Errorf("failed to update character: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("character not found")
+	}
+
+	return nil
+}
+
+// Delete deletes a character by ID
+func (r *charactersRepository) Delete(ctx context.Context, id int) error {
+	query := `DELETE FROM characters WHERE id = ?`
+
+	result, err := r.db.ExecContext(ctx, query, id)
+	if err != nil {
+		return fmt.Errorf("failed to delete character: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("character not found")
+	}
+
+	return nil
 }

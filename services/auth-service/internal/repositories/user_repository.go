@@ -4,22 +4,20 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 
 	"github.com/japanesestudent/auth-service/internal/models"
-	"go.uber.org/zap"
 )
 
 // userRepository implements UserRepository
 type userRepository struct {
-	db     *sql.DB
-	logger *zap.Logger
+	db *sql.DB
 }
 
 // NewUserRepository creates a new user repository
-func NewUserRepository(db *sql.DB, logger *zap.Logger) *userRepository {
+func NewUserRepository(db *sql.DB) *userRepository {
 	return &userRepository{
-		db:     db,
-		logger: logger,
+		db: db,
 	}
 }
 
@@ -32,13 +30,11 @@ func (r *userRepository) Create(ctx context.Context, user *models.User) error {
 
 	result, err := r.db.ExecContext(ctx, query, user.Username, user.Email, user.PasswordHash, user.Role)
 	if err != nil {
-		r.logger.Error("failed to create user", zap.Error(err))
 		return fmt.Errorf("failed to create user: %w", err)
 	}
 
 	id, err := result.LastInsertId()
 	if err != nil {
-		r.logger.Error("failed to get last insert id", zap.Error(err))
 		return fmt.Errorf("failed to get last insert id: %w", err)
 	}
 
@@ -68,7 +64,6 @@ func (r *userRepository) GetByEmailOrUsername(ctx context.Context, login string)
 		return nil, fmt.Errorf("user not found")
 	}
 	if err != nil {
-		r.logger.Error("failed to get user by email or username", zap.Error(err), zap.String("login", login))
 		return nil, fmt.Errorf("failed to get user by email or username: %w", err)
 	}
 
@@ -82,7 +77,6 @@ func (r *userRepository) ExistsByEmail(ctx context.Context, email string) (bool,
 	var exists bool
 	err := r.db.QueryRowContext(ctx, query, email).Scan(&exists)
 	if err != nil {
-		r.logger.Error("failed to check email existence", zap.Error(err), zap.String("email", email))
 		return false, fmt.Errorf("failed to check email existence: %w", err)
 	}
 
@@ -96,9 +90,222 @@ func (r *userRepository) ExistsByUsername(ctx context.Context, username string) 
 	var exists bool
 	err := r.db.QueryRowContext(ctx, query, username).Scan(&exists)
 	if err != nil {
-		r.logger.Error("failed to check username existence", zap.Error(err), zap.String("username", username))
 		return false, fmt.Errorf("failed to check username existence: %w", err)
 	}
 
 	return exists, nil
+}
+
+// GetByID retrieves a user by ID
+func (r *userRepository) GetByID(ctx context.Context, userID int) (*models.User, error) {
+	query := `
+		SELECT username, email, password_hash, role
+		FROM users
+		WHERE id = ?
+		LIMIT 1
+	`
+
+	user := &models.User{}
+	err := r.db.QueryRowContext(ctx, query, userID).Scan(
+		&user.Username,
+		&user.Email,
+		&user.PasswordHash,
+		&user.Role,
+	)
+
+	if err == sql.ErrNoRows {
+		return nil, fmt.Errorf("user not found")
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user by ID: %w", err)
+	}
+
+	user.ID = userID
+	return user, nil
+}
+
+// GetAll retrieves a paginated list of users with optional role and search filters
+func (r *userRepository) GetAll(ctx context.Context, page, count int, role *models.Role, search string) ([]models.User, error) {
+	// Build WHERE clause
+	var whereConditions []string
+	var args []any
+
+	if role != nil {
+		whereConditions = append(whereConditions, "role = ?")
+		args = append(args, *role)
+	}
+
+	if search != "" {
+		whereConditions = append(whereConditions, "(email LIKE ? OR username LIKE ?)")
+		whereValue := "%" + search + "%"
+		args = append(args, whereValue, whereValue)
+	}
+
+	whereClause := ""
+	if len(whereConditions) > 0 {
+		whereClause = "WHERE " + strings.Join(whereConditions, " AND ")
+	}
+
+	// Calculate offset
+	offset := (page - 1) * count
+
+	query := fmt.Sprintf(`
+		SELECT id, username, email, role
+		FROM users
+		%s
+		ORDER BY email
+		LIMIT ? OFFSET ?
+	`, whereClause)
+
+	args = append(args, count, offset)
+
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query users: %w", err)
+	}
+	defer rows.Close()
+
+	var users []models.User
+	for rows.Next() {
+		var user models.User
+		err := rows.Scan(
+			&user.ID,
+			&user.Username,
+			&user.Email,
+			&user.Role,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan user: %w", err)
+		}
+		users = append(users, user)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating rows: %w", err)
+	}
+
+	return users, nil
+}
+
+// Update updates both user fields and settings
+func (r *userRepository) Update(ctx context.Context, userID int, user *models.User, settings *models.UserSettings) error {
+	// Begin transaction
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	// Build SET clause for user
+	if user != nil {
+		setClauses := []string{}
+		args := []any{}
+		if user.Username != "" {
+			setClauses = append(setClauses, "username = ?")
+			args = append(args, user.Username)
+		}
+		if user.Email != "" {
+			setClauses = append(setClauses, "email = ?")
+			args = append(args, user.Email)
+		}
+		if user.Role != 0 {
+			setClauses = append(setClauses, "role = ?")
+			args = append(args, user.Role)
+		}
+
+		if len(setClauses) != 0 {
+			args = append(args, userID)
+			query := fmt.Sprintf(`
+		UPDATE users
+		SET %s
+		WHERE id = ?
+		`, strings.Join(setClauses, ", "))
+
+			result, err := tx.ExecContext(ctx, query, args...)
+			if err != nil {
+				return fmt.Errorf("failed to update user: %w", err)
+			}
+
+			rowsAffected, err := result.RowsAffected()
+			if err != nil {
+				return fmt.Errorf("failed to get rows affected: %w", err)
+			}
+
+			if rowsAffected == 0 {
+				return fmt.Errorf("user not found")
+			}
+		}
+	}
+
+	// Build SET clause for settings
+	if settings != nil {
+		setClauses := []string{}
+		args := []any{}
+		if settings.Language != "" {
+			setClauses = append(setClauses, "language = ?")
+			args = append(args, settings.Language)
+		}
+		if settings.NewWordCount != 0 {
+			setClauses = append(setClauses, "new_word_count = ?")
+			args = append(args, settings.NewWordCount)
+		}
+		if settings.OldWordCount != 0 {
+			setClauses = append(setClauses, "old_word_count = ?")
+			args = append(args, settings.OldWordCount)
+		}
+		if settings.AlphabetLearnCount != 0 {
+			setClauses = append(setClauses, "alphabet_learn_count = ?")
+			args = append(args, settings.AlphabetLearnCount)
+		}
+
+		if len(setClauses) != 0 {
+			args = append(args, userID)
+			query := fmt.Sprintf(`
+		UPDATE user_settings
+		SET %s
+		WHERE user_id = ?
+		`, strings.Join(setClauses, ", "))
+
+			result, err := tx.ExecContext(ctx, query, args...)
+			if err != nil {
+				return fmt.Errorf("failed to update settings: %w", err)
+			}
+
+			rowsAffected, err := result.RowsAffected()
+			if err != nil {
+				return fmt.Errorf("failed to get rows affected: %w", err)
+			}
+
+			if rowsAffected == 0 {
+				return fmt.Errorf("settings not found")
+			}
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return nil
+}
+
+// Delete deletes a user by ID
+func (r *userRepository) Delete(ctx context.Context, userID int) error {
+	query := `DELETE FROM users WHERE id = ?`
+
+	result, err := r.db.ExecContext(ctx, query, userID)
+	if err != nil {
+		return fmt.Errorf("failed to delete user: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("user not found")
+	}
+
+	return nil
 }

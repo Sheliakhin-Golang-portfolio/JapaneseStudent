@@ -4,34 +4,31 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 
 	"github.com/japanesestudent/auth-service/internal/models"
-	"go.uber.org/zap"
 )
 
 // userSettingsRepository implements UserSettingsRepository
 type userSettingsRepository struct {
-	db     *sql.DB
-	logger *zap.Logger
+	db *sql.DB
 }
 
 // NewUserSettingsRepository creates a new user settings repository
-func NewUserSettingsRepository(db *sql.DB, logger *zap.Logger) *userSettingsRepository {
+func NewUserSettingsRepository(db *sql.DB) *userSettingsRepository {
 	return &userSettingsRepository{
-		db:     db,
-		logger: logger,
+		db: db,
 	}
 }
 
 // Create inserts a new user settings record
-func (r *userSettingsRepository) Create(ctx context.Context, userSettings *models.UserSettings) error {
+func (r *userSettingsRepository) Create(ctx context.Context, userId int) error {
 	query := `
 		INSERT INTO user_settings (user_id)
 		VALUES (?)
 	`
 
-	if _, err := r.db.ExecContext(ctx, query, userSettings.UserID); err != nil {
-		r.logger.Error("failed to create user settings", zap.Error(err))
+	if _, err := r.db.ExecContext(ctx, query, userId); err != nil {
 		return fmt.Errorf("failed to create user settings: %w", err)
 	}
 	return nil
@@ -61,7 +58,6 @@ func (r *userSettingsRepository) GetByUserId(ctx context.Context, userId int) (*
 		return nil, fmt.Errorf("user settings not found")
 	}
 	if err != nil {
-		r.logger.Error("failed to get user settings by user ID", zap.Error(err), zap.Int("userId", userId))
 		return nil, fmt.Errorf("failed to get user settings: %w", err)
 	}
 
@@ -71,27 +67,43 @@ func (r *userSettingsRepository) GetByUserId(ctx context.Context, userId int) (*
 
 // Update updates user settings for a given user ID
 func (r *userSettingsRepository) Update(ctx context.Context, userId int, settings *models.UserSettings) error {
-	query := `
-		UPDATE user_settings
-		SET new_word_count = ?, old_word_count = ?, alphabet_learn_count = ?, language = ?
-		WHERE user_id = ?
-	`
+	// Build SET clause
+	setClauses := []string{}
+	args := []any{}
+	if settings.NewWordCount != 0 {
+		setClauses = append(setClauses, "new_word_count = ?")
+		args = append(args, settings.NewWordCount)
+	}
+	if settings.OldWordCount != 0 {
+		setClauses = append(setClauses, "old_word_count = ?")
+		args = append(args, settings.OldWordCount)
+	}
+	if settings.AlphabetLearnCount != 0 {
+		setClauses = append(setClauses, "alphabet_learn_count = ?")
+		args = append(args, settings.AlphabetLearnCount)
+	}
+	if settings.Language != "" {
+		setClauses = append(setClauses, "language = ?")
+		args = append(args, string(settings.Language))
+	}
+	if len(setClauses) == 0 {
+		return fmt.Errorf("no fields to update")
+	}
 
-	result, err := r.db.ExecContext(ctx, query,
-		settings.NewWordCount,
-		settings.OldWordCount,
-		settings.AlphabetLearnCount,
-		string(settings.Language),
-		userId,
-	)
+	args = append(args, userId)
+	query := fmt.Sprintf(`
+		UPDATE user_settings
+		SET %s
+		WHERE user_id = ?
+	`, strings.Join(setClauses, ", "))
+
+	result, err := r.db.ExecContext(ctx, query, args...)
 	if err != nil {
-		r.logger.Error("failed to update user settings", zap.Error(err), zap.Int("userId", userId))
 		return fmt.Errorf("failed to update user settings: %w", err)
 	}
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		r.logger.Error("failed to get rows affected", zap.Error(err))
 		return fmt.Errorf("failed to get rows affected: %w", err)
 	}
 

@@ -52,7 +52,7 @@ func (h *UserSettingsHandler) RegisterRoutes(r chi.Router, authMiddleware func(h
 	})
 }
 
-// GetUserSettings handles GET /api/v1/settings
+// GetUserSettings handles GET /settings
 // @Summary Get user settings
 // @Description Get user settings for the authenticated user. Requires authentication.
 // @Tags settings
@@ -62,11 +62,12 @@ func (h *UserSettingsHandler) RegisterRoutes(r chi.Router, authMiddleware func(h
 // @Success 200 {object} models.UserSettingsResponse "User settings"
 // @Failure 401 {object} map[string]string "Unauthorized - authentication required"
 // @Failure 500 {object} map[string]string "Internal server error"
-// @Router /api/v1/settings [get]
+// @Router /settings [get]
 func (h *UserSettingsHandler) GetUserSettings(w http.ResponseWriter, r *http.Request) {
 	// Extract userID from auth middleware context
 	userID, ok := middleware.GetUserID(r.Context())
 	if !ok {
+		h.Logger.Error("user ID not found in context")
 		h.RespondError(w, http.StatusUnauthorized, "user ID not found in context")
 		return
 	}
@@ -82,7 +83,7 @@ func (h *UserSettingsHandler) GetUserSettings(w http.ResponseWriter, r *http.Req
 	h.RespondJSON(w, http.StatusOK, settings)
 }
 
-// UpdateUserSettings handles PATCH /api/v1/settings
+// UpdateUserSettings handles PATCH /settings
 // @Summary Update user settings
 // @Description Update user settings for the authenticated user. Requires authentication.
 // @Tags settings
@@ -94,11 +95,12 @@ func (h *UserSettingsHandler) GetUserSettings(w http.ResponseWriter, r *http.Req
 // @Failure 400 {object} map[string]string "Bad request - invalid request body or validation error"
 // @Failure 401 {object} map[string]string "Unauthorized - authentication required"
 // @Failure 500 {object} map[string]string "Internal server error"
-// @Router /api/v1/settings [patch]
+// @Router /settings [patch]
 func (h *UserSettingsHandler) UpdateUserSettings(w http.ResponseWriter, r *http.Request) {
 	// Extract userID from auth middleware context
 	userID, ok := middleware.GetUserID(r.Context())
 	if !ok {
+		h.Logger.Error("user ID not found in context")
 		h.RespondError(w, http.StatusUnauthorized, "user ID not found in context")
 		return
 	}
@@ -106,12 +108,14 @@ func (h *UserSettingsHandler) UpdateUserSettings(w http.ResponseWriter, r *http.
 	// Parse request body
 	var req models.UpdateUserSettingsRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.Logger.Error("failed to decode request body", zap.Error(err))
 		h.RespondError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
 	// Validate that at least one field is provided
 	if req.NewWordCount == nil && req.OldWordCount == nil && req.AlphabetLearnCount == nil && req.Language == nil {
+		h.Logger.Error("at least one field must be provided")
 		h.RespondError(w, http.StatusBadRequest, "at least one field must be provided")
 		return
 	}
@@ -122,10 +126,11 @@ func (h *UserSettingsHandler) UpdateUserSettings(w http.ResponseWriter, r *http.
 		h.Logger.Error("failed to update user settings", zap.Error(err))
 		statusCode := http.StatusInternalServerError
 		// Check if it's a validation error
-		if err.Error() == "newWordCount must be between 10 and 40" ||
-			err.Error() == "oldWordCount must be between 10 and 40" ||
-			err.Error() == "alphabetLearnCount must be between 5 and 15" ||
-			len(err.Error()) > 0 && err.Error()[:15] == "invalid language" {
+		errMsg := err.Error()
+		if errMsg == "newWordCount must be between 10 and 40" ||
+			errMsg == "oldWordCount must be between 10 and 40" ||
+			errMsg == "alphabetLearnCount must be between 5 and 15" ||
+			(len(errMsg) >= 16 && errMsg[:16] == "invalid language") {
 			statusCode = http.StatusBadRequest
 		}
 		h.RespondError(w, statusCode, err.Error())

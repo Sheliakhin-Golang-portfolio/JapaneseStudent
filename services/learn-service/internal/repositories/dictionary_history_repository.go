@@ -7,20 +7,17 @@ import (
 	"strings"
 
 	"github.com/japanesestudent/learn-service/internal/models"
-	"go.uber.org/zap"
 )
 
 // dictionaryHistoryRepository implements DictionaryHistoryRepository
 type dictionaryHistoryRepository struct {
-	db     *sql.DB
-	logger *zap.Logger
+	db *sql.DB
 }
 
 // NewDictionaryHistoryRepository creates a new dictionary history repository
-func NewDictionaryHistoryRepository(db *sql.DB, logger *zap.Logger) *dictionaryHistoryRepository {
+func NewDictionaryHistoryRepository(db *sql.DB) *dictionaryHistoryRepository {
 	return &dictionaryHistoryRepository{
-		db:     db,
-		logger: logger,
+		db: db,
 	}
 }
 
@@ -40,7 +37,6 @@ func (r *dictionaryHistoryRepository) GetOldWordIds(ctx context.Context, userId 
 
 	rows, err := r.db.QueryContext(ctx, query, userId, limit)
 	if err != nil {
-		r.logger.Error("failed to query old word IDs", zap.Error(err))
 		return nil, fmt.Errorf("failed to query old word IDs: %w", err)
 	}
 	defer rows.Close()
@@ -49,14 +45,12 @@ func (r *dictionaryHistoryRepository) GetOldWordIds(ctx context.Context, userId 
 	for rows.Next() {
 		var wordId int
 		if err := rows.Scan(&wordId); err != nil {
-			r.logger.Error("failed to scan word ID", zap.Error(err))
 			return nil, fmt.Errorf("failed to scan word ID: %w", err)
 		}
 		wordIds = append(wordIds, wordId)
 	}
 
 	if err = rows.Err(); err != nil {
-		r.logger.Error("error iterating rows", zap.Error(err))
 		return nil, fmt.Errorf("error iterating rows: %w", err)
 	}
 
@@ -94,7 +88,6 @@ func (r *dictionaryHistoryRepository) UpsertResults(ctx context.Context, userId 
 	`, strings.Join(placeholders, ","))
 
 	if _, err = tx.ExecContext(ctx, query, args...); err != nil {
-		r.logger.Error("failed to upsert dictionary history", zap.Error(err))
 		return fmt.Errorf("failed to upsert dictionary history: %w", err)
 	}
 

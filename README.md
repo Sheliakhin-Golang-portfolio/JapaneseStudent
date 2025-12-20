@@ -48,23 +48,34 @@ JapaneseStudent/
 │   │   │   └── main.go            # Service entry point
 │   │   ├── internal/
 │   │   │   ├── handlers/          # HTTP handlers
-│   │   │   │   └── auth_handler.go
+│   │   │   │   ├── auth_handler.go
+│   │   │   │   ├── admin_handler.go
+│   │   │   │   └── user_settings_handler.go
 │   │   │   ├── models/           # Domain models
 │   │   │   │   ├── user.go
-│   │   │   │   └── user_token.go
+│   │   │   │   ├── user_token.go
+│   │   │   │   └── user_settings.go
 │   │   │   ├── repositories/      # Data access layer
 │   │   │   │   ├── user_repository.go
 │   │   │   │   ├── user_repository_test.go
 │   │   │   │   ├── user_token_repository.go
-│   │   │   │   └── user_token_repository_test.go
+│   │   │   │   ├── user_token_repository_test.go
+│   │   │   │   ├── user_settings_repository.go
+│   │   │   │   └── user_settings_repository_test.go
 │   │   │   └── services/          # Business logic layer
 │   │   │       ├── auth_service.go
-│   │   │       └── auth_service_test.go
+│   │   │       ├── auth_service_test.go
+│   │   │       ├── admin_service.go
+│   │   │       ├── admin_service_test.go
+│   │   │       ├── user_settings_service.go
+│   │   │       └── user_settings_service_test.go
 │   │   ├── migrations/            # Database migrations
 │   │   │   ├── 000001_create_users_table.up.sql
 │   │   │   ├── 000001_create_users_table.down.sql
 │   │   │   ├── 000002_create_user_tokens_table.up.sql
-│   │   │   └── 000002_create_user_tokens_table.down.sql
+│   │   │   ├── 000002_create_user_tokens_table.down.sql
+│   │   │   ├── 000003_create_user_settings_table.up.sql
+│   │   │   └── 000003_create_user_settings_table.down.sql
 │   │   ├── test/
 │   │   │   └── integration/       # Integration tests
 │   │   │       └── auth_test.go
@@ -78,7 +89,9 @@ JapaneseStudent/
 │       │   ├── handlers/          # HTTP handlers
 │       │   │   ├── character_handler.go
 │       │   │   ├── dictionary_handler.go
-│       │   │   └── test_result_handler.go
+│       │   │   ├── test_result_handler.go
+│       │   │   ├── admin_character_handler.go
+│       │   │   └── admin_word_handler.go
 │       │   ├── models/           # Domain models
 │       │   │   ├── character.go
 │       │   │   ├── character_learn_history.go
@@ -94,7 +107,11 @@ JapaneseStudent/
 │       │       ├── character_service.go
 │       │       ├── dictionary_service.go
 │       │       ├── test_result_service.go
-│       │       └── service_test.go
+│       │       ├── service_test.go
+│       │       ├── admin_character_service.go
+│       │       ├── admin_character_service_test.go
+│       │       ├── admin_word_service.go
+│       │       └── admin_word_service_test.go
 │       ├── migrations/            # Database migrations
 │       │   ├── 000001_create_characters_table.up.sql
 │       │   ├── 000001_create_characters_table.down.sql
@@ -243,42 +260,105 @@ docker-compose down -v
 ### Authentication Service (Port 8081)
 
 #### Authentication
-- `POST /api/v1/auth/register` - Register a new user
+- `POST /api/v3/auth/register` - Register a new user
   - Body: `{ "email": "user@example.com", "username": "username", "password": "Password123!" }`
   - Returns: Access and refresh tokens as HTTP-only cookies
-- `POST /api/v1/auth/login` - Login with email/username and password
+- `POST /api/v3/auth/login` - Login with email/username and password
   - Body: `{ "login": "user@example.com", "password": "Password123!" }`
   - Returns: Access and refresh tokens as HTTP-only cookies
-- `POST /api/v1/auth/refresh` - Refresh access token using refresh token
+- `POST /api/v3/auth/refresh` - Refresh access token using refresh token
   - Body: `{ "refreshToken": "token" }` (or cookie)
   - Returns: New access and refresh tokens
+
+#### User Settings (Requires Authentication)
+- `GET /api/v3/settings` - Get user settings for the authenticated user
+  - Returns: User settings including word counts, alphabet learn count, and language preference
+- `PATCH /api/v3/settings` - Update user settings
+  - Body: `{ "newWordCount": 20, "oldWordCount": 20, "alphabetLearnCount": 10, "language": "en" }`
+  - At least one field must be provided
+  - Returns: 204 No Content on success
+
+#### Admin Endpoints (Requires Authentication & Admin Role)
+- `GET /api/v3/admin/users` - Get paginated list of users
+  - Query Parameters:
+    - `page` (optional): Page number (default: 1)
+    - `count` (optional): Items per page (default: 20)
+    - `role` (optional): Filter by role (integer)
+    - `search` (optional): Search in email or username
+  - Returns: List of users with pagination
+- `GET /api/v3/admin/users/{id}` - Get user with settings by ID
+  - Returns: Full user information including settings
+- `POST /api/v3/admin/users` - Create a new user with settings
+  - Body: `{ "email": "user@example.com", "username": "username", "password": "Password123!", "role": 0 }`
+  - Returns: Created user ID
+- `POST /api/v3/admin/users/{id}/settings` - Create user settings for a user
+  - Returns: Success message or "Settings already exist"
+- `PATCH /api/v3/admin/users/{id}` - Update user and/or settings
+  - Body: Partial update request with user and settings fields
+  - Returns: 204 No Content on success
+- `DELETE /api/v3/admin/users/{id}` - Delete a user by ID
+  - Returns: 204 No Content on success
 
 ### Learning Service (Port 8080)
 
 #### Characters
-- `GET /api/v1/characters?type={hr|kt}&locale={en|ru}` - Get all characters
-- `GET /api/v1/characters/row-column?type={hr|kt}&locale={en|ru}&character={char}` - Get characters by row/column
-- `GET /api/v1/characters/{id}?locale={en|ru}` - Get character by ID
+- `GET /api/v3/characters?type={hr|kt}&locale={en|ru}` - Get all characters
+- `GET /api/v3/characters/row-column?type={hr|kt}&locale={en|ru}&character={char}` - Get characters by row/column
+- `GET /api/v3/characters/{id}?locale={en|ru}` - Get character by ID
 
 #### Tests (Requires Authentication)
-- `GET /api/v1/tests/{hiragana|katakana}/reading?locale={en|ru}` - Get reading test (10 random characters with options)
-- `GET /api/v1/tests/{hiragana|katakana}/writing?locale={en|ru}` - Get writing test (10 random characters)
+- `GET /api/v3/tests/{hiragana|katakana}/reading?locale={en|ru}` - Get reading test (10 random characters with options)
+- `GET /api/v3/tests/{hiragana|katakana}/writing?locale={en|ru}` - Get writing test (10 random characters)
 
 #### Test Results (Requires Authentication)
-- `POST /api/v1/test-results/{hiragana|katakana}/{reading|writing|listening}` - Submit test results
+- `POST /api/v3/test-results/{hiragana|katakana}/{reading|writing|listening}` - Submit test results
   - Body: `{ "results": [{ "characterId": 1, "passed": true }, ...] }`
-- `GET /api/v1/test-results/history` - Get user's learning history
+- `GET /api/v3/test-results/history` - Get user's learning history
 
 #### Dictionary / Words (Requires Authentication)
-- `GET /api/v1/words?newCount={10-40}&oldCount={10-40}&locale={en|ru|de}` - Get word list
+- `GET /api/v3/words?newCount={10-40}&oldCount={10-40}&locale={en|ru|de}` - Get word list
   - Query Parameters:
     - `newCount` (optional): Number of new words to return (10-40, default: 20)
     - `oldCount` (optional): Number of old words to return (10-40, default: 20)
     - `locale` (optional): Translation locale - `en`, `ru`, or `de` (default: `en`)
   - Returns: Mixed list of new and old words with locale-specific translations
-- `POST /api/v1/words/results` - Submit word learning results
+- `POST /api/v3/words/results` - Submit word learning results
   - Body: `{ "results": [{ "wordId": 1, "period": 7 }, ...] }`
   - `period`: Days until next appearance (1-30)
+  - Returns: 204 No Content on success
+
+#### Admin Endpoints (Requires Authentication & Admin Role)
+
+##### Admin Characters
+- `GET /api/v3/admin/characters` - Get full list of characters ordered by ID
+  - Returns: List of all characters with full information
+- `GET /api/v3/admin/characters/{id}` - Get character by ID
+  - Returns: Full character information
+- `POST /api/v3/admin/characters` - Create a new character
+  - Body: `{ "consonant": "k", "vowel": "a", "englishReading": "ka", "russianReading": "ка", "hiragana": "か", "katakana": "カ" }`
+  - Returns: Created character ID
+- `PATCH /api/v3/admin/characters/{id}` - Update a character (partial update)
+  - Body: Partial update request with character fields
+  - Returns: 204 No Content on success
+- `DELETE /api/v3/admin/characters/{id}` - Delete a character by ID
+  - Returns: 204 No Content on success
+
+##### Admin Words
+- `GET /api/v3/admin/words` - Get paginated list of words with optional search
+  - Query Parameters:
+    - `page` (optional): Page number (default: 1)
+    - `count` (optional): Items per page (default: 20)
+    - `search` (optional): Search in word, phonetic clues, or translations
+  - Returns: List of words with pagination
+- `GET /api/v3/admin/words/{id}` - Get word by ID
+  - Returns: Full word information including all translations and examples
+- `POST /api/v3/admin/words` - Create a new word
+  - Body: Word creation request with all required fields
+  - Returns: Created word ID
+- `PATCH /api/v3/admin/words/{id}` - Update a word (partial update)
+  - Body: Partial update request with word fields
+  - Returns: 204 No Content on success
+- `DELETE /api/v3/admin/words/{id}` - Delete a word by ID
   - Returns: 204 No Content on success
 
 ### API Documentation
@@ -335,6 +415,16 @@ go test ./services/learn-service/test/integration/... -v
 - `id` - Primary key (auto-increment)
 - `user_id` - Foreign key to users.id
 - `token` - Refresh token (unique, indexed)
+- `updated_at` - Timestamp
+
+#### User Settings Table
+- `id` - Primary key (auto-increment)
+- `user_id` - Foreign key to users.id (unique)
+- `new_word_count` - Number of new words to show (10-40, default: 20)
+- `old_word_count` - Number of old words to show (10-40, default: 20)
+- `alphabet_learn_count` - Number of characters for alphabet tests (5-15, default: 10)
+- `language` - Preferred language for translations (`en`, `ru`, or `de`, default: `en`)
+- `created_at` - Timestamp
 - `updated_at` - Timestamp
 
 ### Learn Service Database
@@ -423,6 +513,7 @@ The application uses JWT (JSON Web Tokens) for authentication:
 - **Refresh Tokens**: Long-lived tokens (default: 7 days) stored in database, used to obtain new access tokens
 - **Token Storage**: Refresh tokens are stored as HTTP-only cookies for security
 - **Password Security**: Passwords are hashed using bcrypt before storage
+- **Role-Based Access Control**: Users have roles (default: `user`). Admin endpoints require admin role authentication.
 
 ### Password Requirements
 
@@ -431,6 +522,13 @@ The application uses JWT (JSON Web Tokens) for authentication:
 - At least one uppercase letter
 - At least one number
 - At least one special character from: `!_?^&+-=|`
+
+### Admin Access
+
+Admin endpoints require:
+1. Valid JWT authentication token
+2. User role must be set to admin (role value: 1 or higher, depending on implementation)
+3. Admin middleware validates both authentication and role permissions
 
 ## Logging
 

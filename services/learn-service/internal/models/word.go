@@ -37,3 +37,45 @@ type WordResult struct {
 	WordID int `json:"wordId"`
 	Period int `json:"period"` // Days (1-30)
 }
+
+// WordListItem represents a word in the list response
+type WordListItem struct {
+	ID                 int    `json:"id"`
+	Word               string `json:"word"`
+	PhoneticClues      string `json:"phoneticClues"`
+	EnglishTranslation string `json:"englishTranslation"`
+}
+
+// CreateWordRequest represents a request to create a word
+type CreateWordRequest struct {
+	Word                      string `json:"word"`
+	PhoneticClues             string `json:"phoneticClues"`
+	RussianTranslation        string `json:"russianTranslation"`
+	EnglishTranslation        string `json:"englishTranslation"`
+	GermanTranslation         string `json:"germanTranslation"`
+	Example                   string `json:"example"`
+	ExampleRussianTranslation string `json:"exampleRussianTranslation"`
+	ExampleEnglishTranslation string `json:"exampleEnglishTranslation"`
+	ExampleGermanTranslation  string `json:"exampleGermanTranslation"`
+	EasyPeriod                int    `json:"easyPeriod"`
+	NormalPeriod              int    `json:"normalPeriod"`
+	HardPeriod                int    `json:"hardPeriod"`
+	ExtraHardPeriod           int    `json:"extraHardPeriod"`
+}
+
+// UpdateWordRequest represents a request to update a word (partial update)
+type UpdateWordRequest struct {
+	Word                      string `json:"word,omitempty"`
+	PhoneticClues             string `json:"phoneticClues,omitempty"`
+	RussianTranslation        string `json:"russianTranslation,omitempty"`
+	EnglishTranslation        string `json:"englishTranslation,omitempty"`
+	GermanTranslation         string `json:"germanTranslation,omitempty"`
+	Example                   string `json:"example,omitempty"`
+	ExampleRussianTranslation string `json:"exampleRussianTranslation,omitempty"`
+	ExampleEnglishTranslation string `json:"exampleEnglishTranslation,omitempty"`
+	ExampleGermanTranslation  string `json:"exampleGermanTranslation,omitempty"`
+	EasyPeriod                *int   `json:"easyPeriod,omitempty"`
+	NormalPeriod              *int   `json:"normalPeriod,omitempty"`
+	HardPeriod                *int   `json:"hardPeriod,omitempty"`
+	ExtraHardPeriod           *int   `json:"extraHardPeriod,omitempty"`
+}

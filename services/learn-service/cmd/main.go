@@ -45,7 +45,7 @@ const maxRequestSize = 10 * 1024 * 1024 // 10MB
 // @license.url http://www.apache.org/licenses/LICENSE-2.0.html
 
 // @host localhost:8080
-// @BasePath /api/v1
+// @BasePath /api/v3
 // @securityDefinitions.apikey ApiKeyAuth
 // @in header
 // @name Authorization
@@ -86,20 +86,24 @@ func main() {
 	)
 
 	// Initialize layers
-	repo := repositories.NewCharactersRepository(db, logger.Logger)
-	svc := services.NewCharactersService(repo, logger.Logger)
+	repo := repositories.NewCharactersRepository(db)
+	svc := services.NewCharactersService(repo)
 	charHandler := handlers.NewCharactersHandler(svc, logger.Logger)
+	adminCharService := services.NewAdminService(repo)
+	adminCharHandler := handlers.NewAdminCharactersHandler(adminCharService, logger.Logger)
 
 	// Initialize test result layers
-	historyRepo := repositories.NewCharacterLearnHistoryRepository(db, logger.Logger)
-	testResultService := services.NewTestResultService(historyRepo, logger.Logger)
+	historyRepo := repositories.NewCharacterLearnHistoryRepository(db)
+	testResultService := services.NewTestResultService(historyRepo)
 	testResultHandler := handlers.NewTestResultHandler(testResultService, logger.Logger)
 
 	// Initialize dictionary layers
-	wordRepo := repositories.NewWordRepository(db, logger.Logger)
-	dictionaryHistoryRepo := repositories.NewDictionaryHistoryRepository(db, logger.Logger)
-	dictionaryService := services.NewDictionaryService(wordRepo, dictionaryHistoryRepo, logger.Logger)
+	wordRepo := repositories.NewWordRepository(db)
+	dictionaryHistoryRepo := repositories.NewDictionaryHistoryRepository(db)
+	dictionaryService := services.NewDictionaryService(wordRepo, dictionaryHistoryRepo)
 	dictionaryHandler := handlers.NewDictionaryHandler(dictionaryService, logger.Logger)
+	adminWordService := services.NewAdminWordService(wordRepo, dictionaryHistoryRepo)
+	adminWordHandler := handlers.NewAdminWordsHandler(adminWordService, logger.Logger)
 
 	// Setup router
 	r := chi.NewRouter()
@@ -117,8 +121,8 @@ func main() {
 		httpSwagger.URL(fmt.Sprintf("http://localhost:%d/swagger/doc.json", cfg.Server.Port)),
 	))
 
-	// Scope router to /api/v1
-	r.Route("/api/v1", func(r chi.Router) {
+	// Scope router to /api/v3
+	r.Route("/api/v3", func(r chi.Router) {
 		// Register character routes
 		authMw := authMiddleware.AuthMiddleware(tokenGenerator)
 		charHandler.RegisterRoutes(r, authMw)
@@ -128,6 +132,14 @@ func main() {
 
 		// Register dictionary routes with auth middleware
 		dictionaryHandler.RegisterRoutes(r, authMw)
+
+		// Register admin routes with role middleware
+		adminMw := authMiddleware.RoleMiddleware(tokenGenerator, 3) // Admin role = 3
+		r.Group(func(r chi.Router) {
+			r.Use(adminMw)
+			adminCharHandler.RegisterRoutes(r)
+			adminWordHandler.RegisterRoutes(r)
+		})
 	})
 
 	// Start server

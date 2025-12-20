@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/japanesestudent/learn-service/internal/models"
-	"go.uber.org/zap"
 )
 
 // CharactersRepository is the interface that wraps methods for Characters table data access
@@ -40,15 +39,13 @@ type CharactersRepository interface {
 }
 
 type charactersService struct {
-	repo   CharactersRepository
-	logger *zap.Logger
+	repo CharactersRepository
 }
 
 // NewCharactersService creates a new character service
-func NewCharactersService(repo CharactersRepository, logger *zap.Logger) *charactersService {
+func NewCharactersService(repo CharactersRepository) *charactersService {
 	return &charactersService{
-		repo:   repo,
-		logger: logger,
+		repo: repo,
 	}
 }
 
@@ -68,13 +65,7 @@ func (s *charactersService) GetAll(ctx context.Context, typeParam string, locale
 		return nil, err
 	}
 
-	characters, err := s.repo.GetAll(ctx, alphabetType, normalizedLocale)
-	if err != nil {
-		s.logger.Error("failed to get all characters", zap.Error(err))
-		return nil, fmt.Errorf("failed to get characters: %w", err)
-	}
-
-	return characters, nil
+	return s.repo.GetAll(ctx, alphabetType, normalizedLocale)
 }
 
 // GetByRowColumn retrieves characters filtered by consonant or vowel
@@ -96,13 +87,7 @@ func (s *charactersService) GetByRowColumn(ctx context.Context, typeParam string
 		return nil, fmt.Errorf("character parameter is required")
 	}
 
-	characters, err := s.repo.GetByRowColumn(ctx, alphabetType, normalizedLocale, character)
-	if err != nil {
-		s.logger.Error("failed to get characters by row/column", zap.Error(err))
-		return nil, fmt.Errorf("failed to get characters: %w", err)
-	}
-
-	return characters, nil
+	return s.repo.GetByRowColumn(ctx, alphabetType, normalizedLocale, character)
 }
 
 // GetByID retrieves a character by its ID
@@ -120,13 +105,7 @@ func (s *charactersService) GetByID(ctx context.Context, id int, localeParam str
 		return nil, err
 	}
 
-	character, err := s.repo.GetByID(ctx, id, normalizedLocale)
-	if err != nil {
-		s.logger.Error("failed to get character by id", zap.Error(err), zap.Int("id", id))
-		return nil, fmt.Errorf("failed to get character: %w", err)
-	}
-
-	return character, nil
+	return s.repo.GetByID(ctx, id, normalizedLocale)
 }
 
 // GetReadingTest retrieves random characters for reading test
@@ -153,12 +132,7 @@ func (s *charactersService) GetReadingTest(ctx context.Context, alphabetTypeStr 
 		return nil, err
 	}
 
-	items, err := s.repo.GetRandomForReadingTest(ctx, at, normalizedLocale, count)
-	if err != nil {
-		s.logger.Error("failed to get reading test items", zap.Error(err))
-		return nil, fmt.Errorf("failed to get reading test: %w", err)
-	}
-	return items, nil
+	return s.repo.GetRandomForReadingTest(ctx, at, normalizedLocale, count)
 }
 
 // GetWritingTest retrieves random characters for writing test
@@ -185,13 +159,7 @@ func (s *charactersService) GetWritingTest(ctx context.Context, alphabetTypeStr 
 		return nil, err
 	}
 
-	items, err := s.repo.GetRandomForWritingTest(ctx, at, normalizedLocale, count)
-	if err != nil {
-		s.logger.Error("failed to get writing test items", zap.Error(err))
-		return nil, fmt.Errorf("failed to get writing test: %w", err)
-	}
-
-	return items, nil
+	return s.repo.GetRandomForWritingTest(ctx, at, normalizedLocale, count)
 }
 
 // validateAlphabetType validates the alphabet type
