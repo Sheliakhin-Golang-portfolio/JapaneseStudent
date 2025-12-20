@@ -1,0 +1,228 @@
+basePath: /api/v4
+definitions:
+  models.MediaType:
+    enum:
+    - character
+    - word
+    - word_example
+    - lesson_audio
+    - lesson_video
+    - lesson_doc
+    type: string
+    x-enum-varnames:
+    - MediaTypeCharacter
+    - MediaTypeWord
+    - MediaTypeWordExample
+    - MediaTypeLessonAudio
+    - MediaTypeLessonVideo
+    - MediaTypeLessonDoc
+  models.Metadata:
+    properties:
+      contentType:
+        type: string
+      id:
+        type: string
+      size:
+        type: integer
+      type:
+        $ref: '#/definitions/models.MediaType'
+      url:
+        type: string
+    type: object
+host: localhost:8082
+info:
+  contact:
+    email: shelyahin.mihail@gmail.com
+    name: API Support
+  description: API for managing media files
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  termsOfService: http://swagger.io/terms/
+  title: JapaneseStudent Media API
+  version: "1.0"
+paths:
+  /media/{id}:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve metadata information for a file by its ID
+      parameters:
+      - description: File ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Metadata'
+        "404":
+          description: Metadata not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get file metadata
+      tags:
+      - media
+  /media/{mediaType}:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Upload a media file. Requires API key authentication.
+      parameters:
+      - description: Media type
+        in: path
+        name: mediaType
+        required: true
+        type: string
+      - description: File to upload
+        in: formData
+        name: file
+        required: true
+        type: file
+      - description: API Key
+        in: header
+        name: X-API-Key
+        required: true
+        type: string
+      produces:
+      - text/plain
+      responses:
+        "200":
+          description: Download URL
+          schema:
+            type: string
+        "400":
+          description: Invalid request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Authentication required
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Upload media file
+      tags:
+      - media
+  /media/{mediaType}/{filename}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete a media file and its metadata. Requires API key authentication.
+      parameters:
+      - description: Media type
+        in: path
+        name: mediaType
+        required: true
+        type: string
+      - description: File name
+        in: path
+        name: filename
+        required: true
+        type: string
+      - description: API Key
+        in: header
+        name: X-API-Key
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: File and metadata deleted successfully
+        "401":
+          description: Authentication required
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: File not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Delete media file
+      tags:
+      - media
+    get:
+      consumes:
+      - application/json
+      description: Download a media file. Character files are public, others require
+        authentication. Audio/video support range requests.
+      parameters:
+      - description: Media type
+        in: path
+        name: mediaType
+        required: true
+        type: string
+      - description: File name
+        in: path
+        name: filename
+        required: true
+        type: string
+      - description: Range
+        in: header
+        name: Range
+        type: string
+      produces:
+      - application/octet-stream
+      responses:
+        "200":
+          description: File content
+        "206":
+          description: Partial file content (for range requests)
+        "401":
+          description: Authentication required
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: File not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Download media file
+      tags:
+      - media
+securityDefinitions:
+  ApiKeyAuth:
+    description: API key for service-to-service authentication
+    in: header
+    name: X-API-Key
+    type: apiKey
+swagger: "2.0"

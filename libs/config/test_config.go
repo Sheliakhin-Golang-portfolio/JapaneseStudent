@@ -87,5 +87,11 @@ func LoadTestConfig() (*Config, error) {
 	}
 	cfg.JWT.RefreshTokenExpiry = refreshExpiry
 
+	// API Key configuration (optional, for service-to-service authentication)
+	cfg.APIKey = os.Getenv("TEST_API_KEY")
+
+	// Media base path configuration (optional, for media service)
+	cfg.MediaBasePath = os.Getenv("TEST_MEDIA_BASE_PATH")
+
 	return cfg, nil
 }

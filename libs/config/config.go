@@ -13,11 +13,13 @@ import (
 
 // Config holds all configuration for the application
 type Config struct {
-	Database DatabaseConfig
-	Server   ServerConfig
-	Logging  LoggingConfig
-	CORS     CORSConfig
-	JWT      JWTConfig
+	Database      DatabaseConfig
+	Server        ServerConfig
+	Logging       LoggingConfig
+	CORS          CORSConfig
+	JWT           JWTConfig
+	APIKey        string
+	MediaBasePath string
 }
 
 // DatabaseConfig holds database connection settings
@@ -160,6 +162,12 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("invalid JWT_REFRESH_TOKEN_EXPIRY: %w", err)
 	}
 	cfg.JWT.RefreshTokenExpiry = refreshExpiry
+
+	// API Key configuration (optional, for service-to-service authentication)
+	cfg.APIKey = os.Getenv("API_KEY")
+
+	// Media base path configuration (optional, for media service)
+	cfg.MediaBasePath = os.Getenv("MEDIA_BASE_PATH")
 
 	return cfg, nil
 }
