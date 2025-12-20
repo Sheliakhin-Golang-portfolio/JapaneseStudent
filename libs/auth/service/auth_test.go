@@ -63,7 +63,7 @@ func TestTokenGenerator_GenerateTokens(t *testing.T) {
 
 	t.Run("success with standard userID", func(t *testing.T) {
 		userID := 123
-		accessToken, refreshToken, err := tg.GenerateTokens(userID)
+		accessToken, refreshToken, err := tg.GenerateTokens(userID, 1)
 		require.NoError(t, err)
 		assert.NotEmpty(t, accessToken)
 		assert.NotEmpty(t, refreshToken)
@@ -71,45 +71,45 @@ func TestTokenGenerator_GenerateTokens(t *testing.T) {
 	})
 
 	t.Run("userID zero", func(t *testing.T) {
-		accessToken, refreshToken, err := tg.GenerateTokens(0)
+		accessToken, refreshToken, err := tg.GenerateTokens(0, 1)
 		require.NoError(t, err)
 		assert.NotEmpty(t, accessToken)
 		assert.NotEmpty(t, refreshToken)
 
 		// Verify userID 0 is in the token
-		userID, err := tg.ValidateAccessToken(accessToken)
+		userID, _, err := tg.ValidateAccessToken(accessToken)
 		require.NoError(t, err)
 		assert.Equal(t, 0, userID)
 	})
 
 	t.Run("negative userID", func(t *testing.T) {
-		accessToken, refreshToken, err := tg.GenerateTokens(-1)
+		accessToken, refreshToken, err := tg.GenerateTokens(-1, 1)
 		require.NoError(t, err)
 		assert.NotEmpty(t, accessToken)
 		assert.NotEmpty(t, refreshToken)
 	})
 
 	t.Run("max int userID", func(t *testing.T) {
-		accessToken, refreshToken, err := tg.GenerateTokens(math.MaxInt32)
+		accessToken, refreshToken, err := tg.GenerateTokens(math.MaxInt32, 1)
 		require.NoError(t, err)
 		assert.NotEmpty(t, accessToken)
 		assert.NotEmpty(t, refreshToken)
 
-		userID, err := tg.ValidateAccessToken(accessToken)
+		userID, _, err := tg.ValidateAccessToken(accessToken)
 		require.NoError(t, err)
 		assert.Equal(t, math.MaxInt32, userID)
 	})
 
 	t.Run("token uniqueness", func(t *testing.T) {
 		userID := 456
-		token1Access, token1Refresh, err := tg.GenerateTokens(userID)
+		token1Access, token1Refresh, err := tg.GenerateTokens(userID, 1)
 		require.NoError(t, err)
 
 		// Wait to ensure different iat timestamp
 		time.Sleep(1 * time.Second)
 
 		// Generate again with same userID
-		token2Access, token2Refresh, err := tg.GenerateTokens(userID)
+		token2Access, token2Refresh, err := tg.GenerateTokens(userID, 1)
 		require.NoError(t, err)
 
 		// Tokens should be different even for same userID (due to iat timestamp)
@@ -118,7 +118,7 @@ func TestTokenGenerator_GenerateTokens(t *testing.T) {
 	})
 
 	t.Run("token format validation", func(t *testing.T) {
-		accessToken, refreshToken, err := tg.GenerateTokens(789)
+		accessToken, refreshToken, err := tg.GenerateTokens(789, 1)
 		require.NoError(t, err)
 
 		// JWT tokens should have 3 parts separated by dots
@@ -139,31 +139,31 @@ func TestTokenGenerator_ValidateAccessToken(t *testing.T) {
 
 	t.Run("valid token", func(t *testing.T) {
 		userID := 456
-		accessToken, _, err := tg.GenerateTokens(userID)
+		accessToken, _, err := tg.GenerateTokens(userID, 1)
 		require.NoError(t, err)
 
-		validatedUserID, err := tg.ValidateAccessToken(accessToken)
+		validatedUserID, _, err := tg.ValidateAccessToken(accessToken)
 		require.NoError(t, err)
 		assert.Equal(t, userID, validatedUserID)
 	})
 
 	t.Run("empty string token", func(t *testing.T) {
-		_, err := tg.ValidateAccessToken("")
+		_, _, err := tg.ValidateAccessToken("")
 		assert.Error(t, err)
 	})
 
 	t.Run("invalid token format", func(t *testing.T) {
-		_, err := tg.ValidateAccessToken("invalid-token")
+		_, _, err := tg.ValidateAccessToken("invalid-token")
 		assert.Error(t, err)
 	})
 
 	t.Run("malformed JWT - missing parts", func(t *testing.T) {
-		_, err := tg.ValidateAccessToken("header.payload")
+		_, _, err := tg.ValidateAccessToken("header.payload")
 		assert.Error(t, err)
 	})
 
 	t.Run("malformed JWT - invalid base64", func(t *testing.T) {
-		_, err := tg.ValidateAccessToken("not-base64.not-base64.not-base64")
+		_, _, err := tg.ValidateAccessToken("not-base64.not-base64.not-base64")
 		assert.Error(t, err)
 	})
 
@@ -180,7 +180,7 @@ func TestTokenGenerator_ValidateAccessToken(t *testing.T) {
 		tokenString, err := token.SignedString(jwt.UnsafeAllowNoneSignatureType)
 		require.NoError(t, err)
 
-		_, err = tg.ValidateAccessToken(tokenString)
+		_, _, err = tg.ValidateAccessToken(tokenString)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "unexpected signing method")
 	})
@@ -195,7 +195,7 @@ func TestTokenGenerator_ValidateAccessToken(t *testing.T) {
 		tokenString, err := token.SignedString([]byte(secret))
 		require.NoError(t, err)
 
-		_, err = tg.ValidateAccessToken(tokenString)
+		_, _, err = tg.ValidateAccessToken(tokenString)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "user_id not found")
 	})
@@ -210,7 +210,7 @@ func TestTokenGenerator_ValidateAccessToken(t *testing.T) {
 		tokenString, err := token.SignedString([]byte(secret))
 		require.NoError(t, err)
 
-		_, err = tg.ValidateAccessToken(tokenString)
+		_, _, err = tg.ValidateAccessToken(tokenString)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "not an access token")
 	})
@@ -226,7 +226,7 @@ func TestTokenGenerator_ValidateAccessToken(t *testing.T) {
 		tokenString, err := token.SignedString([]byte(secret))
 		require.NoError(t, err)
 
-		_, err = tg.ValidateAccessToken(tokenString)
+		_, _, err = tg.ValidateAccessToken(tokenString)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "not an access token")
 	})
@@ -242,7 +242,7 @@ func TestTokenGenerator_ValidateAccessToken(t *testing.T) {
 		tokenString, err := token.SignedString([]byte(secret))
 		require.NoError(t, err)
 
-		_, err = tg.ValidateAccessToken(tokenString)
+		_, _, err = tg.ValidateAccessToken(tokenString)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "user_id not found")
 	})
@@ -258,17 +258,17 @@ func TestTokenGenerator_ValidateAccessToken(t *testing.T) {
 		tokenString, err := token.SignedString([]byte(secret))
 		require.NoError(t, err)
 
-		_, err = tg.ValidateAccessToken(tokenString)
+		_, _, err = tg.ValidateAccessToken(tokenString)
 		assert.Error(t, err)
 	})
 
 	t.Run("wrong secret", func(t *testing.T) {
 		userID := 789
-		accessToken, _, err := tg.GenerateTokens(userID)
+		accessToken, _, err := tg.GenerateTokens(userID, 1)
 		require.NoError(t, err)
 
 		wrongTG := NewTokenGenerator("wrong-secret", accessExpiry, refreshExpiry)
-		_, err = wrongTG.ValidateAccessToken(accessToken)
+		_, _, err = wrongTG.ValidateAccessToken(accessToken)
 		assert.Error(t, err)
 	})
 }
@@ -281,7 +281,7 @@ func TestTokenGenerator_ValidateRefreshToken(t *testing.T) {
 	tg := NewTokenGenerator(secret, accessExpiry, refreshExpiry)
 
 	t.Run("valid refresh token", func(t *testing.T) {
-		_, refreshToken, err := tg.GenerateTokens(789)
+		_, refreshToken, err := tg.GenerateTokens(789, 1)
 		require.NoError(t, err)
 
 		err = tg.ValidateRefreshToken(refreshToken)
@@ -338,7 +338,7 @@ func TestTokenGenerator_ValidateRefreshToken(t *testing.T) {
 	})
 
 	t.Run("access token used as refresh token", func(t *testing.T) {
-		accessToken, _, err := tg.GenerateTokens(789)
+		accessToken, _, err := tg.GenerateTokens(789, 1)
 		require.NoError(t, err)
 
 		err = tg.ValidateRefreshToken(accessToken)
@@ -361,7 +361,7 @@ func TestTokenGenerator_ValidateRefreshToken(t *testing.T) {
 	})
 
 	t.Run("wrong secret", func(t *testing.T) {
-		_, refreshToken, err := tg.GenerateTokens(999)
+		_, refreshToken, err := tg.GenerateTokens(999, 1)
 		require.NoError(t, err)
 
 		wrongTG := NewTokenGenerator("wrong-secret", accessExpiry, refreshExpiry)
@@ -377,18 +377,18 @@ func TestTokenGenerator_TokenExpiry(t *testing.T) {
 
 	tg := NewTokenGenerator(secret, accessExpiry, refreshExpiry)
 
-	accessToken, _, err := tg.GenerateTokens(123)
+	accessToken, _, err := tg.GenerateTokens(123, 1)
 	require.NoError(t, err)
 
 	// Token should be valid immediately
-	_, err = tg.ValidateAccessToken(accessToken)
+	_, _, err = tg.ValidateAccessToken(accessToken)
 	require.NoError(t, err)
 
 	// Wait for token to expire (wait longer than the expiry time)
 	time.Sleep(1200 * time.Millisecond)
 
 	// Token should be invalid after expiry
-	_, err = tg.ValidateAccessToken(accessToken)
+	_, _, err = tg.ValidateAccessToken(accessToken)
 	assert.Error(t, err)
 }
 
@@ -402,7 +402,7 @@ func TestTokenGenerator_TokenClaims(t *testing.T) {
 	t.Run("access token claims", func(t *testing.T) {
 		userID := 123
 		beforeGeneration := time.Now().Unix()
-		accessToken, _, err := tg.GenerateTokens(userID)
+		accessToken, _, err := tg.GenerateTokens(userID, 1)
 		require.NoError(t, err)
 		afterGeneration := time.Now().Unix()
 
@@ -442,7 +442,7 @@ func TestTokenGenerator_TokenClaims(t *testing.T) {
 	t.Run("refresh token claims", func(t *testing.T) {
 		userID := 456
 		beforeGeneration := time.Now().Unix()
-		_, refreshToken, err := tg.GenerateTokens(userID)
+		_, refreshToken, err := tg.GenerateTokens(userID, 1)
 		require.NoError(t, err)
 		afterGeneration := time.Now().Unix()
 
@@ -479,13 +479,13 @@ func TestTokenGenerator_TokenClaims(t *testing.T) {
 	})
 
 	t.Run("different tokens have different iat", func(t *testing.T) {
-		_, refresh1, err := tg.GenerateTokens(789)
+		_, refresh1, err := tg.GenerateTokens(789, 1)
 		require.NoError(t, err)
 
 		// Wait to ensure different iat timestamp (Unix timestamps are in seconds)
 		time.Sleep(1 * time.Second)
 
-		_, refresh2, err := tg.GenerateTokens(789)
+		_, refresh2, err := tg.GenerateTokens(789, 1)
 		require.NoError(t, err)
 
 		// Tokens should be different due to different iat timestamps

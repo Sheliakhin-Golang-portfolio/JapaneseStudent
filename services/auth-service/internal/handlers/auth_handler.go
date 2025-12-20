@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/japanesestudent/auth-service/internal/models"
 	"github.com/japanesestudent/libs/handlers"
 	"go.uber.org/zap"
 )
@@ -15,18 +16,16 @@ import (
 type AuthService interface {
 	// Method Register performs a user credentials validation and creation and returns access and refresh tokens.
 	//
-	// "email" and "username" parameters are used to identify the user.
-	// "password" parameter is used to authenticate the user.
+	// "req" parameter contains email, username and password.
 	//
 	// If user passed invalid credentials, or such user already exists, or some other error occurs, the error will be returned together with empty strings for access and refresh tokens.
-	Register(ctx context.Context, email, username, password string) (string, string, error)
+	Register(ctx context.Context, req *models.RegisterRequest) (string, string, error)
 	// Method Login performs a user credentials validation and returns a user.
 	//
-	// "login" parameter is used to identify the user by email or username.
-	// "password" parameter is used to authenticate the user.
+	// "req" parameter contains login and password.
 	//
 	// If user passed invalid credentials, or such user does not exist, or some other error occurs, the error will be returned together with empty strings for access and refresh tokens.
-	Login(ctx context.Context, login, password string) (string, string, error)
+	Login(ctx context.Context, req *models.LoginRequest) (string, string, error)
 	// Method Refresh performs a refresh token validation and returns a new access token and refresh token.
 	//
 	// "refreshToken" parameter is used to identify the user.
@@ -53,7 +52,7 @@ func NewAuthHandler(
 }
 
 // RegisterRoutes registers all auth handler routes
-// Note: This assumes the router is already scoped to /api/v1
+// Note: This assumes the router is already scoped to /api/v3
 func (h *AuthHandler) RegisterRoutes(r chi.Router) {
 	r.Route("/auth", func(r chi.Router) {
 		r.Post("/register", h.Register)
@@ -62,33 +61,27 @@ func (h *AuthHandler) RegisterRoutes(r chi.Router) {
 	})
 }
 
-// RegisterRequest represents a registration request
-type RegisterRequest struct {
-	Email    string `json:"email"`
-	Username string `json:"username"`
-	Password string `json:"password"`
-}
-
-// Register handles POST /api/v1/auth/register
+// Register handles POST /auth/register
 // @Summary Register a new user
 // @Description Register a new user with email, username, and password. Returns access and refresh tokens as HTTP-only cookies.
 // @Tags auth
 // @Accept json
 // @Produce json
-// @Param request body RegisterRequest true "Registration request"
+// @Param request body models.RegisterRequest true "Registration request"
 // @Success 201 {object} map[string]string "User registered successfully"
 // @Failure 400 {object} map[string]string "Invalid request body or user already exists"
 // @Failure 500 {object} map[string]string "Internal server error"
-// @Router /api/v1/auth/register [post]
+// @Router /auth/register [post]
 func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
-	var req RegisterRequest
+	var req models.RegisterRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.Logger.Error("failed to decode request body", zap.Error(err))
 		h.RespondError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
 	// Register user
-	accessToken, refreshToken, err := h.authService.Register(r.Context(), req.Email, req.Username, req.Password)
+	accessToken, refreshToken, err := h.authService.Register(r.Context(), &req)
 	if err != nil {
 		h.Logger.Error("failed to register user", zap.Error(err))
 		errStatus := http.StatusInternalServerError
@@ -107,32 +100,26 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	h.RespondJSON(w, http.StatusCreated, map[string]string{"message": "user registered successfully"})
 }
 
-// LoginRequest represents a login request
-type LoginRequest struct {
-	Login    string `json:"login"`
-	Password string `json:"password"`
-}
-
-// Login handles POST /api/v1/auth/login
+// Login handles POST /auth/login
 // @Summary Login user
 // @Description Authenticate user with login (email or username) and password. Returns access and refresh tokens as HTTP-only cookies.
 // @Tags auth
 // @Accept json
 // @Produce json
-// @Param request body LoginRequest true "Login request"
+// @Param request body models.LoginRequest true "Login request"
 // @Success 200 {object} map[string]string "Login successful"
 // @Failure 400 {object} map[string]string "Invalid request body"
 // @Failure 401 {object} map[string]string "Invalid credentials"
-// @Router /api/v1/auth/login [post]
+// @Router /auth/login [post]
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
-	var req LoginRequest
+	var req models.LoginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		h.RespondError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
 	// Authenticate user
-	accessToken, refreshToken, err := h.authService.Login(r.Context(), req.Login, req.Password)
+	accessToken, refreshToken, err := h.authService.Login(r.Context(), &req)
 	if err != nil {
 		h.Logger.Error("failed to login user", zap.Error(err))
 		h.RespondError(w, http.StatusUnauthorized, err.Error())
@@ -151,7 +138,7 @@ type RefreshRequest struct {
 	RefreshToken string `json:"refresh_token"`
 }
 
-// Refresh handles POST /api/v1/auth/refresh
+// Refresh handles POST /auth/refresh
 // @Summary Refresh access token
 // @Description Refresh access and refresh tokens using a valid refresh token. Token can be provided in request body or as a cookie.
 // @Tags auth
@@ -161,7 +148,7 @@ type RefreshRequest struct {
 // @Success 200 {object} map[string]string "Tokens refreshed successfully"
 // @Failure 400 {object} map[string]string "Refresh token required"
 // @Failure 500 {object} map[string]string "Failed to refresh tokens"
-// @Router /api/v1/auth/refresh [post]
+// @Router /auth/refresh [post]
 func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 	// Get refresh token from request body or cookie
 	var refreshToken string
@@ -172,6 +159,7 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 	} else {
 		cookie, err := r.Cookie("refresh_token")
 		if err != nil {
+			h.Logger.Error("failed to get refresh token from cookie", zap.Error(err))
 			h.RespondError(w, http.StatusBadRequest, "refresh token required")
 			return
 		}

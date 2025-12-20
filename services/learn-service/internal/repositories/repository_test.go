@@ -10,7 +10,6 @@ import (
 	"github.com/japanesestudent/learn-service/internal/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
 // setupTestRepository creates a repository with a mock database
@@ -19,10 +18,7 @@ func setupTestRepository(t *testing.T) (*charactersRepository, sqlmock.Sqlmock, 
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 
-	logger, err := zap.NewDevelopment()
-	require.NoError(t, err)
-
-	repo := NewCharactersRepository(db, logger)
+	repo := NewCharactersRepository(db)
 
 	cleanup := func() {
 		db.Close()
@@ -32,14 +28,12 @@ func setupTestRepository(t *testing.T) (*charactersRepository, sqlmock.Sqlmock, 
 }
 
 func TestNewCharactersRepository(t *testing.T) {
-	logger, _ := zap.NewDevelopment()
 	db := &sql.DB{}
 
-	repo := NewCharactersRepository(db, logger)
+	repo := NewCharactersRepository(db)
 
 	assert.NotNil(t, repo)
 	assert.Equal(t, db, repo.db)
-	assert.Equal(t, logger, repo.logger)
 }
 
 func TestCharactersRepository_GetAll(t *testing.T) {
@@ -758,10 +752,7 @@ func setupHistoryTestRepository(t *testing.T) (*characterLearnHistoryRepository,
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 
-	logger, err := zap.NewDevelopment()
-	require.NoError(t, err)
-
-	repo := NewCharacterLearnHistoryRepository(db, logger)
+	repo := NewCharacterLearnHistoryRepository(db)
 
 	cleanup := func() {
 		db.Close()
@@ -771,14 +762,12 @@ func setupHistoryTestRepository(t *testing.T) (*characterLearnHistoryRepository,
 }
 
 func TestNewCharacterLearnHistoryRepository(t *testing.T) {
-	logger, _ := zap.NewDevelopment()
 	db := &sql.DB{}
 
-	repo := NewCharacterLearnHistoryRepository(db, logger)
+	repo := NewCharacterLearnHistoryRepository(db)
 
 	assert.NotNil(t, repo)
 	assert.Equal(t, db, repo.db)
-	assert.Equal(t, logger, repo.logger)
 }
 
 func TestCharacterLearnHistoryRepository_GetByUserIDAndCharacterIDs(t *testing.T) {

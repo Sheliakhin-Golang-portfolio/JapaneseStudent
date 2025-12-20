@@ -7,20 +7,17 @@ import (
 	"strings"
 
 	"github.com/japanesestudent/learn-service/internal/models"
-	"go.uber.org/zap"
 )
 
 // characterLearnHistoryRepository implements CharacterLearnHistoryRepository
 type characterLearnHistoryRepository struct {
-	db     *sql.DB
-	logger *zap.Logger
+	db *sql.DB
 }
 
 // NewCharacterLearnHistoryRepository creates a new character learn history repository
-func NewCharacterLearnHistoryRepository(db *sql.DB, logger *zap.Logger) *characterLearnHistoryRepository {
+func NewCharacterLearnHistoryRepository(db *sql.DB) *characterLearnHistoryRepository {
 	return &characterLearnHistoryRepository{
-		db:     db,
-		logger: logger,
+		db: db,
 	}
 }
 
@@ -52,7 +49,6 @@ func (r *characterLearnHistoryRepository) GetByUserIDAndCharacterIDs(ctx context
 
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
-		r.logger.Error("failed to query character learn history", zap.Error(err))
 		return nil, fmt.Errorf("failed to query character learn history: %w", err)
 	}
 	defer rows.Close()
@@ -72,14 +68,12 @@ func (r *characterLearnHistoryRepository) GetByUserIDAndCharacterIDs(ctx context
 			&history.KatakanaListeningResult,
 		)
 		if err != nil {
-			r.logger.Error("failed to scan character learn history", zap.Error(err))
 			return nil, fmt.Errorf("failed to scan character learn history: %w", err)
 		}
 		histories = append(histories, history)
 	}
 
 	if err = rows.Err(); err != nil {
-		r.logger.Error("error iterating rows", zap.Error(err))
 		return nil, fmt.Errorf("error iterating rows: %w", err)
 	}
 
@@ -106,7 +100,6 @@ func (r *characterLearnHistoryRepository) GetByUserID(ctx context.Context, userI
 
 	rows, err := r.db.QueryContext(ctx, query, userID)
 	if err != nil {
-		r.logger.Error("failed to query character learn history by user ID", zap.Error(err))
 		return nil, fmt.Errorf("failed to query character learn history by user ID: %w", err)
 	}
 	defer rows.Close()
@@ -125,14 +118,12 @@ func (r *characterLearnHistoryRepository) GetByUserID(ctx context.Context, userI
 			&history.CharacterKatakana,
 		)
 		if err != nil {
-			r.logger.Error("failed to scan character learn history", zap.Error(err))
 			return nil, fmt.Errorf("failed to scan character learn history: %w", err)
 		}
 		histories = append(histories, history)
 	}
 
 	if err = rows.Err(); err != nil {
-		r.logger.Error("error iterating rows", zap.Error(err))
 		return nil, fmt.Errorf("error iterating rows: %w", err)
 	}
 
@@ -176,7 +167,6 @@ func (r *characterLearnHistoryRepository) Upsert(ctx context.Context, histories 
 	`, strings.Join(charPlaceholders, ","))
 
 	if _, err = tx.ExecContext(ctx, query, args...); err != nil {
-		r.logger.Error("failed to upsert character learn history", zap.Error(err))
 		return fmt.Errorf("failed to upsert character learn history: %w", err)
 	}
 

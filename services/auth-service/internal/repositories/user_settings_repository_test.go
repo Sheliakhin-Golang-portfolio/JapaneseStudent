@@ -10,7 +10,6 @@ import (
 	"github.com/japanesestudent/auth-service/internal/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
 // setupUserSettingsTestRepository creates a user settings repository with a mock database
@@ -19,10 +18,7 @@ func setupUserSettingsTestRepository(t *testing.T) (*userSettingsRepository, sql
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 
-	logger, err := zap.NewDevelopment()
-	require.NoError(t, err)
-
-	repo := NewUserSettingsRepository(db, logger)
+	repo := NewUserSettingsRepository(db)
 
 	cleanup := func() {
 		db.Close()
@@ -32,28 +28,24 @@ func setupUserSettingsTestRepository(t *testing.T) (*userSettingsRepository, sql
 }
 
 func TestNewUserSettingsRepository(t *testing.T) {
-	logger, _ := zap.NewDevelopment()
 	db := &sql.DB{}
 
-	repo := NewUserSettingsRepository(db, logger)
+	repo := NewUserSettingsRepository(db)
 
 	assert.NotNil(t, repo)
 	assert.Equal(t, db, repo.db)
-	assert.Equal(t, logger, repo.logger)
 }
 
 func TestUserSettingsRepository_Create(t *testing.T) {
 	tests := []struct {
 		name          string
-		userSettings  *models.UserSettings
+		userId        int
 		setupMock     func(sqlmock.Sqlmock)
 		expectedError bool
 	}{
 		{
-			name: "success",
-			userSettings: &models.UserSettings{
-				UserID: 1,
-			},
+			name:   "success",
+			userId: 1,
 			setupMock: func(mock sqlmock.Sqlmock) {
 				mock.ExpectExec(`INSERT INTO user_settings`).
 					WithArgs(1).
@@ -62,10 +54,8 @@ func TestUserSettingsRepository_Create(t *testing.T) {
 			expectedError: false,
 		},
 		{
-			name: "database error",
-			userSettings: &models.UserSettings{
-				UserID: 1,
-			},
+			name:   "database error",
+			userId: 1,
 			setupMock: func(mock sqlmock.Sqlmock) {
 				mock.ExpectExec(`INSERT INTO user_settings`).
 					WithArgs(1).
@@ -74,10 +64,8 @@ func TestUserSettingsRepository_Create(t *testing.T) {
 			expectedError: true,
 		},
 		{
-			name: "foreign key constraint - invalid user_id",
-			userSettings: &models.UserSettings{
-				UserID: 999,
-			},
+			name:   "foreign key constraint - invalid user_id",
+			userId: 999,
 			setupMock: func(mock sqlmock.Sqlmock) {
 				mock.ExpectExec(`INSERT INTO user_settings`).
 					WithArgs(999).
@@ -86,10 +74,8 @@ func TestUserSettingsRepository_Create(t *testing.T) {
 			expectedError: true,
 		},
 		{
-			name: "duplicate user_id",
-			userSettings: &models.UserSettings{
-				UserID: 1,
-			},
+			name:   "duplicate user_id",
+			userId: 1,
 			setupMock: func(mock sqlmock.Sqlmock) {
 				mock.ExpectExec(`INSERT INTO user_settings`).
 					WithArgs(1).
@@ -106,7 +92,7 @@ func TestUserSettingsRepository_Create(t *testing.T) {
 
 			tt.setupMock(mock)
 
-			err := repo.Create(context.Background(), tt.userSettings)
+			err := repo.Create(context.Background(), tt.userId)
 
 			if tt.expectedError {
 				assert.Error(t, err)

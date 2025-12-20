@@ -5,17 +5,16 @@ import (
 	"fmt"
 
 	"github.com/japanesestudent/auth-service/internal/models"
-	"go.uber.org/zap"
 )
 
 // UserSettingsRepository is the interface that wraps methods for UserSettings table data access
 type UserSettingsRepository interface {
 	// Method Create inserts a new user settings record
 	//
-	// "userSettings" parameter is used to create a new user settings record.
+	// "userId" parameter is used to create a new user settings record.
 	//
 	// If some error occurs during user settings creation, the error will be returned together with "nil" value.
-	Create(ctx context.Context, userSettings *models.UserSettings) error
+	Create(ctx context.Context, userId int) error
 	// GetByUserId retrieves user settings by user ID
 	//
 	// "userId" parameter is used to retrieve user settings by user ID.
@@ -33,15 +32,13 @@ type UserSettingsRepository interface {
 
 // userSettingsService implements UserSettingsService
 type userSettingsService struct {
-	repo   UserSettingsRepository
-	logger *zap.Logger
+	repo UserSettingsRepository
 }
 
 // NewUserSettingsService creates a new user settings service
-func NewUserSettingsService(repo UserSettingsRepository, logger *zap.Logger) *userSettingsService {
+func NewUserSettingsService(repo UserSettingsRepository) *userSettingsService {
 	return &userSettingsService{
-		repo:   repo,
-		logger: logger,
+		repo: repo,
 	}
 }
 
@@ -49,8 +46,7 @@ func NewUserSettingsService(repo UserSettingsRepository, logger *zap.Logger) *us
 func (s *userSettingsService) GetUserSettings(ctx context.Context, userId int) (*models.UserSettingsResponse, error) {
 	settings, err := s.repo.GetByUserId(ctx, userId)
 	if err != nil {
-		s.logger.Error("failed to get user settings", zap.Error(err), zap.Int("userId", userId))
-		return nil, fmt.Errorf("failed to get user settings: %w", err)
+		return nil, err
 	}
 
 	return &models.UserSettingsResponse{
@@ -76,6 +72,10 @@ func (s *userSettingsService) GetUserSettings(ctx context.Context, userId int) (
 //
 // If some error occurs during user settings update, the error will be returned together with "nil" value.
 func (s *userSettingsService) UpdateUserSettings(ctx context.Context, userId int, updateRequest *models.UpdateUserSettingsRequest) error {
+	if userId <= 0 {
+		return fmt.Errorf("invalid user id")
+	}
+
 	errorChan := make(chan error, 5)
 	settingsChan := make(chan *models.UserSettings, 1)
 
@@ -123,7 +123,6 @@ func (s *userSettingsService) UpdateUserSettings(ctx context.Context, userId int
 	go func() {
 		existingSettings, err := s.repo.GetByUserId(ctx, userId)
 		if err != nil {
-			s.logger.Error("failed to get existing user settings", zap.Error(err), zap.Int("userId", userId))
 			errorChan <- err
 			settingsChan <- nil
 			return
@@ -136,7 +135,7 @@ func (s *userSettingsService) UpdateUserSettings(ctx context.Context, userId int
 	for range 5 {
 		err := <-errorChan
 		if err != nil {
-			return fmt.Errorf("failed to update user settings: %w", err)
+			return err
 		}
 	}
 
@@ -155,5 +154,9 @@ func (s *userSettingsService) UpdateUserSettings(ctx context.Context, userId int
 		settings.Language = *updateRequest.Language
 	}
 
-	return s.repo.Update(ctx, userId, settings)
+	err := s.repo.Update(ctx, userId, settings)
+	if err != nil {
+		return err
+	}
+	return nil
 }

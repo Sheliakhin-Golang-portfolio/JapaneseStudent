@@ -23,6 +23,834 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/admin/characters": {
+            "get": {
+                "description": "Get full list of characters ordered by ID",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "Get list of characters",
+                "responses": {
+                    "200": {
+                        "description": "List of characters",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.CharacterListItem"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Create a new character",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "Create a character",
+                "parameters": [
+                    {
+                        "description": "Character creation request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.CreateCharacterRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Character created successfully",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request body or character already exists",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/characters/{id}": {
+            "get": {
+                "description": "Get full information about a character by ID",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "Get character by ID",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Character ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Character information",
+                        "schema": {
+                            "$ref": "#/definitions/models.Character"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid character ID",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Character not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Delete a character by ID",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "Delete a character",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Character ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Invalid character ID",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Character not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "description": "Update character fields (partial update)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "Update a character",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Character ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update request",
+                        "name": "request",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/models.UpdateCharacterRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Invalid request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Character not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/words": {
+            "get": {
+                "description": "Get paginated list of words with optional search filter",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "Get list of words",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Page number (default: 1)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Items per page (default: 20)",
+                        "name": "count",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Search in word, phonetic clues, or translations",
+                        "name": "search",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "List of words",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.WordListItem"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request parameters",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Create a new word",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "Create a word",
+                "parameters": [
+                    {
+                        "description": "Word creation request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.CreateWordRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Word created successfully",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request body or word already exists",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/words/{id}": {
+            "get": {
+                "description": "Get full information about a word by ID",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "Get word by ID",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Word ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Word information",
+                        "schema": {
+                            "$ref": "#/definitions/models.Word"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid word ID",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Word not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Delete a word by ID",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "Delete a word",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Word ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Invalid word ID",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Word not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "description": "Update word fields (partial update)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "Update a word",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Word ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update request",
+                        "name": "request",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/models.UpdateWordRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Invalid request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Word not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/test-results/history": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Get all learn history records for the authenticated user. Requires authentication.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tests"
+                ],
+                "summary": "Get user's learn history",
+                "responses": {
+                    "200": {
+                        "description": "List of learn history records (empty array if no records found)",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.UserLearnHistory"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized - authentication required, invalid/expired token, or user ID not found in context",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error - failed to retrieve learn history",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/test-results/{type}/{testType}": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Submit test results for hiragana or katakana reading, writing, or listening tests. Requires authentication.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tests"
+                ],
+                "summary": "Submit test results",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Alphabet type: hiragana or katakana",
+                        "name": "type",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Test type: reading, writing, or listening",
+                        "name": "testType",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Test results",
+                        "name": "results",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.TestResultRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Test results submitted successfully",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request - invalid request body, empty results array, or invalid alphabet/test type",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized - authentication required, invalid/expired token, or user ID not found in context",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error - failed to process or save test results",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/words": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Get a mixed list of old and new words for the authenticated user. Requires authentication.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "dictionary"
+                ],
+                "summary": "Get word list",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Number of new words (10-40), default: 20",
+                        "name": "newCount",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Number of old words (10-40), default: 20",
+                        "name": "oldCount",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Locale: en, ru, or de, default: en",
+                        "name": "locale",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "List of words",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.WordResponse"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request - invalid parameters",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized - authentication required",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/words/results": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Submit word learning results with period values. Requires authentication.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "dictionary"
+                ],
+                "summary": "Submit word learning results",
+                "parameters": [
+                    {
+                        "description": "Word results",
+                        "name": "results",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.SubmitWordResultsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad request - invalid request body or validation error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized - authentication required",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/characters": {
             "get": {
                 "description": "Get a list of all hiragana or katakana characters",
@@ -202,138 +1030,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/test-results/history": {
-            "get": {
-                "security": [
-                    {
-                        "ApiKeyAuth": []
-                    }
-                ],
-                "description": "Get all learn history records for the authenticated user. Requires authentication.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "tests"
-                ],
-                "summary": "Get user's learn history",
-                "responses": {
-                    "200": {
-                        "description": "List of learn history records (empty array if no records found)",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/models.UserLearnHistory"
-                            }
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized - authentication required, invalid/expired token, or user ID not found in context",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error - failed to retrieve learn history",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/test-results/{type}/{testType}": {
-            "post": {
-                "security": [
-                    {
-                        "ApiKeyAuth": []
-                    }
-                ],
-                "description": "Submit test results for hiragana or katakana reading, writing, or listening tests. Requires authentication.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "tests"
-                ],
-                "summary": "Submit test results",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Alphabet type: hiragana or katakana",
-                        "name": "type",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Test type: reading, writing, or listening",
-                        "name": "testType",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Test results",
-                        "name": "results",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/handlers.TestResultRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Test results submitted successfully",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Bad request - invalid request body, empty results array, or invalid alphabet/test type",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized - authentication required, invalid/expired token, or user ID not found in context",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error - failed to process or save test results",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            }
-        },
         "/tests/{type}/reading": {
             "get": {
                 "security": [
@@ -491,147 +1187,6 @@ const docTemplate = `{
                     }
                 }
             }
-        },
-        "/words": {
-            "get": {
-                "security": [
-                    {
-                        "ApiKeyAuth": []
-                    }
-                ],
-                "description": "Get a mixed list of old and new words for the authenticated user. Requires authentication.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "dictionary"
-                ],
-                "summary": "Get word list",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "Number of new words (10-40), default: 20",
-                        "name": "newCount",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Number of old words (10-40), default: 20",
-                        "name": "oldCount",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Locale: en, ru, or de, default: en",
-                        "name": "locale",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "List of words",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/models.WordResponse"
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Bad request - invalid parameters",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized - authentication required",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/words/results": {
-            "post": {
-                "security": [
-                    {
-                        "ApiKeyAuth": []
-                    }
-                ],
-                "description": "Submit word learning results with period values. Requires authentication.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "dictionary"
-                ],
-                "summary": "Submit word learning results",
-                "parameters": [
-                    {
-                        "description": "Word results",
-                        "name": "results",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/handlers.SubmitWordResultsRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    },
-                    "400": {
-                        "description": "Bad request - invalid request body or validation error",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized - authentication required",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            }
         }
     },
     "definitions": {
@@ -685,6 +1240,26 @@ const docTemplate = `{
                 }
             }
         },
+        "models.CharacterListItem": {
+            "type": "object",
+            "properties": {
+                "consonant": {
+                    "type": "string"
+                },
+                "hiragana": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "katakana": {
+                    "type": "string"
+                },
+                "vowel": {
+                    "type": "string"
+                }
+            }
+        },
         "models.CharacterResponse": {
             "type": "object",
             "properties": {
@@ -705,6 +1280,73 @@ const docTemplate = `{
                 },
                 "vowel": {
                     "description": "Not always present, depends on the context",
+                    "type": "string"
+                }
+            }
+        },
+        "models.CreateCharacterRequest": {
+            "type": "object",
+            "properties": {
+                "consonant": {
+                    "type": "string"
+                },
+                "englishReading": {
+                    "type": "string"
+                },
+                "hiragana": {
+                    "type": "string"
+                },
+                "katakana": {
+                    "type": "string"
+                },
+                "russianReading": {
+                    "type": "string"
+                },
+                "vowel": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.CreateWordRequest": {
+            "type": "object",
+            "properties": {
+                "easyPeriod": {
+                    "type": "integer"
+                },
+                "englishTranslation": {
+                    "type": "string"
+                },
+                "example": {
+                    "type": "string"
+                },
+                "exampleEnglishTranslation": {
+                    "type": "string"
+                },
+                "exampleGermanTranslation": {
+                    "type": "string"
+                },
+                "exampleRussianTranslation": {
+                    "type": "string"
+                },
+                "extraHardPeriod": {
+                    "type": "integer"
+                },
+                "germanTranslation": {
+                    "type": "string"
+                },
+                "hardPeriod": {
+                    "type": "integer"
+                },
+                "normalPeriod": {
+                    "type": "integer"
+                },
+                "phoneticClues": {
+                    "type": "string"
+                },
+                "russianTranslation": {
+                    "type": "string"
+                },
+                "word": {
                     "type": "string"
                 }
             }
@@ -743,6 +1385,73 @@ const docTemplate = `{
                 }
             }
         },
+        "models.UpdateCharacterRequest": {
+            "type": "object",
+            "properties": {
+                "consonant": {
+                    "type": "string"
+                },
+                "englishReading": {
+                    "type": "string"
+                },
+                "hiragana": {
+                    "type": "string"
+                },
+                "katakana": {
+                    "type": "string"
+                },
+                "russianReading": {
+                    "type": "string"
+                },
+                "vowel": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.UpdateWordRequest": {
+            "type": "object",
+            "properties": {
+                "easyPeriod": {
+                    "type": "integer"
+                },
+                "englishTranslation": {
+                    "type": "string"
+                },
+                "example": {
+                    "type": "string"
+                },
+                "exampleEnglishTranslation": {
+                    "type": "string"
+                },
+                "exampleGermanTranslation": {
+                    "type": "string"
+                },
+                "exampleRussianTranslation": {
+                    "type": "string"
+                },
+                "extraHardPeriod": {
+                    "type": "integer"
+                },
+                "germanTranslation": {
+                    "type": "string"
+                },
+                "hardPeriod": {
+                    "type": "integer"
+                },
+                "normalPeriod": {
+                    "type": "integer"
+                },
+                "phoneticClues": {
+                    "type": "string"
+                },
+                "russianTranslation": {
+                    "type": "string"
+                },
+                "word": {
+                    "type": "string"
+                }
+            }
+        },
         "models.UserLearnHistory": {
             "type": "object",
             "properties": {
@@ -769,6 +1478,77 @@ const docTemplate = `{
                 },
                 "katakanaWritingResult": {
                     "type": "number"
+                }
+            }
+        },
+        "models.Word": {
+            "type": "object",
+            "properties": {
+                "easyPeriod": {
+                    "description": "Days",
+                    "type": "integer"
+                },
+                "englishTranslation": {
+                    "type": "string"
+                },
+                "example": {
+                    "description": "Japanese sentence",
+                    "type": "string"
+                },
+                "exampleEnglishTranslation": {
+                    "type": "string"
+                },
+                "exampleGermanTranslation": {
+                    "type": "string"
+                },
+                "exampleRussianTranslation": {
+                    "type": "string"
+                },
+                "extraHardPeriod": {
+                    "description": "Days",
+                    "type": "integer"
+                },
+                "germanTranslation": {
+                    "type": "string"
+                },
+                "hardPeriod": {
+                    "description": "Days",
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "normalPeriod": {
+                    "description": "Days",
+                    "type": "integer"
+                },
+                "phoneticClues": {
+                    "description": "Hiragana reading",
+                    "type": "string"
+                },
+                "russianTranslation": {
+                    "type": "string"
+                },
+                "word": {
+                    "description": "Kanji word",
+                    "type": "string"
+                }
+            }
+        },
+        "models.WordListItem": {
+            "type": "object",
+            "properties": {
+                "englishTranslation": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "phoneticClues": {
+                    "type": "string"
+                },
+                "word": {
+                    "type": "string"
                 }
             }
         },
@@ -852,7 +1632,7 @@ const docTemplate = `{
 var SwaggerInfo = &swag.Spec{
 	Version:          "1.0",
 	Host:             "localhost:8080",
-	BasePath:         "/api/v1",
+	BasePath:         "/api/v3",
 	Schemes:          []string{},
 	Title:            "JapaneseStudent Characters API",
 	Description:      "API for managing hiragana and katakana characters",

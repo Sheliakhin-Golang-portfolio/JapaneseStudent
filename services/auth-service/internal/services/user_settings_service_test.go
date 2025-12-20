@@ -7,17 +7,16 @@ import (
 
 	"github.com/japanesestudent/auth-service/internal/models"
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/zap"
 )
 
 // mockUserSettingsRepositoryForService is a mock implementation of UserSettingsRepository for service tests
 type mockUserSettingsRepositoryForService struct {
-	settings *models.UserSettings
-	err      error
+	settings  *models.UserSettings
+	err       error
 	updateErr error
 }
 
-func (m *mockUserSettingsRepositoryForService) Create(ctx context.Context, userSettings *models.UserSettings) error {
+func (m *mockUserSettingsRepositoryForService) Create(ctx context.Context, userId int) error {
 	return m.err
 }
 
@@ -36,19 +35,15 @@ func (m *mockUserSettingsRepositoryForService) Update(ctx context.Context, userI
 }
 
 func TestNewUserSettingsService(t *testing.T) {
-	logger, _ := zap.NewDevelopment()
 	mockRepo := &mockUserSettingsRepositoryForService{}
 
-	svc := NewUserSettingsService(mockRepo, logger)
+	svc := NewUserSettingsService(mockRepo)
 
 	assert.NotNil(t, svc)
 	assert.Equal(t, mockRepo, svc.repo)
-	assert.Equal(t, logger, svc.logger)
 }
 
 func TestUserSettingsService_GetUserSettings(t *testing.T) {
-	logger, _ := zap.NewDevelopment()
-
 	tests := []struct {
 		name          string
 		userId        int
@@ -106,7 +101,7 @@ func TestUserSettingsService_GetUserSettings(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc := NewUserSettingsService(tt.mockRepo, logger)
+			svc := NewUserSettingsService(tt.mockRepo)
 
 			result, err := svc.GetUserSettings(context.Background(), tt.userId)
 
@@ -128,8 +123,6 @@ func TestUserSettingsService_GetUserSettings(t *testing.T) {
 }
 
 func TestUserSettingsService_UpdateUserSettings(t *testing.T) {
-	logger, _ := zap.NewDevelopment()
-
 	tests := []struct {
 		name          string
 		userId        int
@@ -446,7 +439,7 @@ func TestUserSettingsService_UpdateUserSettings(t *testing.T) {
 				err: errors.New("database error"),
 			},
 			expectedError: true,
-			errorContains: "failed to update user settings",
+			errorContains: "database error", // Service returns error directly from GetByUserId
 		},
 		{
 			name:   "database error on update",
@@ -491,7 +484,7 @@ func TestUserSettingsService_UpdateUserSettings(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc := NewUserSettingsService(tt.mockRepo, logger)
+			svc := NewUserSettingsService(tt.mockRepo)
 
 			err := svc.UpdateUserSettings(context.Background(), tt.userId, tt.updateRequest)
 
@@ -507,12 +500,8 @@ func TestUserSettingsService_UpdateUserSettings(t *testing.T) {
 	}
 }
 
-// Helper functions
-func intPtr(i int) *int {
-	return &i
-}
+// Helper functions (intPtr is defined in admin_service_test.go)
 
 func languagePtr(l models.Language) *models.Language {
 	return &l
 }
-

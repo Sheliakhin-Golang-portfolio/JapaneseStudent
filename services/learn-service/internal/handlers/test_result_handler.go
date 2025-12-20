@@ -78,13 +78,9 @@ func (h *TestResultHandler) SubmitTestResult(w http.ResponseWriter, r *http.Requ
 	// Extract userID from auth middleware context
 	userID, ok := middleware.GetUserID(r.Context())
 	if !ok {
-		// Fallback to context value for testing
-		if ctxUserID, ok := r.Context().Value("userID").(int); ok {
-			userID = ctxUserID
-		} else {
-			h.RespondError(w, http.StatusUnauthorized, "user ID not found in context")
-			return
-		}
+		h.Logger.Error("user ID not found in context")
+		h.RespondError(w, http.StatusUnauthorized, "user ID not found in context")
+		return
 	}
 
 	// Get path parameters
@@ -94,11 +90,13 @@ func (h *TestResultHandler) SubmitTestResult(w http.ResponseWriter, r *http.Requ
 	// Parse request body
 	var req TestResultRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.Logger.Error("failed to decode request body", zap.Error(err))
 		h.RespondError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
 	if len(req.Results) == 0 {
+		h.Logger.Error("results array cannot be empty")
 		h.RespondError(w, http.StatusBadRequest, "results array cannot be empty")
 		return
 	}
@@ -136,13 +134,9 @@ func (h *TestResultHandler) GetUserHistory(w http.ResponseWriter, r *http.Reques
 	// Extract userID from auth middleware context
 	userID, ok := middleware.GetUserID(r.Context())
 	if !ok {
-		// Fallback to context value for testing
-		if ctxUserID, ok := r.Context().Value("userID").(int); ok {
-			userID = ctxUserID
-		} else {
-			h.RespondError(w, http.StatusUnauthorized, "user ID not found in context")
-			return
-		}
+		h.Logger.Error("user ID not found in context")
+		h.RespondError(w, http.StatusUnauthorized, "user ID not found in context")
+		return
 	}
 
 	// Get user's learn history

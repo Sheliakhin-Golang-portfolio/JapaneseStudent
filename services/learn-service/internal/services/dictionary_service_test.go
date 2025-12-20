@@ -7,7 +7,6 @@ import (
 
 	"github.com/japanesestudent/learn-service/internal/models"
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/zap"
 )
 
 // mockWordRepository is a mock implementation of WordRepository
@@ -58,21 +57,17 @@ func (m *mockDictionaryHistoryRepository) UpsertResults(ctx context.Context, use
 }
 
 func TestNewDictionaryService(t *testing.T) {
-	logger, _ := zap.NewDevelopment()
 	wordRepo := &mockWordRepository{}
 	historyRepo := &mockDictionaryHistoryRepository{}
 
-	svc := NewDictionaryService(wordRepo, historyRepo, logger)
+	svc := NewDictionaryService(wordRepo, historyRepo)
 
 	assert.NotNil(t, svc)
 	assert.Equal(t, wordRepo, svc.wordRepo)
 	assert.Equal(t, historyRepo, svc.dictionaryHistoryRepo)
-	assert.Equal(t, logger, svc.logger)
 }
 
 func TestDictionaryService_GetWordList(t *testing.T) {
-	logger, _ := zap.NewDevelopment()
-
 	tests := []struct {
 		name          string
 		userId        int
@@ -303,7 +298,7 @@ func TestDictionaryService_GetWordList(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc := NewDictionaryService(tt.wordRepo, tt.historyRepo, logger)
+			svc := NewDictionaryService(tt.wordRepo, tt.historyRepo)
 
 			result, err := svc.GetWordList(context.Background(), tt.userId, tt.newCount, tt.oldCount, tt.locale)
 
@@ -323,8 +318,6 @@ func TestDictionaryService_GetWordList(t *testing.T) {
 }
 
 func TestDictionaryService_SubmitWordResults(t *testing.T) {
-	logger, _ := zap.NewDevelopment()
-
 	tests := []struct {
 		name          string
 		userId        int
@@ -475,7 +468,7 @@ func TestDictionaryService_SubmitWordResults(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc := NewDictionaryService(tt.wordRepo, tt.historyRepo, logger)
+			svc := NewDictionaryService(tt.wordRepo, tt.historyRepo)
 
 			err := svc.SubmitWordResults(context.Background(), tt.userId, tt.results)
 

@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/japanesestudent/learn-service/internal/models"
-	"go.uber.org/zap"
 )
 
 // CharacterLearnHistoryRepository is the interface that wraps methods for CharacterLearnHistory table data access
@@ -33,14 +32,12 @@ type CharacterLearnHistoryRepository interface {
 // testResultService implements TestResultService
 type testResultService struct {
 	historyRepo CharacterLearnHistoryRepository
-	logger      *zap.Logger
 }
 
 // NewTestResultService creates a new test result service
-func NewTestResultService(historyRepo CharacterLearnHistoryRepository, logger *zap.Logger) *testResultService {
+func NewTestResultService(historyRepo CharacterLearnHistoryRepository) *testResultService {
 	return &testResultService{
 		historyRepo: historyRepo,
-		logger:      logger,
 	}
 }
 
@@ -73,7 +70,7 @@ func (s *testResultService) SubmitTestResults(ctx context.Context, userID int, a
 	// Get existing records
 	existingHistories, err := s.historyRepo.GetByUserIDAndCharacterIDs(ctx, userID, characterIDs)
 	if err != nil {
-		return fmt.Errorf("failed to get existing histories: %w", err)
+		return err
 	}
 
 	// Create a map of existing histories by character ID

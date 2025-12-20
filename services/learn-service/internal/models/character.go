@@ -53,3 +53,32 @@ type WritingTestItem struct {
 	CorrectReading string `json:"correctReading"` // English or Russian reading correct reading
 	Character      string `json:"Character"`      // Correct character whose reading is to be guessed
 }
+
+// CharacterListItem represents a character in the list of characters for admin endpoints
+type CharacterListItem struct {
+	ID        int    `json:"id"`
+	Consonant string `json:"consonant"`
+	Vowel     string `json:"vowel"`
+	Katakana  string `json:"katakana"`
+	Hiragana  string `json:"hiragana"`
+}
+
+// CreateCharacterRequest represents a request to create a character
+type CreateCharacterRequest struct {
+	Consonant      string `json:"consonant"`
+	Vowel          string `json:"vowel"`
+	EnglishReading string `json:"englishReading"`
+	RussianReading string `json:"russianReading"`
+	Katakana       string `json:"katakana"`
+	Hiragana       string `json:"hiragana"`
+}
+
+// UpdateCharacterRequest represents a request to update a character (partial update)
+type UpdateCharacterRequest struct {
+	Consonant      string `json:"consonant,omitempty"`
+	Vowel          string `json:"vowel,omitempty"`
+	EnglishReading string `json:"englishReading,omitempty"`
+	RussianReading string `json:"russianReading,omitempty"`
+	Katakana       string `json:"katakana,omitempty"`
+	Hiragana       string `json:"hiragana,omitempty"`
+}

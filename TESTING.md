@@ -115,6 +115,8 @@ The project includes three types of tests:
 **Files**:
 - `JapaneseStudent/services/learn-service/internal/services/service_test.go` (TestResultService)
 - `JapaneseStudent/services/learn-service/internal/services/dictionary_service_test.go`
+- `JapaneseStudent/services/learn-service/internal/services/admin_character_service_test.go`
+- `JapaneseStudent/services/learn-service/internal/services/admin_word_service_test.go`
 
 **TestResultService Test Coverage** (22 test cases):
 - `SubmitTestResults`: Success for all alphabet types and test types, update/create records, invalid inputs, case insensitivity, database errors
@@ -124,7 +126,23 @@ The project includes three types of tests:
 - `GetWordList`: Success with old and new words, empty old words, validation errors (invalid counts, invalid language), repository errors, concurrent word fetching
 - `SubmitWordResults`: Success, validation errors (empty results, invalid word IDs), repository errors, concurrent validation
 
-**Status**: ✅ Tests created and ready to run
+**AdminCharacterService Test Coverage** (27+ test cases):
+- `NewAdminService`: Service initialization
+- `GetAllForAdmin`: Success with characters, empty result, repository errors
+- `GetByIDAdmin`: Success, invalid IDs (zero, negative), repository errors
+- `CreateCharacter`: Success, character already exists (vowel/consonant and katakana/hiragana validation), failed existence checks, repository errors
+- `UpdateCharacter`: Success partial update, update with vowel/consonant checks, update with katakana/hiragana checks, invalid IDs, character not found, character already exists, failed existence checks, repository errors
+- `DeleteCharacter`: Success, invalid IDs, repository errors
+
+**AdminWordService Test Coverage** (23+ test cases):
+- `NewAdminWordService`: Service initialization
+- `GetAllForAdmin`: Success with defaults, pagination, search, repository errors, empty result
+- `GetByIDAdmin`: Success, invalid IDs (zero, negative), repository errors
+- `CreateWord`: Success, word already exists, failed existence check, repository errors
+- `UpdateWord`: Success partial update, update with word/clues field validation, invalid period values (all difficulty levels), invalid IDs, failed existence checks, repository errors
+- `DeleteWord`: Success, invalid IDs, repository errors
+
+**Status**: ✅ All tests passing
 
 #### 6. auth-service Integration Tests
 **File**: `JapaneseStudent/services/auth-service/test/integration/auth_test.go`
@@ -360,6 +378,20 @@ The test suite aims for comprehensive coverage across all services and layers.
 - ✅ `GetWordList` - success with old and new words, empty old words, validation errors, repository errors, concurrent operations
 - ✅ `SubmitWordResults` - success, validation errors, repository errors, concurrent validation
 
+#### learn-service AdminCharacterService:
+- ✅ `GetAllForAdmin` - success with characters, empty result, repository errors
+- ✅ `GetByIDAdmin` - success, invalid IDs, repository errors
+- ✅ `CreateCharacter` - success, character already exists (vowel/consonant and katakana/hiragana validation), failed existence checks, repository errors
+- ✅ `UpdateCharacter` - success partial update, update with validation checks, invalid IDs, character not found, character already exists, failed existence checks, repository errors
+- ✅ `DeleteCharacter` - success, invalid IDs, repository errors
+
+#### learn-service AdminWordService:
+- ✅ `GetAllForAdmin` - success with defaults, pagination, search, repository errors, empty result
+- ✅ `GetByIDAdmin` - success, invalid IDs, repository errors
+- ✅ `CreateWord` - success, word already exists, failed existence check, repository errors
+- ✅ `UpdateWord` - success partial update, update with word/clues validation, invalid period values, invalid IDs, failed existence checks, repository errors
+- ✅ `DeleteWord` - success, invalid IDs, repository errors
+
 #### auth-service AuthService:
 - ✅ `Register` - success, invalid email formats, password validation, duplicate email/username, database errors
 - ✅ `Login` - success with email/username, wrong password, user not found, database errors
@@ -373,15 +405,15 @@ The test suite aims for comprehensive coverage across all services and layers.
 
 #### learn-service Integration Tests:
 - ✅ All API endpoints end-to-end
-  - `GET /api/v1/characters` - with various type and locale combinations
-  - `GET /api/v1/characters/row-column` - with consonant and vowel filtering
-  - `GET /api/v1/characters/{id}` - with different locales
-  - `GET /api/v1/tests/{hiragana|katakana}/reading` - reading test generation
-  - `GET /api/v1/tests/{hiragana|katakana}/writing` - writing test generation
-  - `POST /api/v1/tests/{hiragana|katakana}/{reading|writing|listening}` - submit test results
-  - `GET /api/v1/tests/history` - get user learning history
-  - `GET /api/v1/words` - get word list with old and new words
-  - `POST /api/v1/words/results` - submit word learning results
+  - `GET /api/v3/characters` - with various type and locale combinations
+  - `GET /api/v3/characters/row-column` - with consonant and vowel filtering
+  - `GET /api/v3/characters/{id}` - with different locales
+  - `GET /api/v3/tests/{hiragana|katakana}/reading` - reading test generation
+  - `GET /api/v3/tests/{hiragana|katakana}/writing` - writing test generation
+  - `POST /api/v3/tests/{hiragana|katakana}/{reading|writing|listening}` - submit test results
+  - `GET /api/v3/tests/history` - get user learning history
+  - `GET /api/v3/words` - get word list with old and new words
+  - `POST /api/v3/words/results` - submit word learning results
 - ✅ Repository layer with real database
 - ✅ Service layer with real database
 - ✅ Handler layer with HTTP requests
@@ -390,11 +422,11 @@ The test suite aims for comprehensive coverage across all services and layers.
 - ✅ Benchmark tests for performance measurement
 
 #### auth-service Integration Tests:
-- ✅ `POST /api/v1/auth/register` - registration with validation
-- ✅ `POST /api/v1/auth/login` - login with email/username
-- ✅ `POST /api/v1/auth/refresh` - token refresh
-- ✅ `GET /api/v1/settings` - get user settings
-- ✅ `PATCH /api/v1/settings` - update user settings
+- ✅ `POST /api/v3/auth/register` - registration with validation
+- ✅ `POST /api/v3/auth/login` - login with email/username
+- ✅ `POST /api/v3/auth/refresh` - token refresh
+- ✅ `GET /api/v3/settings` - get user settings
+- ✅ `PATCH /api/v3/settings` - update user settings
 - ✅ Repository layer with real database
 - ✅ Service layer with real database
 - ✅ Handler layer with HTTP requests
@@ -407,7 +439,7 @@ The test suite aims for comprehensive coverage across all services and layers.
 - **auth-service repositories**: 90%+ ✅ (achieved - UserRepository, UserTokenRepository, UserSettingsRepository)
 - **auth-service services**: 85-90% ✅ (AuthService, UserSettingsService - ready to run - regex issue fixed)
 - **learn-service repositories**: 85-90% ✅ (all tests passing - CharacterRepository, CharacterLearnHistoryRepository, WordRepository, DictionaryHistoryRepository)
-- **learn-service services**: 85-90% ✅ (CharacterService, TestResultService, DictionaryService - ready to run)
+- **learn-service services**: 85-90% ✅ (CharacterService, TestResultService, DictionaryService, AdminCharacterService, AdminWordService - all tests passing)
 - **Integration tests**: Critical happy paths + key error scenarios ✅ (created for both services)
 
 ## Test Data
@@ -478,6 +510,11 @@ Integration tests automatically seed test data before each test and clean up aft
    - Previously expected non-nil result for empty results
    - **Fixed**: Now correctly checks for empty slice when expectedCount is 0
 
+6. **Missing Method in admin_character_service_test.go Mock** (ExistsByKatakanaOrHiragana) - ✅ FIXED
+   - Mock repository was missing `ExistsByKatakanaOrHiragana` method required by AdminCharactersRepository interface
+   - **Fixed**: Added `ExistsByKatakanaOrHiragana` method to mock with proper fields (`existsByKatakanaOrHiragana`, `existsByKatakanaOrHiraganaErr`)
+   - All admin service tests now passing
+
 ### Minor (Tests Work, But Could Be Improved)
 
 1. **Test Execution Time**: Some tests use `time.Sleep(1 * time.Second)` for timestamp uniqueness
@@ -496,6 +533,8 @@ Integration tests automatically seed test data before each test and clean up aft
 7. `JapaneseStudent/services/learn-service/internal/repositories/word_repository_test.go`
 8. `JapaneseStudent/services/learn-service/internal/repositories/dictionary_history_repository_test.go`
 9. `JapaneseStudent/services/learn-service/internal/services/dictionary_service_test.go`
+10. `JapaneseStudent/services/learn-service/internal/services/admin_character_service_test.go`
+11. `JapaneseStudent/services/learn-service/internal/services/admin_word_service_test.go`
 
 ### Updated Files
 1. `JapaneseStudent/libs/auth/service/auth_test.go` - Enhanced with comprehensive test cases
@@ -504,6 +543,7 @@ Integration tests automatically seed test data before each test and clean up aft
 4. `JapaneseStudent/services/learn-service/test/integration/characters_test.go` - Added test results, history, and dictionary tests
 5. `JapaneseStudent/services/auth-service/test/integration/auth_test.go` - Added user settings endpoint tests
 6. `JapaneseStudent/services/learn-service/internal/repositories/word_repository.go` - Fixed SQL query formatting bug in GetExcludingIDs
+7. `JapaneseStudent/services/learn-service/internal/services/admin_character_service_test.go` - Fixed missing ExistsByKatakanaOrHiragana method in mock repository
 
 ## Continuous Integration
 
@@ -560,19 +600,20 @@ Test dependencies (automatically added to `go.mod`):
 
 1. ✅ **Password Regex**: Fixed - now uses array of regex patterns
 2. ✅ **Float Precision**: Fixed - using `sqlmock.AnyArg()` for float64 values
-3. **Run Full Test Suite**: Execute all tests to verify everything works
-4. **Setup CI/CD**: Configure continuous integration to run tests automatically
-5. **Coverage Report**: Generate and review coverage reports to identify any gaps
-6. **Update Test Status**: Run tests and update status based on actual results
+3. ✅ **Admin Service Tests**: Fixed - added missing ExistsByKatakanaOrHiragana method to mock repository
+4. **Run Full Test Suite**: Execute all tests to verify everything works
+5. **Setup CI/CD**: Configure continuous integration to run tests automatically
+6. **Coverage Report**: Generate and review coverage reports to identify any gaps
+7. **Update Test Status**: Run tests and update status based on actual results
 
 ## Conclusion
 
 The comprehensive test suite has been successfully implemented with:
-- ✅ 150+ unit test cases across all services
+- ✅ 150+ unit test cases across all services (including AdminCharacterService and AdminWordService)
 - ✅ 30+ integration test cases
 - ✅ ~90% code coverage (estimated)
 - ✅ Following Go best practices and existing project patterns
-- ✅ All known issues resolved (password regex, float precision, SQL formatting, regex matching, empty result handling)
+- ✅ All known issues resolved (password regex, float precision, SQL formatting, regex matching, empty result handling, admin service mock methods)
 
 The test suite provides excellent coverage of:
 - Happy paths and edge cases

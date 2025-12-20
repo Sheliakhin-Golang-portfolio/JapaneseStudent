@@ -10,7 +10,6 @@ import (
 	"github.com/japanesestudent/learn-service/internal/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
 // setupDictionaryHistoryTestRepository creates a dictionary history repository with a mock database
@@ -19,10 +18,7 @@ func setupDictionaryHistoryTestRepository(t *testing.T) (*dictionaryHistoryRepos
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 
-	logger, err := zap.NewDevelopment()
-	require.NoError(t, err)
-
-	repo := NewDictionaryHistoryRepository(db, logger)
+	repo := NewDictionaryHistoryRepository(db)
 
 	cleanup := func() {
 		db.Close()
@@ -32,14 +28,12 @@ func setupDictionaryHistoryTestRepository(t *testing.T) (*dictionaryHistoryRepos
 }
 
 func TestNewDictionaryHistoryRepository(t *testing.T) {
-	logger, _ := zap.NewDevelopment()
 	db := &sql.DB{}
 
-	repo := NewDictionaryHistoryRepository(db, logger)
+	repo := NewDictionaryHistoryRepository(db)
 
 	assert.NotNil(t, repo)
 	assert.Equal(t, db, repo.db)
-	assert.Equal(t, logger, repo.logger)
 }
 
 func TestDictionaryHistoryRepository_GetOldWordIds(t *testing.T) {
@@ -320,4 +314,3 @@ func TestDictionaryHistoryRepository_UpsertResults(t *testing.T) {
 		})
 	}
 }
-

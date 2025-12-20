@@ -7,7 +7,6 @@ import (
 
 	"github.com/japanesestudent/learn-service/internal/models"
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/zap"
 )
 
 // mockRepository is a mock implementation of Repository
@@ -56,14 +55,12 @@ func (m *mockRepository) GetRandomForWritingTest(ctx context.Context, alphabetTy
 }
 
 func TestNewCharactersService(t *testing.T) {
-	logger, _ := zap.NewDevelopment()
 	mockRepo := &mockRepository{}
 
-	svc := NewCharactersService(mockRepo, logger)
+	svc := NewCharactersService(mockRepo)
 
 	assert.NotNil(t, svc)
 	assert.Equal(t, mockRepo, svc.repo)
-	assert.Equal(t, logger, svc.logger)
 }
 
 func TestService_GetAll(t *testing.T) {
@@ -141,8 +138,7 @@ func TestService_GetAll(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			logger, _ := zap.NewDevelopment()
-			svc := NewCharactersService(tt.mockRepo, logger)
+			svc := NewCharactersService(tt.mockRepo)
 			ctx := context.Background()
 
 			result, err := svc.GetAll(ctx, tt.alphabetType, tt.locale)
@@ -250,8 +246,7 @@ func TestService_GetByRowColumn(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			logger, _ := zap.NewDevelopment()
-			svc := NewCharactersService(tt.mockRepo, logger)
+			svc := NewCharactersService(tt.mockRepo)
 			ctx := context.Background()
 
 			result, err := svc.GetByRowColumn(ctx, tt.alphabetType, tt.locale, tt.character)
@@ -359,8 +354,7 @@ func TestService_GetByID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			logger, _ := zap.NewDevelopment()
-			svc := NewCharactersService(tt.mockRepo, logger)
+			svc := NewCharactersService(tt.mockRepo)
 			ctx := context.Background()
 
 			result, err := svc.GetByID(ctx, tt.id, tt.locale)
@@ -451,8 +445,7 @@ func TestService_GetReadingTest(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			logger, _ := zap.NewDevelopment()
-			svc := NewCharactersService(tt.mockRepo, logger)
+			svc := NewCharactersService(tt.mockRepo)
 			ctx := context.Background()
 
 			result, err := svc.GetReadingTest(ctx, tt.alphabetType, tt.locale, 20)
@@ -545,8 +538,7 @@ func TestService_GetWritingTest(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			logger, _ := zap.NewDevelopment()
-			svc := NewCharactersService(tt.mockRepo, logger)
+			svc := NewCharactersService(tt.mockRepo)
 			ctx := context.Background()
 
 			result, err := svc.GetWritingTest(ctx, tt.alphabetType, tt.locale, 20)
@@ -677,14 +669,12 @@ func (m *mockHistoryRepository) Upsert(ctx context.Context, histories []models.C
 }
 
 func TestNewTestResultService(t *testing.T) {
-	logger, _ := zap.NewDevelopment()
 	mockRepo := &mockHistoryRepository{}
 
-	svc := NewTestResultService(mockRepo, logger)
+	svc := NewTestResultService(mockRepo)
 
 	assert.NotNil(t, svc)
 	assert.Equal(t, mockRepo, svc.historyRepo)
-	assert.Equal(t, logger, svc.logger)
 }
 
 func TestTestResultService_SubmitTestResults(t *testing.T) {
@@ -907,7 +897,7 @@ func TestTestResultService_SubmitTestResults(t *testing.T) {
 				err: errors.New("database error"),
 			},
 			expectedError: true,
-			errorContains: "failed to get existing histories",
+			errorContains: "database error", // Service returns error directly without wrapping
 		},
 		{
 			name:         "database error on upsert",
@@ -953,8 +943,7 @@ func TestTestResultService_SubmitTestResults(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			logger, _ := zap.NewDevelopment()
-			svc := NewTestResultService(tt.mockRepo, logger)
+			svc := NewTestResultService(tt.mockRepo)
 			ctx := context.Background()
 
 			// Reset error after GetByUserIDAndCharacterIDs call for upsert test
@@ -1029,8 +1018,7 @@ func TestTestResultService_GetUserHistory(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			logger, _ := zap.NewDevelopment()
-			svc := NewTestResultService(tt.mockRepo, logger)
+			svc := NewTestResultService(tt.mockRepo)
 			ctx := context.Background()
 
 			result, err := svc.GetUserHistory(ctx, tt.userID)

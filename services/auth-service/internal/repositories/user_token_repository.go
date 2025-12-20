@@ -6,20 +6,17 @@ import (
 	"fmt"
 
 	"github.com/japanesestudent/auth-service/internal/models"
-	"go.uber.org/zap"
 )
 
 // userTokenRepository implements UserTokenRepository
 type userTokenRepository struct {
-	db     *sql.DB
-	logger *zap.Logger
+	db *sql.DB
 }
 
 // NewUserTokenRepository creates a new user token repository
-func NewUserTokenRepository(db *sql.DB, logger *zap.Logger) *userTokenRepository {
+func NewUserTokenRepository(db *sql.DB) *userTokenRepository {
 	return &userTokenRepository{
-		db:     db,
-		logger: logger,
+		db: db,
 	}
 }
 
@@ -31,7 +28,6 @@ func (r *userTokenRepository) Create(ctx context.Context, userToken *models.User
 	`
 
 	if _, err := r.db.ExecContext(ctx, query, userToken.UserID, userToken.Token); err != nil {
-		r.logger.Error("failed to create user token", zap.Error(err))
 		return fmt.Errorf("failed to create user token: %w", err)
 	}
 
@@ -58,7 +54,6 @@ func (r *userTokenRepository) GetByToken(ctx context.Context, token string) (*mo
 		return nil, fmt.Errorf("token not found")
 	}
 	if err != nil {
-		r.logger.Error("failed to get user token by token", zap.Error(err))
 		return nil, fmt.Errorf("failed to get user token by token: %w", err)
 	}
 
@@ -75,13 +70,11 @@ func (r *userTokenRepository) UpdateToken(ctx context.Context, oldToken, newToke
 
 	result, err := r.db.ExecContext(ctx, query, newToken, oldToken, userID)
 	if err != nil {
-		r.logger.Error("failed to update user token", zap.Error(err))
 		return fmt.Errorf("failed to update user token: %w", err)
 	}
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		r.logger.Error("failed to get rows affected", zap.Error(err))
 		return fmt.Errorf("failed to get rows affected: %w", err)
 	}
 
@@ -97,7 +90,6 @@ func (r *userTokenRepository) DeleteByToken(ctx context.Context, token string) e
 	query := `DELETE FROM user_tokens WHERE token = ?`
 
 	if _, err := r.db.ExecContext(ctx, query, token); err != nil {
-		r.logger.Error("failed to delete user token", zap.Error(err))
 		return fmt.Errorf("failed to delete user token: %w", err)
 	}
 

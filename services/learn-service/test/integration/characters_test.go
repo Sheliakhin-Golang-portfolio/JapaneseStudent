@@ -17,6 +17,7 @@ import (
 	"github.com/japanesestudent/learn-service/internal/models"
 	"github.com/japanesestudent/learn-service/internal/repositories"
 	"github.com/japanesestudent/learn-service/internal/services"
+	"github.com/japanesestudent/libs/auth/middleware"
 	"github.com/japanesestudent/libs/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -46,6 +47,8 @@ func seedTestData(t *testing.T, db *sql.DB) {
 	// Reset AUTO_INCREMENT to start from 1
 	_, err = db.Exec("ALTER TABLE characters AUTO_INCREMENT = 1")
 	require.NoError(t, err, "Failed to reset AUTO_INCREMENT")
+	_, err = db.Exec("ALTER TABLE words AUTO_INCREMENT = 1")
+	require.NoError(t, err, "Failed to reset AUTO_INCREMENT for words")
 
 	// Insert full hiragana/katakana alphabet
 	query := `
@@ -117,21 +120,21 @@ func cleanupTestData(t *testing.T, db *sql.DB) {
 
 // setupTestRouter creates a test router with all handlers
 func setupTestRouter(db *sql.DB, logger *zap.Logger) chi.Router {
-	repo := repositories.NewCharactersRepository(db, logger)
-	svc := services.NewCharactersService(repo, logger)
+	repo := repositories.NewCharactersRepository(db)
+	svc := services.NewCharactersService(repo)
 	charHandler := handlers.NewCharactersHandler(svc, logger)
 
-	historyRepo := repositories.NewCharacterLearnHistoryRepository(db, logger)
-	testResultSvc := services.NewTestResultService(historyRepo, logger)
+	historyRepo := repositories.NewCharacterLearnHistoryRepository(db)
+	testResultSvc := services.NewTestResultService(historyRepo)
 	testResultHandler := handlers.NewTestResultHandler(testResultSvc, logger)
 
-	wordRepo := repositories.NewWordRepository(db, logger)
-	dictionaryHistoryRepo := repositories.NewDictionaryHistoryRepository(db, logger)
-	dictionarySvc := services.NewDictionaryService(wordRepo, dictionaryHistoryRepo, logger)
+	wordRepo := repositories.NewWordRepository(db)
+	dictionaryHistoryRepo := repositories.NewDictionaryHistoryRepository(db)
+	dictionarySvc := services.NewDictionaryService(wordRepo, dictionaryHistoryRepo)
 	dictionaryHandler := handlers.NewDictionaryHandler(dictionarySvc, logger)
 
 	r := chi.NewRouter()
-	r.Route("/api/v1", func(r chi.Router) {
+	r.Route("/api/v3", func(r chi.Router) {
 		// Register character routes (excluding /tests which we'll register together)
 		r.Route("/characters", func(r chi.Router) {
 			r.Get("/", charHandler.GetAll)
@@ -354,7 +357,7 @@ func TestIntegration_GetAllCharacters(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodGet, "/api/v1/characters"+tt.queryParams, nil)
+			req := httptest.NewRequest(http.MethodGet, "/api/v3/characters"+tt.queryParams, nil)
 			w := httptest.NewRecorder()
 
 			testRouter.ServeHTTP(w, req)
@@ -430,7 +433,7 @@ func TestIntegration_GetByRowColumn(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodGet, "/api/v1/characters/row-column"+tt.queryParams, nil)
+			req := httptest.NewRequest(http.MethodGet, "/api/v3/characters/row-column"+tt.queryParams, nil)
 			w := httptest.NewRecorder()
 
 			testRouter.ServeHTTP(w, req)
@@ -513,7 +516,7 @@ func TestIntegration_GetByID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodGet, "/api/v1/characters/"+tt.id+tt.queryParams, nil)
+			req := httptest.NewRequest(http.MethodGet, "/api/v3/characters/"+tt.id+tt.queryParams, nil)
 			w := httptest.NewRecorder()
 
 			testRouter.ServeHTTP(w, req)
@@ -601,7 +604,7 @@ func TestIntegration_GetReadingTest(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodGet, "/api/v1/tests/"+tt.alphabetType+"/reading"+tt.queryParams, nil)
+			req := httptest.NewRequest(http.MethodGet, "/api/v3/tests/"+tt.alphabetType+"/reading"+tt.queryParams, nil)
 			w := httptest.NewRecorder()
 
 			testRouter.ServeHTTP(w, req)
@@ -684,7 +687,7 @@ func TestIntegration_GetWritingTest(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodGet, "/api/v1/tests/"+tt.alphabetType+"/writing"+tt.queryParams, nil)
+			req := httptest.NewRequest(http.MethodGet, "/api/v3/tests/"+tt.alphabetType+"/writing"+tt.queryParams, nil)
 			w := httptest.NewRecorder()
 
 			testRouter.ServeHTTP(w, req)
@@ -713,8 +716,7 @@ func TestIntegration_RepositoryLayer(t *testing.T) {
 	seedTestData(t, testDB)
 	defer cleanupTestData(t, testDB)
 
-	logger, _ := zap.NewDevelopment()
-	repo := repositories.NewCharactersRepository(testDB, logger)
+	repo := repositories.NewCharactersRepository(testDB)
 	ctx := context.Background()
 
 	t.Run("GetAll hiragana english", func(t *testing.T) {
@@ -772,9 +774,8 @@ func TestIntegration_ServiceLayer(t *testing.T) {
 	seedTestData(t, testDB)
 	defer cleanupTestData(t, testDB)
 
-	logger, _ := zap.NewDevelopment()
-	repo := repositories.NewCharactersRepository(testDB, logger)
-	svc := services.NewCharactersService(repo, logger)
+	repo := repositories.NewCharactersRepository(testDB)
+	svc := services.NewCharactersService(repo)
 	ctx := context.Background()
 
 	t.Run("GetAll", func(t *testing.T) {
@@ -911,9 +912,9 @@ func TestIntegration_SubmitTestResults(t *testing.T) {
 				body, _ := json.Marshal(map[string]any{
 					"results": []map[string]any{{"characterId": 1, "passed": false}},
 				})
-				req := httptest.NewRequest(http.MethodPost, "/api/v1/tests/hiragana/reading", bytes.NewBuffer(body))
+				req := httptest.NewRequest(http.MethodPost, "/api/v3/tests/hiragana/reading", bytes.NewBuffer(body))
 				req.Header.Set("Content-Type", "application/json")
-				req = req.WithContext(context.WithValue(req.Context(), "userID", 4))
+				req = req.WithContext(middleware.SetUserID(req.Context(), 4))
 				w2 := httptest.NewRecorder()
 				testRouter.ServeHTTP(w2, req)
 
@@ -952,10 +953,10 @@ func TestIntegration_SubmitTestResults(t *testing.T) {
 			body, _ := json.Marshal(map[string]any{
 				"results": tt.results,
 			})
-			url := fmt.Sprintf("/api/v1/tests/%s/%s", tt.alphabetType, tt.testType)
+			url := fmt.Sprintf("/api/v3/tests/%s/%s", tt.alphabetType, tt.testType)
 			req := httptest.NewRequest(http.MethodPost, url, bytes.NewBuffer(body))
 			req.Header.Set("Content-Type", "application/json")
-			req = req.WithContext(context.WithValue(req.Context(), "userID", tt.userID))
+			req = req.WithContext(middleware.SetUserID(req.Context(), tt.userID))
 			w := httptest.NewRecorder()
 
 			testRouter.ServeHTTP(w, req)
@@ -1025,8 +1026,8 @@ func TestIntegration_GetUserHistory(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodGet, "/api/v1/tests/history", nil)
-			req = req.WithContext(context.WithValue(req.Context(), "userID", tt.userID))
+			req := httptest.NewRequest(http.MethodGet, "/api/v3/tests/history", nil)
+			req = req.WithContext(middleware.SetUserID(req.Context(), tt.userID))
 			w := httptest.NewRecorder()
 
 			testRouter.ServeHTTP(w, req)
@@ -1052,8 +1053,7 @@ func TestIntegration_CharacterLearnHistoryRepository(t *testing.T) {
 	_, err := testDB.Exec("DELETE FROM character_learn_history")
 	require.NoError(t, err)
 
-	logger, _ := zap.NewDevelopment()
-	historyRepo := repositories.NewCharacterLearnHistoryRepository(testDB, logger)
+	historyRepo := repositories.NewCharacterLearnHistoryRepository(testDB)
 	ctx := context.Background()
 
 	t.Run("GetByUserIDAndCharacterIDs with real data", func(t *testing.T) {
@@ -1137,7 +1137,7 @@ func BenchmarkIntegration_GetAll(b *testing.B) {
 	seedTestData(&testing.T{}, testDB)
 	defer cleanupTestData(&testing.T{}, testDB)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/characters?type=hr&locale=en", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v3/characters?type=hr&locale=en", nil)
 
 	for b.Loop() {
 		w := httptest.NewRecorder()
@@ -1180,7 +1180,7 @@ func TestIntegration_Dictionary(t *testing.T) {
 			name:           "success get word list with defaults",
 			userID:         1,
 			method:         http.MethodGet,
-			url:            "/api/v1/words",
+			url:            "/api/v3/words",
 			requestBody:    nil,
 			expectedStatus: http.StatusOK,
 			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
@@ -1194,7 +1194,7 @@ func TestIntegration_Dictionary(t *testing.T) {
 			name:           "success get word list with parameters",
 			userID:         1,
 			method:         http.MethodGet,
-			url:            "/api/v1/words?newCount=10&oldCount=10&locale=en",
+			url:            "/api/v3/words?newCount=10&oldCount=10&locale=en",
 			requestBody:    nil,
 			expectedStatus: http.StatusOK,
 			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
@@ -1208,7 +1208,7 @@ func TestIntegration_Dictionary(t *testing.T) {
 			name:           "success get word list with russian locale",
 			userID:         1,
 			method:         http.MethodGet,
-			url:            "/api/v1/words?newCount=10&oldCount=10&locale=ru",
+			url:            "/api/v3/words?newCount=10&oldCount=10&locale=ru",
 			requestBody:    nil,
 			expectedStatus: http.StatusOK,
 			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
@@ -1225,7 +1225,7 @@ func TestIntegration_Dictionary(t *testing.T) {
 			name:           "invalid newCount - too low",
 			userID:         1,
 			method:         http.MethodGet,
-			url:            "/api/v1/words?newCount=5&oldCount=20&locale=en",
+			url:            "/api/v3/words?newCount=5&oldCount=20&locale=en",
 			requestBody:    nil,
 			expectedStatus: http.StatusBadRequest,
 			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
@@ -1239,7 +1239,7 @@ func TestIntegration_Dictionary(t *testing.T) {
 			name:           "invalid locale",
 			userID:         1,
 			method:         http.MethodGet,
-			url:            "/api/v1/words?newCount=20&oldCount=20&locale=fr",
+			url:            "/api/v3/words?newCount=20&oldCount=20&locale=fr",
 			requestBody:    nil,
 			expectedStatus: http.StatusBadRequest,
 			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
@@ -1253,7 +1253,7 @@ func TestIntegration_Dictionary(t *testing.T) {
 			name:   "success submit word results",
 			userID: 1,
 			method: http.MethodPost,
-			url:    "/api/v1/words/results",
+			url:    "/api/v3/words/results",
 			requestBody: map[string]any{
 				"results": []map[string]any{
 					{"wordId": 1, "period": 3},
@@ -1273,7 +1273,7 @@ func TestIntegration_Dictionary(t *testing.T) {
 			name:   "invalid period - too low",
 			userID: 1,
 			method: http.MethodPost,
-			url:    "/api/v1/words/results",
+			url:    "/api/v3/words/results",
 			requestBody: map[string]any{
 				"results": []map[string]any{
 					{"wordId": 1, "period": 0},
@@ -1291,7 +1291,7 @@ func TestIntegration_Dictionary(t *testing.T) {
 			name:   "invalid word ID - does not exist",
 			userID: 1,
 			method: http.MethodPost,
-			url:    "/api/v1/words/results",
+			url:    "/api/v3/words/results",
 			requestBody: map[string]any{
 				"results": []map[string]any{
 					{"wordId": 999, "period": 3},
@@ -1309,7 +1309,7 @@ func TestIntegration_Dictionary(t *testing.T) {
 			name:   "empty results array",
 			userID: 1,
 			method: http.MethodPost,
-			url:    "/api/v1/words/results",
+			url:    "/api/v3/words/results",
 			requestBody: map[string]any{
 				"results": []map[string]any{},
 			},
@@ -1334,7 +1334,7 @@ func TestIntegration_Dictionary(t *testing.T) {
 				req = httptest.NewRequest(tt.method, tt.url, nil)
 			}
 			// Set userID in context for auth middleware
-			req = req.WithContext(context.WithValue(req.Context(), "userID", tt.userID))
+			req = req.WithContext(middleware.SetUserID(req.Context(), tt.userID))
 			w := httptest.NewRecorder()
 
 			testRouter.ServeHTTP(w, req)
@@ -1366,9 +1366,8 @@ func TestIntegration_DictionaryRepositoryLayer(t *testing.T) {
 	`)
 	require.NoError(t, err)
 
-	logger, _ := zap.NewDevelopment()
-	wordRepo := repositories.NewWordRepository(testDB, logger)
-	historyRepo := repositories.NewDictionaryHistoryRepository(testDB, logger)
+	wordRepo := repositories.NewWordRepository(testDB)
+	historyRepo := repositories.NewDictionaryHistoryRepository(testDB)
 	ctx := context.Background()
 
 	t.Run("WordRepository GetByIDs", func(t *testing.T) {
@@ -1443,10 +1442,9 @@ func TestIntegration_DictionaryServiceLayer(t *testing.T) {
 	`)
 	require.NoError(t, err)
 
-	logger, _ := zap.NewDevelopment()
-	wordRepo := repositories.NewWordRepository(testDB, logger)
-	historyRepo := repositories.NewDictionaryHistoryRepository(testDB, logger)
-	dictionarySvc := services.NewDictionaryService(wordRepo, historyRepo, logger)
+	wordRepo := repositories.NewWordRepository(testDB)
+	historyRepo := repositories.NewDictionaryHistoryRepository(testDB)
+	dictionarySvc := services.NewDictionaryService(wordRepo, historyRepo)
 	ctx := context.Background()
 
 	t.Run("GetWordList", func(t *testing.T) {
