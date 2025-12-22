@@ -98,7 +98,9 @@ func (s *MediaService) UploadFile(ctx context.Context, reader io.Reader, content
 		return "", fmt.Errorf("failed to create metadata: %w", err)
 	}
 
-	return downloadURL, nil
+	// Return the metadata URL
+	metadataURL := fmt.Sprintf("%s/api/v4/media/%s", baseURL, filename)
+	return metadataURL, nil
 }
 
 // DeleteFile handles file deletion, removing both the file and metadata record
@@ -174,7 +176,8 @@ func (s *MediaService) IsValidMediaType(mediaType string) bool {
 		models.MediaTypeWordExample,
 		models.MediaTypeLessonAudio,
 		models.MediaTypeLessonVideo,
-		models.MediaTypeLessonDoc:
+		models.MediaTypeLessonDoc,
+		models.MediaTypeAvatar:
 		return true
 	default:
 		return false

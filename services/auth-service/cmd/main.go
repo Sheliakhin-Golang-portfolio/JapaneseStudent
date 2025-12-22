@@ -43,7 +43,7 @@ import (
 // @license.url http://www.apache.org/licenses/LICENSE-2.0.html
 
 // @host localhost:8081
-// @BasePath /api/v1
+// @BasePath /api/v4
 // @securityDefinitions.apikey ApiKeyAuth
 // @in header
 // @name Authorization
@@ -89,14 +89,14 @@ func main() {
 	userSettingsRepo := repositories.NewUserSettingsRepository(db)
 
 	// Initialize services
-	authService := services.NewAuthService(userRepo, userTokenRepo, userSettingsRepo, tokenGenerator, logger.Logger)
+	authService := services.NewAuthService(userRepo, userTokenRepo, userSettingsRepo, tokenGenerator, logger.Logger, cfg.MediaBaseURL, cfg.APIKey)
 	userSettingsService := services.NewUserSettingsService(userSettingsRepo)
 
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(authService, logger.Logger)
-	adminService := services.NewAdminService(userRepo, userTokenRepo, userSettingsRepo, tokenGenerator, logger.Logger)
+	adminService := services.NewAdminService(userRepo, userTokenRepo, userSettingsRepo, tokenGenerator, logger.Logger, cfg.MediaBaseURL, cfg.APIKey)
 	userSettingsHandler := handlers.NewUserSettingsHandler(userSettingsService, logger.Logger)
-	adminHandler := handlers.NewAdminHandler(adminService, logger.Logger)
+	adminHandler := handlers.NewAdminHandler(adminService, logger.Logger, cfg.MediaBaseURL, cfg.APIKey)
 
 	// Initialize auth middleware
 	authMiddleware := middleware.AuthMiddleware(tokenGenerator)
@@ -118,8 +118,8 @@ func main() {
 		httpSwagger.URL(fmt.Sprintf("http://localhost:%d/swagger/doc.json", cfg.Server.Port)),
 	))
 
-	// Scope router to /api/v1
-	r.Route("/api/v1", func(r chi.Router) {
+	// Scope router to /api/v4
+	r.Route("/api/v4", func(r chi.Router) {
 		// Register auth routes
 		authHandler.RegisterRoutes(r)
 		// Register user settings routes

@@ -57,6 +57,10 @@ The project includes three types of tests:
 **UserRepository Test Coverage**:
 - `Create`: Success, database errors, LastInsertId errors, duplicate email/username
 - `GetByEmailOrUsername`: Success by email/username, not found, database errors, scan errors
+- `GetByID`: Success, not found, database errors, scan errors
+- `GetAll`: Success with pagination, role filter, search filter, empty results, database errors
+- `Update`: Success with user fields, settings fields, both user and settings, partial updates, transaction handling, database errors
+- `Delete`: Success, user not found, database errors, rows affected errors
 - `ExistsByEmail`: Email exists/doesn't exist, database errors, scan errors
 - `ExistsByUsername`: Username exists/doesn't exist, database errors
 
@@ -99,6 +103,7 @@ The project includes three types of tests:
 **Files**:
 - `JapaneseStudent/services/auth-service/internal/services/auth_service_test.go`
 - `JapaneseStudent/services/auth-service/internal/services/user_settings_service_test.go`
+- `JapaneseStudent/services/auth-service/internal/services/admin_service_test.go`
 
 **AuthService Test Coverage** (32+ test cases):
 - `Register`: Success, invalid email formats, password validation, empty username, duplicate email/username, database errors
@@ -108,6 +113,15 @@ The project includes three types of tests:
 **UserSettingsService Test Coverage**:
 - `GetUserSettings`: Success, settings not found, repository errors
 - `UpdateUserSettings`: Success, validation errors (invalid counts, invalid language), repository errors, settings not found
+
+**AdminService Test Coverage** (50+ test cases):
+- `GetUsersList`: Success with pagination, role filter, search filter, empty results, validation errors, repository errors
+- `GetUserWithSettings`: Success, user not found, settings not found (returns user with nil settings), repository errors
+- `CreateUser`: Success, validation errors (email, username, password, role), duplicate email/username, database errors
+- `CreateUserSettings`: Success, settings already exist, user not found, repository errors
+- `UpdateUserWithSettings`: Success with user fields, settings fields, partial updates, validation errors, repository errors
+- `DeleteUser`: Success, user not found, repository errors
+- Note: Avatar upload/delete functionality requires media-service integration (tested in integration tests)
 
 **Status**: ✅ Tests created and ready to run (password regex issue fixed - now uses array of regex patterns instead of lookahead assertions)
 
@@ -345,6 +359,10 @@ The test suite aims for comprehensive coverage across all services and layers.
 #### auth-service UserRepository:
 - ✅ `Create` - success, database errors, duplicate email/username
 - ✅ `GetByEmailOrUsername` - success by email/username, not found, errors
+- ✅ `GetByID` - success, not found, errors
+- ✅ `GetAll` - success with pagination, role filter, search filter, empty results, errors
+- ✅ `Update` - success with user fields, settings fields, both user and settings, partial updates, transaction handling, errors
+- ✅ `Delete` - success, user not found, errors
 - ✅ `ExistsByEmail` - email exists/doesn't exist, errors
 - ✅ `ExistsByUsername` - username exists/doesn't exist, errors
 
@@ -434,6 +452,14 @@ The test suite aims for comprehensive coverage across all services and layers.
 - ✅ `GetUserSettings` - success, settings not found, repository errors
 - ✅ `UpdateUserSettings` - success, validation errors, repository errors
 
+#### auth-service AdminService:
+- ✅ `GetUsersList` - success with pagination, role filter, search filter, empty results, validation errors, repository errors
+- ✅ `GetUserWithSettings` - success, user not found, settings not found (returns user with nil settings), repository errors
+- ✅ `CreateUser` - success, validation errors (email, username, password, role), duplicate email/username, database errors
+- ✅ `CreateUserSettings` - success, settings already exist, user not found, repository errors
+- ✅ `UpdateUserWithSettings` - success with user fields, settings fields, avatar upload, partial updates, validation errors, media service integration, repository errors
+- ✅ `DeleteUser` - success, user not found, avatar deletion from media service, repository errors
+
 #### media-service MediaService:
 - ✅ `GetMetadataByID` - success, not found, database errors
 - ✅ `UploadFile` - success, storage errors, write errors, metadata errors with cleanup
@@ -469,6 +495,12 @@ The test suite aims for comprehensive coverage across all services and layers.
 - ✅ `POST /api/v3/auth/refresh` - token refresh
 - ✅ `GET /api/v3/settings` - get user settings
 - ✅ `PATCH /api/v3/settings` - update user settings
+- ✅ `GET /api/v3/admin/users` - get paginated list of users with filters
+- ✅ `GET /api/v3/admin/users/{id}` - get user with settings
+- ✅ `POST /api/v3/admin/users` - create user with settings
+- ✅ `POST /api/v3/admin/users/{id}/settings` - create user settings
+- ✅ `PATCH /api/v3/admin/users/{id}` - update user and/or settings (with optional avatar upload)
+- ✅ `DELETE /api/v3/admin/users/{id}` - delete user (with avatar cleanup)
 - ✅ Repository layer with real database
 - ✅ Service layer with real database
 - ✅ Handler layer with HTTP requests
@@ -505,6 +537,7 @@ Integration tests automatically seed test data before each test and clean up aft
 - User tokens for refresh token testing
 - User settings with default and custom values
 - Password hashing verification data
+- User avatars (URLs pointing to media-service)
 
 ### learn-service Test Data (Additional):
 - Words with translations in multiple languages (English, Russian, German)

@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -56,8 +57,8 @@ func seedTestData(t *testing.T, db *sql.DB) {
 	passwordHash, err := bcrypt.GenerateFromPassword([]byte("Password123!"), bcrypt.DefaultCost)
 	require.NoError(t, err, "Failed to hash password")
 
-	query := `INSERT INTO users (username, email, password_hash, role) VALUES (?, ?, ?, ?)`
-	_, err = db.Exec(query, "testuser", "test@example.com", string(passwordHash), models.RoleUser)
+	query := `INSERT INTO users (username, email, password_hash, role, avatar) VALUES (?, ?, ?, ?, ?)`
+	_, err = db.Exec(query, "testuser", "test@example.com", string(passwordHash), models.RoleUser, "")
 	require.NoError(t, err, "Failed to seed test user")
 }
 
@@ -88,15 +89,15 @@ func setupTestRouter(db *sql.DB, logger *zap.Logger) chi.Router {
 	tokenRepo := repositories.NewUserTokenRepository(db)
 	userSettingsRepo := repositories.NewUserSettingsRepository(db)
 	tokenGen := service.NewTokenGenerator("test-secret-key-for-integration-tests", 1*time.Hour, 7*24*time.Hour)
-	authSvc := services.NewAuthService(userRepo, tokenRepo, userSettingsRepo, tokenGen, logger)
+	authSvc := services.NewAuthService(userRepo, tokenRepo, userSettingsRepo, tokenGen, logger, "http://localhost:8080", "test-api-key")
 	authHandler := handlers.NewAuthHandler(authSvc, logger)
 
 	userSettingsSvc := services.NewUserSettingsService(userSettingsRepo)
 	userSettingsHandler := handlers.NewUserSettingsHandler(userSettingsSvc, logger)
 
 	r := chi.NewRouter()
-	// Scope router to /api/v3 to match main.go setup
-	r.Route("/api/v3", func(r chi.Router) {
+	// Scope router to /api/v4 to match main.go setup
+	r.Route("/api/v4", func(r chi.Router) {
 		authHandler.RegisterRoutes(r)
 		// Mock auth middleware that extracts userID from context
 		authMiddleware := func(h http.Handler) http.Handler {
@@ -169,6 +170,7 @@ func setupTestSchemaForMain(db *sql.DB) {
 			email VARCHAR(255) NOT NULL UNIQUE,
 			password_hash VARCHAR(255) NOT NULL,
 			role INT NOT NULL DEFAULT 1,
+			avatar VARCHAR(500) NULL,
 			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 			INDEX idx_email (email),
 			INDEX idx_username (username)
@@ -246,6 +248,12 @@ func TestIntegration_Register(t *testing.T) {
 				require.NoError(t, err)
 				assert.NotEqual(t, "Password123!", passwordHash)
 				assert.True(t, len(passwordHash) > 50) // bcrypt hashes are typically 60 characters
+
+				// Verify avatar is empty (not touching media service in tests)
+				var avatar string
+				err = testDB.QueryRow("SELECT avatar FROM users WHERE email = ?", "newuser@example.com").Scan(&avatar)
+				require.NoError(t, err)
+				assert.Empty(t, avatar, "avatar should be empty in tests")
 			},
 		},
 		{
@@ -330,9 +338,17 @@ func TestIntegration_Register(t *testing.T) {
 			cleanupTestData(t, testDB)
 			seedTestData(t, testDB)
 
-			body, _ := json.Marshal(tt.requestBody)
-			req := httptest.NewRequest(http.MethodPost, "/api/v3/auth/register", bytes.NewBuffer(body))
-			req.Header.Set("Content-Type", "application/json")
+			// Create multipart form request
+			var body bytes.Buffer
+			writer := multipart.NewWriter(&body)
+
+			for key, value := range tt.requestBody {
+				writer.WriteField(key, value)
+			}
+			writer.Close()
+
+			req := httptest.NewRequest(http.MethodPost, "/api/v4/auth/register", &body)
+			req.Header.Set("Content-Type", writer.FormDataContentType())
 			w := httptest.NewRecorder()
 
 			testRouter.ServeHTTP(w, req)
@@ -464,7 +480,7 @@ func TestIntegration_Login(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			body, _ := json.Marshal(tt.requestBody)
-			req := httptest.NewRequest(http.MethodPost, "/api/v3/auth/login", bytes.NewBuffer(body))
+			req := httptest.NewRequest(http.MethodPost, "/api/v4/auth/login", bytes.NewBuffer(body))
 			req.Header.Set("Content-Type", "application/json")
 			w := httptest.NewRecorder()
 
@@ -492,7 +508,7 @@ func TestIntegration_Refresh(t *testing.T) {
 		"login":    "test@example.com",
 		"password": "Password123!",
 	})
-	loginReq := httptest.NewRequest(http.MethodPost, "/api/v3/auth/login", bytes.NewBuffer(loginBody))
+	loginReq := httptest.NewRequest(http.MethodPost, "/api/v4/auth/login", bytes.NewBuffer(loginBody))
 	loginReq.Header.Set("Content-Type", "application/json")
 	loginW := httptest.NewRecorder()
 	testRouter.ServeHTTP(loginW, loginReq)
@@ -557,7 +573,7 @@ func TestIntegration_Refresh(t *testing.T) {
 			body, _ := json.Marshal(map[string]string{
 				"refresh_token": tt.refreshToken,
 			})
-			req := httptest.NewRequest(http.MethodPost, "/api/v3/auth/refresh", bytes.NewBuffer(body))
+			req := httptest.NewRequest(http.MethodPost, "/api/v4/auth/refresh", bytes.NewBuffer(body))
 			req.Header.Set("Content-Type", "application/json")
 			w := httptest.NewRecorder()
 
@@ -590,6 +606,7 @@ func TestIntegration_RepositoryLayer(t *testing.T) {
 			Email:        "repotest@example.com",
 			PasswordHash: "hashedpassword",
 			Role:         models.RoleUser,
+			Avatar:       "", // Empty avatar for tests
 		}
 		err := userRepo.Create(ctx, user)
 		require.NoError(t, err)
@@ -694,7 +711,7 @@ func TestIntegration_ServiceLayer(t *testing.T) {
 	tokenRepo := repositories.NewUserTokenRepository(testDB)
 	userSettingsRepo := repositories.NewUserSettingsRepository(testDB)
 	tokenGen := service.NewTokenGenerator("test-secret", 1*time.Hour, 7*24*time.Hour)
-	authSvc := services.NewAuthService(userRepo, tokenRepo, userSettingsRepo, tokenGen, logger)
+	authSvc := services.NewAuthService(userRepo, tokenRepo, userSettingsRepo, tokenGen, logger, "http://localhost:8080", "test-api-key")
 	ctx := context.Background()
 
 	t.Run("Register", func(t *testing.T) {
@@ -703,7 +720,7 @@ func TestIntegration_ServiceLayer(t *testing.T) {
 			Username: "servicetest",
 			Password: "Password123!",
 		}
-		accessToken, refreshToken, err := authSvc.Register(ctx, req)
+		accessToken, refreshToken, err := authSvc.Register(ctx, req, nil, "") // Using nil avatarFile and empty avatarFilename to avoid touching media service
 		require.NoError(t, err)
 		assert.NotEmpty(t, accessToken)
 		assert.NotEmpty(t, refreshToken)
@@ -764,7 +781,7 @@ func TestIntegration_UserSettings(t *testing.T) {
 			name:           "success get user settings",
 			userID:         1,
 			method:         http.MethodGet,
-			url:            "/api/v3/settings",
+			url:            "/api/v4/settings",
 			requestBody:    nil,
 			expectedStatus: http.StatusOK,
 			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
@@ -781,7 +798,7 @@ func TestIntegration_UserSettings(t *testing.T) {
 			name:           "success update user settings - partial",
 			userID:         1,
 			method:         http.MethodPatch,
-			url:            "/api/v3/settings",
+			url:            "/api/v4/settings",
 			requestBody:    map[string]any{"newWordCount": 25},
 			expectedStatus: http.StatusNoContent,
 			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
@@ -796,7 +813,7 @@ func TestIntegration_UserSettings(t *testing.T) {
 			name:           "success update user settings - all fields",
 			userID:         1,
 			method:         http.MethodPatch,
-			url:            "/api/v3/settings",
+			url:            "/api/v4/settings",
 			requestBody:    map[string]any{"newWordCount": 30, "oldWordCount": 35, "alphabetLearnCount": 12, "language": "ru"},
 			expectedStatus: http.StatusNoContent,
 			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
@@ -815,7 +832,7 @@ func TestIntegration_UserSettings(t *testing.T) {
 			name:           "invalid newWordCount - too low",
 			userID:         1,
 			method:         http.MethodPatch,
-			url:            "/api/v3/settings",
+			url:            "/api/v4/settings",
 			requestBody:    map[string]any{"newWordCount": 5},
 			expectedStatus: http.StatusBadRequest,
 			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
@@ -829,7 +846,7 @@ func TestIntegration_UserSettings(t *testing.T) {
 			name:           "invalid newWordCount - too high",
 			userID:         1,
 			method:         http.MethodPatch,
-			url:            "/api/v3/settings",
+			url:            "/api/v4/settings",
 			requestBody:    map[string]any{"newWordCount": 50},
 			expectedStatus: http.StatusBadRequest,
 			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
@@ -843,7 +860,7 @@ func TestIntegration_UserSettings(t *testing.T) {
 			name:           "invalid language",
 			userID:         1,
 			method:         http.MethodPatch,
-			url:            "/api/v3/settings",
+			url:            "/api/v4/settings",
 			requestBody:    map[string]any{"language": "fr"},
 			expectedStatus: http.StatusBadRequest,
 			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
@@ -857,7 +874,7 @@ func TestIntegration_UserSettings(t *testing.T) {
 			name:           "empty request body",
 			userID:         1,
 			method:         http.MethodPatch,
-			url:            "/api/v3/settings",
+			url:            "/api/v4/settings",
 			requestBody:    map[string]any{},
 			expectedStatus: http.StatusBadRequest,
 			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
@@ -871,7 +888,7 @@ func TestIntegration_UserSettings(t *testing.T) {
 			name:           "user settings not found",
 			userID:         999,
 			method:         http.MethodGet,
-			url:            "/api/v3/settings",
+			url:            "/api/v4/settings",
 			requestBody:    nil,
 			expectedStatus: http.StatusInternalServerError,
 			validateFunc:   nil,

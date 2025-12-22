@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"mime/multipart"
 	"net/http"
 	"strings"
 
@@ -17,9 +18,11 @@ type AuthService interface {
 	// Method Register performs a user credentials validation and creation and returns access and refresh tokens.
 	//
 	// "req" parameter contains email, username and password.
+	// "avatarFile" parameter is an optional file reader for the avatar image.
+	// "avatarFilename" parameter is the name of the avatar image file.
 	//
 	// If user passed invalid credentials, or such user already exists, or some other error occurs, the error will be returned together with empty strings for access and refresh tokens.
-	Register(ctx context.Context, req *models.RegisterRequest) (string, string, error)
+	Register(ctx context.Context, req *models.RegisterRequest, avatarFile multipart.File, avatarFilename string) (string, string, error)
 	// Method Login performs a user credentials validation and returns a user.
 	//
 	// "req" parameter contains login and password.
@@ -63,25 +66,61 @@ func (h *AuthHandler) RegisterRoutes(r chi.Router) {
 
 // Register handles POST /auth/register
 // @Summary Register a new user
-// @Description Register a new user with email, username, and password. Returns access and refresh tokens as HTTP-only cookies.
+// @Description Register a new user with email, username, password, and optional avatar. Returns access and refresh tokens as HTTP-only cookies.
 // @Tags auth
-// @Accept json
+// @Accept multipart/form-data
 // @Produce json
-// @Param request body models.RegisterRequest true "Registration request"
+// @Param email formData string true "User email"
+// @Param username formData string true "Username"
+// @Param password formData string true "User password"
+// @Param avatar formData file false "User avatar image (optional)"
 // @Success 201 {object} map[string]string "User registered successfully"
 // @Failure 400 {object} map[string]string "Invalid request body or user already exists"
 // @Failure 500 {object} map[string]string "Internal server error"
 // @Router /auth/register [post]
 func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
-	var req models.RegisterRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		h.Logger.Error("failed to decode request body", zap.Error(err))
-		h.RespondError(w, http.StatusBadRequest, "invalid request body")
+	// Parse multipart form (limit to 20MB to match request size limit)
+	err := r.ParseMultipartForm(20 << 20) // 20MB
+	if err != nil {
+		h.Logger.Error("failed to parse multipart form", zap.Error(err))
+		h.RespondError(w, http.StatusBadRequest, "failed to parse request")
+		return
+	}
+
+	// Extract form values
+	email := r.FormValue("email")
+	username := r.FormValue("username")
+	password := r.FormValue("password")
+
+	if email == "" || username == "" || password == "" {
+		h.RespondError(w, http.StatusBadRequest, "email, username, and password are required")
+		return
+	}
+
+	req := &models.RegisterRequest{
+		Email:    email,
+		Username: username,
+		Password: password,
+	}
+
+	// Extract avatar file (optional)
+	var avatarFile multipart.File
+	file, fileHeader, err := r.FormFile("avatar")
+	if err == nil && file != nil {
+		// Validate file is actually provided (not just empty field)
+		if fileHeader.Size > 0 {
+			avatarFile = file
+			defer file.Close()
+		}
+	} else if err != http.ErrMissingFile {
+		// If error is not "missing file", it's a real error
+		h.Logger.Error("failed to get avatar file from form", zap.Error(err))
+		h.RespondError(w, http.StatusBadRequest, "failed to process avatar file")
 		return
 	}
 
 	// Register user
-	accessToken, refreshToken, err := h.authService.Register(r.Context(), &req)
+	accessToken, refreshToken, err := h.authService.Register(r.Context(), req, avatarFile, fileHeader.Filename)
 	if err != nil {
 		h.Logger.Error("failed to register user", zap.Error(err))
 		errStatus := http.StatusInternalServerError
