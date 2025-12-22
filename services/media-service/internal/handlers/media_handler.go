@@ -142,7 +142,7 @@ func (h *MediaHandler) DownloadFile(w http.ResponseWriter, r *http.Request) {
 	filename := chi.URLParam(r, "filename")
 	mediaType := models.MediaType(mediaTypeStr)
 
-	// Apply auth middleware conditionally: character files are public, others require auth
+	// Apply auth middleware conditionally: character files are public, others (including avatar) require auth
 	if mediaType != models.MediaTypeCharacter && h.authMw != nil {
 		// Create a handler that will serve the file
 		fileHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

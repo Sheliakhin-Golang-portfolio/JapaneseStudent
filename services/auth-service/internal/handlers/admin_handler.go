@@ -3,6 +3,8 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"mime/multipart"
 	"net/http"
 	"strconv"
 	"strings"
@@ -48,10 +50,12 @@ type AdminService interface {
 	//
 	// "userID" parameter is used to specify the user ID.
 	// "userData" parameter is used to specify the user data and settings data.
+	// "avatarFile" parameter is an optional file reader for the avatar image.
+	// "avatarFilename" parameter is the name of the avatar image file.
 	//
 	// We cannot ignore error about settings not exists forever, so that`s where we will signal admin that it is not good.
 	// If some other error occurs, the error will be returned.
-	UpdateUserWithSettings(ctx context.Context, userID int, userData *models.UpdateUserWithSettingsRequest) error
+	UpdateUserWithSettings(ctx context.Context, userID int, userData *models.UpdateUserWithSettingsRequest, avatarFile multipart.File, avatarFilename string) error
 	// Method DeleteUser deletes a user by ID.
 	//
 	// If some other error occurs, the error will be returned.
@@ -62,16 +66,22 @@ type AdminService interface {
 type AdminHandler struct {
 	handlers.BaseHandler
 	adminService AdminService
+	mediaBaseURL string
+	apiKey       string
 }
 
 // NewAdminHandler creates a new admin handler
 func NewAdminHandler(
 	adminService AdminService,
 	logger *zap.Logger,
+	mediaBaseURL string,
+	apiKey string,
 ) *AdminHandler {
 	return &AdminHandler{
 		BaseHandler:  handlers.BaseHandler{Logger: logger},
 		adminService: adminService,
+		mediaBaseURL: mediaBaseURL,
+		apiKey:       apiKey,
 	}
 }
 
@@ -257,12 +267,19 @@ func (h *AdminHandler) CreateUserSettings(w http.ResponseWriter, r *http.Request
 
 // UpdateUserWithSettings handles PATCH /admin/users/{id}
 // @Summary Update user with settings
-// @Description Update user and/or settings fields (partial update)
+// @Description Update user and/or settings fields (partial update). Supports optional avatar upload.
 // @Tags admin
-// @Accept json
+// @Accept multipart/form-data
 // @Produce json
 // @Param id path int true "User ID"
-// @Param request body models.UpdateUserWithSettingsRequest false "Update request"
+// @Param username formData string false "Username"
+// @Param email formData string false "Email"
+// @Param role formData int false "Role"
+// @Param newWordCount formData int false "New word count"
+// @Param oldWordCount formData int false "Old word count"
+// @Param alphabetLearnCount formData int false "Alphabet learn count"
+// @Param language formData string false "Language (en, ru, de)"
+// @Param avatar formData file false "Avatar image (optional)"
 // @Success 204 "No Content"
 // @Failure 400 {object} map[string]string "Invalid request"
 // @Failure 500 {object} map[string]string "Internal server error"
@@ -277,15 +294,88 @@ func (h *AdminHandler) UpdateUserWithSettings(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	// Parse multipart form (limit to 20MB to match request size limit)
+	err = r.ParseMultipartForm(20 << 20) // 20MB
+	if err != nil {
+		h.Logger.Error("failed to parse multipart form", zap.Error(err))
+		h.RespondError(w, http.StatusBadRequest, "failed to parse request")
+		return
+	}
+
+	// Extract form values
 	var req models.UpdateUserWithSettingsRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		h.Logger.Error("failed to decode request body", zap.Error(err))
-		h.RespondError(w, http.StatusBadRequest, "invalid request body")
+
+	if username := r.FormValue("username"); username != "" {
+		req.Username = username
+	}
+
+	if email := r.FormValue("email"); email != "" {
+		req.Email = email
+	}
+
+	if roleStr := r.FormValue("role"); roleStr != "" {
+		if roleVal, err := strconv.Atoi(roleStr); err == nil {
+			role := models.Role(roleVal)
+			req.Role = &role
+		}
+	}
+
+	// Extract settings if any setting field is provided
+	var settings *models.UpdateUserSettingsRequest
+	newWordCountStr := r.FormValue("newWordCount")
+	oldWordCountStr := r.FormValue("oldWordCount")
+	alphabetLearnCountStr := r.FormValue("alphabetLearnCount")
+	languageStr := r.FormValue("language")
+
+	if newWordCountStr != "" || oldWordCountStr != "" || alphabetLearnCountStr != "" || languageStr != "" {
+		settings = &models.UpdateUserSettingsRequest{}
+
+		if newWordCountStr != "" {
+			if val, err := strconv.Atoi(newWordCountStr); err == nil {
+				settings.NewWordCount = &val
+			}
+		}
+
+		if oldWordCountStr != "" {
+			if val, err := strconv.Atoi(oldWordCountStr); err == nil {
+				settings.OldWordCount = &val
+			}
+		}
+
+		if alphabetLearnCountStr != "" {
+			if val, err := strconv.Atoi(alphabetLearnCountStr); err == nil {
+				settings.AlphabetLearnCount = &val
+			}
+		}
+
+		if languageStr != "" {
+			language := models.Language(languageStr)
+			settings.Language = &language
+		}
+
+		req.Settings = settings
+	}
+
+	// Extract avatar file (optional)
+	var avatarFile multipart.File
+	var avatarFilename string
+	file, fileHeader, err := r.FormFile("avatar")
+	if err == nil && file != nil {
+		// Validate file is actually provided (not just empty field)
+		if fileHeader.Size > 0 {
+			avatarFile = file
+			avatarFilename = fileHeader.Filename
+			defer file.Close()
+		}
+	} else if err != http.ErrMissingFile {
+		// If error is not "missing file", it's a real error
+		h.Logger.Error("failed to get avatar file from form", zap.Error(err))
+		h.RespondError(w, http.StatusBadRequest, "failed to process avatar file")
 		return
 	}
 
 	// Update user and settings
-	err = h.adminService.UpdateUserWithSettings(r.Context(), userID, &req)
+	err = h.adminService.UpdateUserWithSettings(r.Context(), userID, &req, avatarFile, avatarFilename)
 	if err != nil {
 		h.Logger.Error("failed to update user with settings", zap.Error(err))
 		errStatus := http.StatusBadRequest
@@ -301,12 +391,13 @@ func (h *AdminHandler) UpdateUserWithSettings(w http.ResponseWriter, r *http.Req
 
 // DeleteUser handles DELETE /admin/users/{id}
 // @Summary Delete a user
-// @Description Delete a user by ID
+// @Description Delete a user by ID and their avatar file from media service
 // @Tags admin
 // @Accept json
 // @Produce json
 // @Param id path int true "User ID"
-// @Success 204 "No Content"
+// @Success 200 {object} map[string]string "User deleted successfully, but..."
+// @Success 204 "No Content (when avatar deletion is successful)"
 // @Failure 400 {object} map[string]string "Invalid user ID"
 // @Failure 404 {object} map[string]string "User not found"
 // @Failure 500 {object} map[string]string "Internal server error"
@@ -326,6 +417,13 @@ func (h *AdminHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		h.Logger.Error("failed to delete user", zap.Error(err))
 		errStatus := http.StatusInternalServerError
+		if strings.Contains(err.Error(), "avatar file has not been deleted") {
+			response := map[string]string{
+				"message": fmt.Sprintf("user deleted successfully, but %s", err.Error()),
+			}
+			h.RespondJSON(w, http.StatusOK, response)
+			return
+		}
 		if err.Error() == "invalid user id" || err.Error() == "user not found" {
 			errStatus = http.StatusNotFound
 		}

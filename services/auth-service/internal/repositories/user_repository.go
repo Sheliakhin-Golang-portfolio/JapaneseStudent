@@ -24,11 +24,11 @@ func NewUserRepository(db *sql.DB) *userRepository {
 // Create inserts a new user into the database
 func (r *userRepository) Create(ctx context.Context, user *models.User) error {
 	query := `
-		INSERT INTO users (username, email, password_hash, role)
-		VALUES (?, ?, ?, ?)
+		INSERT INTO users (username, email, password_hash, role, avatar)
+		VALUES (?, ?, ?, ?, ?)
 	`
 
-	result, err := r.db.ExecContext(ctx, query, user.Username, user.Email, user.PasswordHash, user.Role)
+	result, err := r.db.ExecContext(ctx, query, user.Username, user.Email, user.PasswordHash, user.Role, user.Avatar)
 	if err != nil {
 		return fmt.Errorf("failed to create user: %w", err)
 	}
@@ -45,7 +45,7 @@ func (r *userRepository) Create(ctx context.Context, user *models.User) error {
 // GetByEmailOrUsername retrieves a user by email or username
 func (r *userRepository) GetByEmailOrUsername(ctx context.Context, login string) (*models.User, error) {
 	query := `
-		SELECT id, username, email, password_hash, role
+		SELECT id, username, email, password_hash, role, avatar
 		FROM users
 		WHERE email = ? OR username = ?
 		LIMIT 1
@@ -58,6 +58,7 @@ func (r *userRepository) GetByEmailOrUsername(ctx context.Context, login string)
 		&user.Email,
 		&user.PasswordHash,
 		&user.Role,
+		&user.Avatar,
 	)
 
 	if err == sql.ErrNoRows {
@@ -99,7 +100,7 @@ func (r *userRepository) ExistsByUsername(ctx context.Context, username string) 
 // GetByID retrieves a user by ID
 func (r *userRepository) GetByID(ctx context.Context, userID int) (*models.User, error) {
 	query := `
-		SELECT username, email, password_hash, role
+		SELECT username, email, password_hash, role, avatar
 		FROM users
 		WHERE id = ?
 		LIMIT 1
@@ -111,6 +112,7 @@ func (r *userRepository) GetByID(ctx context.Context, userID int) (*models.User,
 		&user.Email,
 		&user.PasswordHash,
 		&user.Role,
+		&user.Avatar,
 	)
 
 	if err == sql.ErrNoRows {
@@ -150,7 +152,7 @@ func (r *userRepository) GetAll(ctx context.Context, page, count int, role *mode
 	offset := (page - 1) * count
 
 	query := fmt.Sprintf(`
-		SELECT id, username, email, role
+		SELECT id, username, email, role, avatar
 		FROM users
 		%s
 		ORDER BY email
@@ -173,6 +175,7 @@ func (r *userRepository) GetAll(ctx context.Context, page, count int, role *mode
 			&user.Username,
 			&user.Email,
 			&user.Role,
+			&user.Avatar,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan user: %w", err)
@@ -211,6 +214,10 @@ func (r *userRepository) Update(ctx context.Context, userID int, user *models.Us
 		if user.Role != 0 {
 			setClauses = append(setClauses, "role = ?")
 			args = append(args, user.Role)
+		}
+		if user.Avatar != "" {
+			setClauses = append(setClauses, "avatar = ?")
+			args = append(args, user.Avatar)
 		}
 
 		if len(setClauses) != 0 {

@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"mime/multipart"
 	"regexp"
 	"strings"
 
@@ -87,6 +88,8 @@ type authService struct {
 	userSettingsRepo UserSettingsRepository
 	tokenGenerator   *service.TokenGenerator
 	logger           *zap.Logger
+	mediaBaseURL     string
+	apiKey           string
 }
 
 // NewAuthService creates a new auth service
@@ -96,6 +99,8 @@ func NewAuthService(
 	userSettingsRepo UserSettingsRepository,
 	tokenGenerator *service.TokenGenerator,
 	logger *zap.Logger,
+	mediaBaseURL string,
+	apiKey string,
 ) *authService {
 	return &authService{
 		userRepo:         userRepo,
@@ -103,6 +108,8 @@ func NewAuthService(
 		userSettingsRepo: userSettingsRepo,
 		tokenGenerator:   tokenGenerator,
 		logger:           logger,
+		mediaBaseURL:     mediaBaseURL,
+		apiKey:           apiKey,
 	}
 }
 
@@ -119,11 +126,20 @@ var passwordRegex = []*regexp.Regexp{
 }
 
 // Register creates a new user account
-func (s *authService) Register(ctx context.Context, req *models.RegisterRequest) (string, string, error) {
+func (s *authService) Register(ctx context.Context, req *models.RegisterRequest, avatarFile multipart.File, avatarFilename string) (string, string, error) {
 	// Check user credentials return normalized email and username
 	normalizedEmail, normalizedUsername, err := checkRegisterCredentials(ctx, s.userRepo.(UserSharedRepository), req.Email, req.Username, req.Password)
 	if err != nil {
 		return "", "", err
+	}
+
+	// Upload avatar if provided (before creating user to maintain transaction safety)
+	var avatarURL string
+	if avatarFile != nil {
+		avatarURL, err = uploadAvatar(ctx, s.mediaBaseURL, s.apiKey, avatarFile, avatarFilename)
+		if err != nil {
+			return "", "", fmt.Errorf("failed to upload avatar: %w", err)
+		}
 	}
 
 	// Hash password
@@ -138,6 +154,7 @@ func (s *authService) Register(ctx context.Context, req *models.RegisterRequest)
 		Email:        normalizedEmail,
 		PasswordHash: string(passwordHash),
 		Role:         models.RoleUser, // Default role
+		Avatar:       avatarURL,
 	}
 
 	err = s.userRepo.Create(ctx, user)

@@ -1,4 +1,4 @@
-basePath: /api/v1
+basePath: /api/v4
 definitions:
   handlers.RefreshRequest:
     properties:
@@ -33,15 +33,6 @@ definitions:
       password:
         type: string
     type: object
-  models.RegisterRequest:
-    properties:
-      email:
-        type: string
-      password:
-        type: string
-      username:
-        type: string
-    type: object
   models.Role:
     enum:
     - 1
@@ -63,19 +54,10 @@ definitions:
       oldWordCount:
         type: integer
     type: object
-  models.UpdateUserWithSettingsRequest:
-    properties:
-      email:
-        type: string
-      role:
-        $ref: '#/definitions/models.Role'
-      settings:
-        $ref: '#/definitions/models.UpdateUserSettingsRequest'
-      username:
-        type: string
-    type: object
   models.UserListItem:
     properties:
+      avatar:
+        type: string
       email:
         type: string
       id:
@@ -118,6 +100,8 @@ definitions:
     type: object
   models.UserWithSettingsResponse:
     properties:
+      avatar:
+        type: string
       email:
         type: string
       id:
@@ -229,7 +213,7 @@ paths:
     delete:
       consumes:
       - application/json
-      description: Delete a user by ID
+      description: Delete a user by ID and their avatar file from media service
       parameters:
       - description: User ID
         in: path
@@ -239,8 +223,14 @@ paths:
       produces:
       - application/json
       responses:
+        "200":
+          description: User deleted successfully, but...
+          schema:
+            additionalProperties:
+              type: string
+            type: object
         "204":
-          description: No Content
+          description: No Content (when avatar deletion is successful)
         "400":
           description: Invalid user ID
           schema:
@@ -302,19 +292,47 @@ paths:
       - admin
     patch:
       consumes:
-      - application/json
-      description: Update user and/or settings fields (partial update)
+      - multipart/form-data
+      description: Update user and/or settings fields (partial update). Supports optional
+        avatar upload.
       parameters:
       - description: User ID
         in: path
         name: id
         required: true
         type: integer
-      - description: Update request
-        in: body
-        name: request
-        schema:
-          $ref: '#/definitions/models.UpdateUserWithSettingsRequest'
+      - description: Username
+        in: formData
+        name: username
+        type: string
+      - description: Email
+        in: formData
+        name: email
+        type: string
+      - description: Role
+        in: formData
+        name: role
+        type: integer
+      - description: New word count
+        in: formData
+        name: newWordCount
+        type: integer
+      - description: Old word count
+        in: formData
+        name: oldWordCount
+        type: integer
+      - description: Alphabet learn count
+        in: formData
+        name: alphabetLearnCount
+        type: integer
+      - description: Language (en, ru, de)
+        in: formData
+        name: language
+        type: string
+      - description: Avatar image (optional)
+        in: formData
+        name: avatar
+        type: file
       produces:
       - application/json
       responses:
@@ -452,16 +470,29 @@ paths:
   /auth/register:
     post:
       consumes:
-      - application/json
-      description: Register a new user with email, username, and password. Returns
-        access and refresh tokens as HTTP-only cookies.
+      - multipart/form-data
+      description: Register a new user with email, username, password, and optional
+        avatar. Returns access and refresh tokens as HTTP-only cookies.
       parameters:
-      - description: Registration request
-        in: body
-        name: request
+      - description: User email
+        in: formData
+        name: email
         required: true
-        schema:
-          $ref: '#/definitions/models.RegisterRequest'
+        type: string
+      - description: Username
+        in: formData
+        name: username
+        required: true
+        type: string
+      - description: User password
+        in: formData
+        name: password
+        required: true
+        type: string
+      - description: User avatar image (optional)
+        in: formData
+        name: avatar
+        type: file
       produces:
       - application/json
       responses:

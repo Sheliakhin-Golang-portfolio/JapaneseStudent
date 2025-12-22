@@ -20,6 +20,7 @@ type Config struct {
 	JWT           JWTConfig
 	APIKey        string
 	MediaBasePath string
+	MediaBaseURL  string
 }
 
 // DatabaseConfig holds database connection settings
@@ -168,6 +169,9 @@ func Load() (*Config, error) {
 
 	// Media base path configuration (optional, for media service)
 	cfg.MediaBasePath = os.Getenv("MEDIA_BASE_PATH")
+
+	// Media base URL configuration (optional, for media service)
+	cfg.MediaBaseURL = os.Getenv("MEDIA_BASE_URL")
 
 	return cfg, nil
 }

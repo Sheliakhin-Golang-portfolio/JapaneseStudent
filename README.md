@@ -76,7 +76,9 @@ JapaneseStudent/
 │   │   │   ├── 000002_create_user_tokens_table.up.sql
 │   │   │   ├── 000002_create_user_tokens_table.down.sql
 │   │   │   ├── 000003_create_user_settings_table.up.sql
-│   │   │   └── 000003_create_user_settings_table.down.sql
+│   │   │   ├── 000003_create_user_settings_table.down.sql
+│   │   │   ├── 000004_add_avatar_to_users_table.up.sql
+│   │   │   └── 000004_add_avatar_to_users_table.down.sql
 │   │   ├── test/
 │   │   │   └── integration/       # Integration tests
 │   │   │       └── auth_test.go
@@ -202,6 +204,8 @@ MEDIA_BASE_PATH=/path/to/media/storage
 API_KEY=your-api-key-here
 # Base URL for generating download URLs (optional, defaults to http://localhost:{PORT})
 BASE_URL=http://localhost:8082
+# Media service base URL (required for auth-service avatar upload/delete functionality)
+MEDIA_BASE_URL=http://localhost:8082
 ```
 
 ## Local Development
@@ -242,7 +246,7 @@ CREATE DATABASE japanesestudent;
 Migrations run automatically when each service starts. Alternatively, you can run them manually using the migrate tool:
 
 ```bash
-# For auth-service
+# For auth-service (includes avatar field migration)
 migrate -path services/auth-service/migrations -database "mysql://user:password@tcp(localhost:3306)/japanesestudent" up
 
 # For learn-service
@@ -278,7 +282,9 @@ go run cmd/main.go
 
 The media API will be available at `http://localhost:8082`
 
-**Note**: media-service requires `MEDIA_BASE_PATH` environment variable to be set for file storage.
+**Note**: 
+- media-service requires `MEDIA_BASE_PATH` environment variable to be set for file storage.
+- auth-service requires `MEDIA_BASE_URL` and `API_KEY` environment variables to be set for avatar upload/delete functionality.
 
 ## Docker Deployment
 
@@ -339,10 +345,21 @@ docker-compose down -v
 - `POST /api/v3/admin/users/{id}/settings` - Create user settings for a user
   - Returns: Success message or "Settings already exist"
 - `PATCH /api/v3/admin/users/{id}` - Update user and/or settings
-  - Body: Partial update request with user and settings fields
+  - Content-Type: `multipart/form-data`
+  - Form Fields:
+    - `username` (optional): New username
+    - `email` (optional): New email
+    - `role` (optional): New role (integer)
+    - `newWordCount` (optional): New word count (10-40)
+    - `oldWordCount` (optional): Old word count (10-40)
+    - `alphabetLearnCount` (optional): Alphabet learn count (5-15)
+    - `language` (optional): Language preference (`en`, `ru`, `de`)
+    - `avatar` (optional): Avatar image file
   - Returns: 204 No Content on success
+  - Note: Avatar upload integrates with media-service. Old avatar is automatically deleted when uploading a new one.
 - `DELETE /api/v3/admin/users/{id}` - Delete a user by ID
-  - Returns: 204 No Content on success
+  - Returns: 204 No Content on success (or 200 with message if avatar deletion fails)
+  - Note: Automatically deletes user's avatar from media-service if present
 
 ### Learning Service (Port 8080)
 
@@ -444,6 +461,7 @@ docker-compose down -v
 - `lesson_audio` - Lesson audio files (requires authentication, supports range requests)
 - `lesson_video` - Lesson video files (requires authentication, supports range requests)
 - `lesson_doc` - Lesson documents (requires authentication)
+- `avatar` - User avatar images (used by auth-service for user profile pictures)
 
 ### API Documentation
 
@@ -499,6 +517,7 @@ go test ./services/learn-service/test/integration/... -v
 - `username` - Username (unique, indexed)
 - `password_hash` - Bcrypt hashed password
 - `role` - User role (default: 'user')
+- `avatar` - Avatar image URL (optional, VARCHAR(500))
 
 #### User Tokens Table
 - `id` - Primary key (auto-increment)

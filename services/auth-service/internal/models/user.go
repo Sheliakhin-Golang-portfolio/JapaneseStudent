@@ -16,6 +16,7 @@ type User struct {
 	Email        string `json:"email"`
 	PasswordHash string `json:"-"`    // Never serialize password hash
 	Role         Role   `json:"role"` // 1=User, 2=Tutor, 3=Admin, default=1
+	Avatar       string `json:"avatar,omitempty"`
 }
 
 // RegisterRequest represents a registration request
@@ -37,6 +38,7 @@ type UserListItem struct {
 	Username string `json:"username"`
 	Email    string `json:"email"`
 	Role     Role   `json:"role"`
+	Avatar   string `json:"avatar,omitempty"`
 }
 
 // UserWithSettingsResponse represents a user with settings in the response
@@ -45,6 +47,7 @@ type UserWithSettingsResponse struct {
 	Username string        `json:"username"`
 	Email    string        `json:"email"`
 	Role     Role          `json:"role"`
+	Avatar   string        `json:"avatar,omitempty"`
 	Settings *UserSettings `json:"settings,omitempty"`
 	Message  string        `json:"message,omitempty"`
 }

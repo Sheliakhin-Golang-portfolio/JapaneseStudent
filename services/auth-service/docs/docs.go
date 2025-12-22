@@ -205,7 +205,7 @@ const docTemplate = `{
                 }
             },
             "delete": {
-                "description": "Delete a user by ID",
+                "description": "Delete a user by ID and their avatar file from media service",
                 "consumes": [
                     "application/json"
                 ],
@@ -226,8 +226,17 @@ const docTemplate = `{
                     }
                 ],
                 "responses": {
+                    "200": {
+                        "description": "User deleted successfully, but...",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
                     "204": {
-                        "description": "No Content"
+                        "description": "No Content (when avatar deletion is successful)"
                     },
                     "400": {
                         "description": "Invalid user ID",
@@ -259,9 +268,9 @@ const docTemplate = `{
                 }
             },
             "patch": {
-                "description": "Update user and/or settings fields (partial update)",
+                "description": "Update user and/or settings fields (partial update). Supports optional avatar upload.",
                 "consumes": [
-                    "application/json"
+                    "multipart/form-data"
                 ],
                 "produces": [
                     "application/json"
@@ -279,12 +288,52 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Update request",
-                        "name": "request",
-                        "in": "body",
-                        "schema": {
-                            "$ref": "#/definitions/models.UpdateUserWithSettingsRequest"
-                        }
+                        "type": "string",
+                        "description": "Username",
+                        "name": "username",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Email",
+                        "name": "email",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Role",
+                        "name": "role",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "New word count",
+                        "name": "newWordCount",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Old word count",
+                        "name": "oldWordCount",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Alphabet learn count",
+                        "name": "alphabetLearnCount",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Language (en, ru, de)",
+                        "name": "language",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "file",
+                        "description": "Avatar image (optional)",
+                        "name": "avatar",
+                        "in": "formData"
                     }
                 ],
                 "responses": {
@@ -485,9 +534,9 @@ const docTemplate = `{
         },
         "/auth/register": {
             "post": {
-                "description": "Register a new user with email, username, and password. Returns access and refresh tokens as HTTP-only cookies.",
+                "description": "Register a new user with email, username, password, and optional avatar. Returns access and refresh tokens as HTTP-only cookies.",
                 "consumes": [
-                    "application/json"
+                    "multipart/form-data"
                 ],
                 "produces": [
                     "application/json"
@@ -498,13 +547,31 @@ const docTemplate = `{
                 "summary": "Register a new user",
                 "parameters": [
                     {
-                        "description": "Registration request",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/models.RegisterRequest"
-                        }
+                        "type": "string",
+                        "description": "User email",
+                        "name": "email",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Username",
+                        "name": "username",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "User password",
+                        "name": "password",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "file",
+                        "description": "User avatar image (optional)",
+                        "name": "avatar",
+                        "in": "formData"
                     }
                 ],
                 "responses": {
@@ -696,20 +763,6 @@ const docTemplate = `{
                 }
             }
         },
-        "models.RegisterRequest": {
-            "type": "object",
-            "properties": {
-                "email": {
-                    "type": "string"
-                },
-                "password": {
-                    "type": "string"
-                },
-                "username": {
-                    "type": "string"
-                }
-            }
-        },
         "models.Role": {
             "type": "integer",
             "enum": [
@@ -740,26 +793,12 @@ const docTemplate = `{
                 }
             }
         },
-        "models.UpdateUserWithSettingsRequest": {
-            "type": "object",
-            "properties": {
-                "email": {
-                    "type": "string"
-                },
-                "role": {
-                    "$ref": "#/definitions/models.Role"
-                },
-                "settings": {
-                    "$ref": "#/definitions/models.UpdateUserSettingsRequest"
-                },
-                "username": {
-                    "type": "string"
-                }
-            }
-        },
         "models.UserListItem": {
             "type": "object",
             "properties": {
+                "avatar": {
+                    "type": "string"
+                },
                 "email": {
                     "type": "string"
                 },
@@ -825,6 +864,9 @@ const docTemplate = `{
         "models.UserWithSettingsResponse": {
             "type": "object",
             "properties": {
+                "avatar": {
+                    "type": "string"
+                },
                 "email": {
                     "type": "string"
                 },
@@ -860,7 +902,7 @@ const docTemplate = `{
 var SwaggerInfo = &swag.Spec{
 	Version:          "1.0",
 	Host:             "localhost:8081",
-	BasePath:         "/api/v1",
+	BasePath:         "/api/v4",
 	Schemes:          []string{},
 	Title:            "JapaneseStudent Auth API",
 	Description:      "API for user authentication and authorization",

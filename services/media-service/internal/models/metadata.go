@@ -19,4 +19,5 @@ const (
 	MediaTypeLessonAudio MediaType = "lesson_audio"
 	MediaTypeLessonVideo MediaType = "lesson_video"
 	MediaTypeLessonDoc   MediaType = "lesson_doc"
+	MediaTypeAvatar      MediaType = "avatar"
 )

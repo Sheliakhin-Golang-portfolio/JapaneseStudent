@@ -13,12 +13,12 @@ import (
 
 // mockAdminUserRepository is a mock implementation of AdminUserRepository
 type mockAdminUserRepository struct {
-	user    *models.User
-	users   []models.User
-	err     error
-	createErr error
-	updateErr error
-	deleteErr error
+	user                   *models.User
+	users                  []models.User
+	err                    error
+	createErr              error
+	updateErr              error
+	deleteErr              error
 	existsByEmailResult    bool
 	existsByEmailError     error
 	existsByUsernameResult bool
@@ -90,10 +90,10 @@ func (m *mockAdminUserTokenRepository) Create(ctx context.Context, userToken *mo
 
 // mockUserSettingsRepository is a mock implementation of UserSettingsRepository
 type mockUserSettingsRepository struct {
-	settings   *models.UserSettings
-	err        error
-	getErr     error // Separate error for GetByUserId
-	createErr  error
+	settings  *models.UserSettings
+	err       error
+	getErr    error // Separate error for GetByUserId
+	createErr error
 }
 
 func (m *mockUserSettingsRepository) Create(ctx context.Context, userID int) error {
@@ -124,7 +124,7 @@ func TestNewAdminService(t *testing.T) {
 	tokenGen := service.NewTokenGenerator("test-secret", 3600, 604800)
 	logger := zaptest.NewLogger(t)
 
-	svc := NewAdminService(mockUserRepo, mockTokenRepo, mockSettingsRepo, tokenGen, logger)
+	svc := NewAdminService(mockUserRepo, mockTokenRepo, mockSettingsRepo, tokenGen, logger, "", "")
 
 	assert.NotNil(t, svc)
 	assert.Equal(t, mockUserRepo, svc.userRepo)
@@ -151,8 +151,8 @@ func TestAdminService_GetUsersList(t *testing.T) {
 			search: "",
 			mockRepo: &mockAdminUserRepository{
 				users: []models.User{
-					{ID: 1, Username: "user1", Email: "user1@example.com", Role: models.RoleUser},
-					{ID: 2, Username: "user2", Email: "user2@example.com", Role: models.RoleUser},
+					{ID: 1, Username: "user1", Email: "user1@example.com", Role: models.RoleUser, Avatar: ""},
+					{ID: 2, Username: "user2", Email: "user2@example.com", Role: models.RoleUser, Avatar: ""},
 				},
 			},
 			expectedError: false,
@@ -166,7 +166,7 @@ func TestAdminService_GetUsersList(t *testing.T) {
 			search: "",
 			mockRepo: &mockAdminUserRepository{
 				users: []models.User{
-					{ID: 1, Username: "user1", Email: "user1@example.com", Role: models.RoleUser},
+					{ID: 1, Username: "user1", Email: "user1@example.com", Role: models.RoleUser, Avatar: ""},
 				},
 			},
 			expectedError: false,
@@ -180,7 +180,7 @@ func TestAdminService_GetUsersList(t *testing.T) {
 			search: "",
 			mockRepo: &mockAdminUserRepository{
 				users: []models.User{
-					{ID: 1, Username: "admin", Email: "admin@example.com", Role: models.RoleAdmin},
+					{ID: 1, Username: "admin", Email: "admin@example.com", Role: models.RoleAdmin, Avatar: ""},
 				},
 			},
 			expectedError: false,
@@ -194,29 +194,29 @@ func TestAdminService_GetUsersList(t *testing.T) {
 			search: "user1",
 			mockRepo: &mockAdminUserRepository{
 				users: []models.User{
-					{ID: 1, Username: "user1", Email: "user1@example.com", Role: models.RoleUser},
+					{ID: 1, Username: "user1", Email: "user1@example.com", Role: models.RoleUser, Avatar: ""},
 				},
 			},
 			expectedError: false,
 			expectedCount: 1,
 		},
 		{
-			name:   "invalid role - too low",
-			page:   1,
-			count:  20,
-			role:   intPtr(0),
-			search: "",
-			mockRepo: &mockAdminUserRepository{},
+			name:          "invalid role - too low",
+			page:          1,
+			count:         20,
+			role:          intPtr(0),
+			search:        "",
+			mockRepo:      &mockAdminUserRepository{},
 			expectedError: true,
 			expectedCount: 0,
 		},
 		{
-			name:   "invalid role - too high",
-			page:   1,
-			count:  20,
-			role:   intPtr(4),
-			search: "",
-			mockRepo: &mockAdminUserRepository{},
+			name:          "invalid role - too high",
+			page:          1,
+			count:         20,
+			role:          intPtr(4),
+			search:        "",
+			mockRepo:      &mockAdminUserRepository{},
 			expectedError: true,
 			expectedCount: 0,
 		},
@@ -250,7 +250,7 @@ func TestAdminService_GetUsersList(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tokenGen := service.NewTokenGenerator("test-secret", 3600, 604800)
 			logger := zaptest.NewLogger(t)
-			svc := NewAdminService(tt.mockRepo, &mockAdminUserTokenRepository{}, &mockUserSettingsRepository{}, tokenGen, logger)
+			svc := NewAdminService(tt.mockRepo, &mockAdminUserTokenRepository{}, &mockUserSettingsRepository{}, tokenGen, logger, "", "")
 			ctx := context.Background()
 
 			result, err := svc.GetUsersList(ctx, tt.page, tt.count, tt.role, tt.search)
@@ -269,13 +269,13 @@ func TestAdminService_GetUsersList(t *testing.T) {
 
 func TestAdminService_GetUserWithSettings(t *testing.T) {
 	tests := []struct {
-		name          string
-		userID        int
-		mockUserRepo  *mockAdminUserRepository
+		name             string
+		userID           int
+		mockUserRepo     *mockAdminUserRepository
 		mockSettingsRepo *mockUserSettingsRepository
-		expectedError bool
-		expectedID    int
-		hasSettings   bool
+		expectedError    bool
+		expectedID       int
+		hasSettings      bool
 	}{
 		{
 			name:   "success with settings",
@@ -286,11 +286,12 @@ func TestAdminService_GetUserWithSettings(t *testing.T) {
 					Username: "user1",
 					Email:    "user1@example.com",
 					Role:     models.RoleUser,
+					Avatar:   "", // Empty avatar for tests
 				},
 			},
 			mockSettingsRepo: &mockUserSettingsRepository{
 				settings: &models.UserSettings{
-					UserID: 1,
+					UserID:       1,
 					NewWordCount: 20,
 				},
 			},
@@ -307,6 +308,7 @@ func TestAdminService_GetUserWithSettings(t *testing.T) {
 					Username: "user1",
 					Email:    "user1@example.com",
 					Role:     models.RoleUser,
+					Avatar:   "", // Empty avatar for tests
 				},
 			},
 			mockSettingsRepo: &mockUserSettingsRepository{
@@ -317,20 +319,20 @@ func TestAdminService_GetUserWithSettings(t *testing.T) {
 			hasSettings:   false,
 		},
 		{
-			name:          "invalid user id zero",
-			userID:        0,
-			mockUserRepo:  &mockAdminUserRepository{},
+			name:             "invalid user id zero",
+			userID:           0,
+			mockUserRepo:     &mockAdminUserRepository{},
 			mockSettingsRepo: &mockUserSettingsRepository{},
-			expectedError: true,
-			expectedID:    0,
+			expectedError:    true,
+			expectedID:       0,
 		},
 		{
-			name:          "invalid user id negative",
-			userID:        -1,
-			mockUserRepo:  &mockAdminUserRepository{},
+			name:             "invalid user id negative",
+			userID:           -1,
+			mockUserRepo:     &mockAdminUserRepository{},
 			mockSettingsRepo: &mockUserSettingsRepository{},
-			expectedError: true,
-			expectedID:    0,
+			expectedError:    true,
+			expectedID:       0,
 		},
 		{
 			name:   "user not found",
@@ -339,8 +341,8 @@ func TestAdminService_GetUserWithSettings(t *testing.T) {
 				err: errors.New("user not found"),
 			},
 			mockSettingsRepo: &mockUserSettingsRepository{},
-			expectedError: true,
-			expectedID:    0,
+			expectedError:    true,
+			expectedID:       0,
 		},
 	}
 
@@ -348,7 +350,7 @@ func TestAdminService_GetUserWithSettings(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tokenGen := service.NewTokenGenerator("test-secret", 3600, 604800)
 			logger := zaptest.NewLogger(t)
-			svc := NewAdminService(tt.mockUserRepo, &mockAdminUserTokenRepository{}, tt.mockSettingsRepo, tokenGen, logger)
+			svc := NewAdminService(tt.mockUserRepo, &mockAdminUserTokenRepository{}, tt.mockSettingsRepo, tokenGen, logger, "", "")
 			ctx := context.Background()
 
 			result, err := svc.GetUserWithSettings(ctx, tt.userID)
@@ -374,13 +376,13 @@ func TestAdminService_GetUserWithSettings(t *testing.T) {
 
 func TestAdminService_CreateUser(t *testing.T) {
 	tests := []struct {
-		name          string
-		request       *models.CreateUserRequest
-		mockUserRepo  *mockAdminUserRepository
+		name             string
+		request          *models.CreateUserRequest
+		mockUserRepo     *mockAdminUserRepository
 		mockSettingsRepo *mockUserSettingsRepository
-		expectedError bool
-		expectedID    int
-		errorContains string
+		expectedError    bool
+		expectedID       int
+		errorContains    string
 	}{
 		{
 			name: "success",
@@ -395,8 +397,8 @@ func TestAdminService_CreateUser(t *testing.T) {
 				existsByUsernameResult: false,
 			},
 			mockSettingsRepo: &mockUserSettingsRepository{},
-			expectedError: false,
-			expectedID:    1,
+			expectedError:    false,
+			expectedID:       1,
 		},
 		{
 			name: "email already exists",
@@ -411,9 +413,9 @@ func TestAdminService_CreateUser(t *testing.T) {
 				existsByUsernameResult: false,
 			},
 			mockSettingsRepo: &mockUserSettingsRepository{},
-			expectedError: true,
-			expectedID:    0,
-			errorContains: "email already exists",
+			expectedError:    true,
+			expectedID:       0,
+			errorContains:    "email already exists",
 		},
 		{
 			name: "username already exists",
@@ -428,9 +430,9 @@ func TestAdminService_CreateUser(t *testing.T) {
 				existsByUsernameResult: true,
 			},
 			mockSettingsRepo: &mockUserSettingsRepository{},
-			expectedError: true,
-			expectedID:    0,
-			errorContains: "username already exists",
+			expectedError:    true,
+			expectedID:       0,
+			errorContains:    "username already exists",
 		},
 		{
 			name: "invalid email format",
@@ -440,11 +442,11 @@ func TestAdminService_CreateUser(t *testing.T) {
 				Password: "Password123!",
 				Role:     models.RoleUser,
 			},
-			mockUserRepo: &mockAdminUserRepository{},
+			mockUserRepo:     &mockAdminUserRepository{},
 			mockSettingsRepo: &mockUserSettingsRepository{},
-			expectedError: true,
-			expectedID:    0,
-			errorContains: "invalid email format",
+			expectedError:    true,
+			expectedID:       0,
+			errorContains:    "invalid email format",
 		},
 		{
 			name: "invalid password - too short",
@@ -454,11 +456,11 @@ func TestAdminService_CreateUser(t *testing.T) {
 				Password: "Short1!",
 				Role:     models.RoleUser,
 			},
-			mockUserRepo: &mockAdminUserRepository{},
+			mockUserRepo:     &mockAdminUserRepository{},
 			mockSettingsRepo: &mockUserSettingsRepository{},
-			expectedError: true,
-			expectedID:    0,
-			errorContains: "password must be at least 8 characters",
+			expectedError:    true,
+			expectedID:       0,
+			errorContains:    "password must be at least 8 characters",
 		},
 		{
 			name: "failed to create user",
@@ -474,8 +476,8 @@ func TestAdminService_CreateUser(t *testing.T) {
 				createErr:              errors.New("create error"),
 			},
 			mockSettingsRepo: &mockUserSettingsRepository{},
-			expectedError: true,
-			expectedID:    0,
+			expectedError:    true,
+			expectedID:       0,
 		},
 		{
 			name: "failed to create settings - non-critical",
@@ -501,7 +503,7 @@ func TestAdminService_CreateUser(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tokenGen := service.NewTokenGenerator("test-secret", 3600, 604800)
 			logger := zaptest.NewLogger(t)
-			svc := NewAdminService(tt.mockUserRepo, &mockAdminUserTokenRepository{}, tt.mockSettingsRepo, tokenGen, logger)
+			svc := NewAdminService(tt.mockUserRepo, &mockAdminUserTokenRepository{}, tt.mockSettingsRepo, tokenGen, logger, "", "")
 			ctx := context.Background()
 
 			result, err := svc.CreateUser(ctx, tt.request)
@@ -522,11 +524,11 @@ func TestAdminService_CreateUser(t *testing.T) {
 
 func TestAdminService_CreateUserSettings(t *testing.T) {
 	tests := []struct {
-		name          string
-		userID        int
+		name             string
+		userID           int
 		mockSettingsRepo *mockUserSettingsRepository
-		expectedError bool
-		expectedMsg   string
+		expectedError    bool
+		expectedMsg      string
 	}{
 		{
 			name:   "success create settings",
@@ -563,7 +565,7 @@ func TestAdminService_CreateUserSettings(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tokenGen := service.NewTokenGenerator("test-secret", 3600, 604800)
 			logger := zaptest.NewLogger(t)
-			svc := NewAdminService(&mockAdminUserRepository{}, &mockAdminUserTokenRepository{}, tt.mockSettingsRepo, tokenGen, logger)
+			svc := NewAdminService(&mockAdminUserRepository{}, &mockAdminUserTokenRepository{}, tt.mockSettingsRepo, tokenGen, logger, "", "")
 			ctx := context.Background()
 
 			result, err := svc.CreateUserSettings(ctx, tt.userID)
@@ -588,9 +590,17 @@ func TestAdminService_DeleteUser(t *testing.T) {
 		errorContains string
 	}{
 		{
-			name:          "success",
-			userID:        1,
-			mockUserRepo:  &mockAdminUserRepository{},
+			name:   "success",
+			userID: 1,
+			mockUserRepo: &mockAdminUserRepository{
+				user: &models.User{
+					ID:       1,
+					Username: "testuser",
+					Email:    "test@example.com",
+					Role:     models.RoleUser,
+					Avatar:   "", // Empty avatar for tests
+				},
+			},
 			expectedError: false,
 		},
 		{
@@ -608,9 +618,16 @@ func TestAdminService_DeleteUser(t *testing.T) {
 			errorContains: "invalid user id",
 		},
 		{
-			name: "repository error",
+			name:   "repository error",
 			userID: 1,
 			mockUserRepo: &mockAdminUserRepository{
+				user: &models.User{
+					ID:       1,
+					Username: "testuser",
+					Email:    "test@example.com",
+					Role:     models.RoleUser,
+					Avatar:   "", // Empty avatar for tests
+				},
 				deleteErr: errors.New("delete error"),
 			},
 			expectedError: true,
@@ -621,7 +638,7 @@ func TestAdminService_DeleteUser(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tokenGen := service.NewTokenGenerator("test-secret", 3600, 604800)
 			logger := zaptest.NewLogger(t)
-			svc := NewAdminService(tt.mockUserRepo, &mockAdminUserTokenRepository{}, &mockUserSettingsRepository{}, tokenGen, logger)
+			svc := NewAdminService(tt.mockUserRepo, &mockAdminUserTokenRepository{}, &mockUserSettingsRepository{}, tokenGen, logger, "", "")
 			ctx := context.Background()
 
 			err := svc.DeleteUser(ctx, tt.userID)
@@ -642,4 +659,3 @@ func TestAdminService_DeleteUser(t *testing.T) {
 func intPtr(i int) *int {
 	return &i
 }
-

@@ -128,7 +128,7 @@ func TestNewAuthService(t *testing.T) {
 	userSettingsRepo := &mockUserSettingsRepositoryForAuth{}
 	tokenGen := service.NewTokenGenerator("secret", 0, 0)
 
-	svc := NewAuthService(userRepo, tokenRepo, userSettingsRepo, tokenGen, logger)
+	svc := NewAuthService(userRepo, tokenRepo, userSettingsRepo, tokenGen, logger, "", "")
 
 	assert.NotNil(t, svc)
 	assert.Equal(t, userRepo, svc.userRepo)
@@ -403,13 +403,13 @@ func TestAuthService_Register(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			userSettingsRepo := &mockUserSettingsRepositoryForAuth{}
-			svc := NewAuthService(tt.userRepo, tt.tokenRepo, userSettingsRepo, tokenGen, logger)
+			svc := NewAuthService(tt.userRepo, tt.tokenRepo, userSettingsRepo, tokenGen, logger, "", "")
 
 			accessToken, refreshToken, err := svc.Register(context.Background(), &models.RegisterRequest{
 				Email:    tt.email,
 				Username: tt.username,
 				Password: tt.password,
-			})
+			}, nil, "") // Using nil avatarFile and empty avatarFilename to avoid touching media service
 
 			if tt.expectedError {
 				assert.Error(t, err)
@@ -448,13 +448,14 @@ func TestAuthService_Login(t *testing.T) {
 			login:    "test@example.com",
 			password: "Password123!",
 			userRepo: &mockUserRepository{
-				user: &models.User{
-					ID:           1,
-					Email:        "test@example.com",
-					Username:     "testuser",
-					PasswordHash: string(validPasswordHash),
-					Role:         models.RoleUser,
-				},
+			user: &models.User{
+				ID:           1,
+				Email:        "test@example.com",
+				Username:     "testuser",
+				PasswordHash: string(validPasswordHash),
+				Role:         models.RoleUser,
+				Avatar:       "", // Empty avatar for tests
+			},
 			},
 			tokenRepo:     &mockUserTokenRepository{},
 			expectedError: false,
@@ -464,13 +465,14 @@ func TestAuthService_Login(t *testing.T) {
 			login:    "testuser",
 			password: "Password123!",
 			userRepo: &mockUserRepository{
-				user: &models.User{
-					ID:           1,
-					Email:        "test@example.com",
-					Username:     "testuser",
-					PasswordHash: string(validPasswordHash),
-					Role:         models.RoleUser,
-				},
+			user: &models.User{
+				ID:           1,
+				Email:        "test@example.com",
+				Username:     "testuser",
+				PasswordHash: string(validPasswordHash),
+				Role:         models.RoleUser,
+				Avatar:       "", // Empty avatar for tests
+			},
 			},
 			tokenRepo:     &mockUserTokenRepository{},
 			expectedError: false,
@@ -480,13 +482,14 @@ func TestAuthService_Login(t *testing.T) {
 			login:    "",
 			password: "Password123!",
 			userRepo: &mockUserRepository{
-				user: &models.User{
-					ID:           1,
-					Email:        "test@example.com",
-					Username:     "testuser",
-					PasswordHash: string(validPasswordHash),
-					Role:         models.RoleUser,
-				},
+			user: &models.User{
+				ID:           1,
+				Email:        "test@example.com",
+				Username:     "testuser",
+				PasswordHash: string(validPasswordHash),
+				Role:         models.RoleUser,
+				Avatar:       "", // Empty avatar for tests
+			},
 			},
 			tokenRepo:     &mockUserTokenRepository{},
 			expectedError: true,
@@ -497,13 +500,14 @@ func TestAuthService_Login(t *testing.T) {
 			login:    "test@example.com",
 			password: "",
 			userRepo: &mockUserRepository{
-				user: &models.User{
-					ID:           1,
-					Email:        "test@example.com",
-					Username:     "testuser",
-					PasswordHash: string(validPasswordHash),
-					Role:         models.RoleUser,
-				},
+			user: &models.User{
+				ID:           1,
+				Email:        "test@example.com",
+				Username:     "testuser",
+				PasswordHash: string(validPasswordHash),
+				Role:         models.RoleUser,
+				Avatar:       "", // Empty avatar for tests
+			},
 			},
 			tokenRepo:     &mockUserTokenRepository{},
 			expectedError: true,
@@ -525,13 +529,14 @@ func TestAuthService_Login(t *testing.T) {
 			login:    "test@example.com",
 			password: "WrongPassword123!",
 			userRepo: &mockUserRepository{
-				user: &models.User{
-					ID:           1,
-					Email:        "test@example.com",
-					Username:     "testuser",
-					PasswordHash: string(validPasswordHash),
-					Role:         models.RoleUser,
-				},
+			user: &models.User{
+				ID:           1,
+				Email:        "test@example.com",
+				Username:     "testuser",
+				PasswordHash: string(validPasswordHash),
+				Role:         models.RoleUser,
+				Avatar:       "", // Empty avatar for tests
+			},
 			},
 			tokenRepo:     &mockUserTokenRepository{},
 			expectedError: true,
@@ -542,13 +547,14 @@ func TestAuthService_Login(t *testing.T) {
 			login:    "  test@example.com  ",
 			password: "Password123!",
 			userRepo: &mockUserRepository{
-				user: &models.User{
-					ID:           1,
-					Email:        "test@example.com",
-					Username:     "testuser",
-					PasswordHash: string(validPasswordHash),
-					Role:         models.RoleUser,
-				},
+			user: &models.User{
+				ID:           1,
+				Email:        "test@example.com",
+				Username:     "testuser",
+				PasswordHash: string(validPasswordHash),
+				Role:         models.RoleUser,
+				Avatar:       "", // Empty avatar for tests
+			},
 			},
 			tokenRepo:     &mockUserTokenRepository{},
 			expectedError: false,
@@ -569,13 +575,14 @@ func TestAuthService_Login(t *testing.T) {
 			login:    "test@example.com",
 			password: "Password123!",
 			userRepo: &mockUserRepository{
-				user: &models.User{
-					ID:           1,
-					Email:        "test@example.com",
-					Username:     "testuser",
-					PasswordHash: string(validPasswordHash),
-					Role:         models.RoleUser,
-				},
+			user: &models.User{
+				ID:           1,
+				Email:        "test@example.com",
+				Username:     "testuser",
+				PasswordHash: string(validPasswordHash),
+				Role:         models.RoleUser,
+				Avatar:       "", // Empty avatar for tests
+			},
 			},
 			tokenRepo: &mockUserTokenRepository{
 				err: errors.New("token creation error"),
@@ -588,7 +595,7 @@ func TestAuthService_Login(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			userSettingsRepo := &mockUserSettingsRepositoryForAuth{}
-			svc := NewAuthService(tt.userRepo, tt.tokenRepo, userSettingsRepo, tokenGen, logger)
+			svc := NewAuthService(tt.userRepo, tt.tokenRepo, userSettingsRepo, tokenGen, logger, "", "")
 
 			accessToken, refreshToken, err := svc.Login(context.Background(), &models.LoginRequest{
 				Login:    tt.login,
@@ -631,8 +638,9 @@ func TestAuthService_Refresh(t *testing.T) {
 			refreshToken: validRefreshToken,
 			userRepo: &mockUserRepository{
 				user: &models.User{
-					ID:   1,
-					Role: models.RoleUser,
+					ID:     1,
+					Role:   models.RoleUser,
+					Avatar: "", // Empty avatar for tests
 				},
 			},
 			tokenRepo: &mockUserTokenRepository{
@@ -709,7 +717,7 @@ func TestAuthService_Refresh(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			userSettingsRepo := &mockUserSettingsRepositoryForAuth{}
-			svc := NewAuthService(tt.userRepo, tt.tokenRepo, userSettingsRepo, tokenGen, logger)
+			svc := NewAuthService(tt.userRepo, tt.tokenRepo, userSettingsRepo, tokenGen, logger, "", "")
 
 			// Add small delay for success case to ensure different token timestamps
 			if !tt.expectedError && tt.name == "success" {

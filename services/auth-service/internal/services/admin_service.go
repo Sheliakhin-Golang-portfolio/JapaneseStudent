@@ -3,6 +3,10 @@ package services
 import (
 	"context"
 	"fmt"
+	"io"
+	"mime/multipart"
+	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/japanesestudent/auth-service/internal/models"
@@ -67,6 +71,8 @@ type adminService struct {
 	userSettingsRepo UserSettingsRepository
 	tokenGenerator   *service.TokenGenerator
 	logger           *zap.Logger
+	mediaBaseURL     string
+	apiKey           string
 }
 
 // NewAuthService creates a new auth service
@@ -76,6 +82,8 @@ func NewAdminService(
 	userSettingsRepo UserSettingsRepository,
 	tokenGenerator *service.TokenGenerator,
 	logger *zap.Logger,
+	mediaBaseURL string,
+	apiKey string,
 ) *adminService {
 	return &adminService{
 		userRepo:         userRepo,
@@ -83,6 +91,8 @@ func NewAdminService(
 		userSettingsRepo: userSettingsRepo,
 		tokenGenerator:   tokenGenerator,
 		logger:           logger,
+		mediaBaseURL:     mediaBaseURL,
+		apiKey:           apiKey,
 	}
 }
 
@@ -116,6 +126,7 @@ func (s *adminService) GetUsersList(ctx context.Context, page, count int, role *
 			Username: user.Username,
 			Email:    user.Email,
 			Role:     user.Role,
+			Avatar:   user.Avatar,
 		}
 	}
 
@@ -129,6 +140,7 @@ func (s *adminService) GetUserWithSettings(ctx context.Context, userID int) (*mo
 	}
 
 	user, err := s.userRepo.GetByID(ctx, userID)
+	fmt.Println("user:", user)
 	if err != nil {
 		return nil, err
 	}
@@ -142,6 +154,7 @@ func (s *adminService) GetUserWithSettings(ctx context.Context, userID int) (*mo
 			Username: user.Username,
 			Email:    user.Email,
 			Role:     user.Role,
+			Avatar:   user.Avatar,
 			Settings: nil,
 			Message:  "Settings was not created",
 		}, nil
@@ -153,6 +166,7 @@ func (s *adminService) GetUserWithSettings(ctx context.Context, userID int) (*mo
 		Email:    user.Email,
 		Role:     user.Role,
 		Settings: settings,
+		Avatar:   user.Avatar,
 		Message:  "",
 	}, nil
 }
@@ -212,9 +226,36 @@ func (s *adminService) CreateUserSettings(ctx context.Context, userID int) (stri
 // UpdateUserWithSettings updates a user and their settings
 //
 // We cannot ignore error about settings not exists forever, so that`s where we will signal admin that it is not good.
-func (s *adminService) UpdateUserWithSettings(ctx context.Context, userID int, userData *models.UpdateUserWithSettingsRequest) error {
+func (s *adminService) UpdateUserWithSettings(ctx context.Context, userID int, userData *models.UpdateUserWithSettingsRequest, avatarFile multipart.File, avatarFilename string) error {
 	if userID <= 0 {
 		return fmt.Errorf("invalid user id")
+	}
+
+	// Get current user to check for existing avatar
+	currentUser, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return fmt.Errorf("user not found")
+	}
+
+	// Handle avatar upload if provided (before other updates)
+	var newAvatarURL string
+	if avatarFile != nil && avatarFilename != "" {
+		// Delete old avatar if it exists
+		if currentUser.Avatar != "" && s.mediaBaseURL != "" && s.apiKey != "" {
+			fileID := s.extractFileIDFromAvatarURL(currentUser.Avatar)
+			if fileID != "" {
+				if err := s.deleteAvatarFromMediaService(ctx, fileID); err != nil {
+					return fmt.Errorf("failed to delete old avatar: %w", err)
+				}
+			}
+		}
+
+		// Upload new avatar
+		uploadedURL, err := uploadAvatar(ctx, s.mediaBaseURL, s.apiKey, avatarFile, avatarFilename)
+		if err != nil {
+			return fmt.Errorf("failed to upload avatar: %w", err)
+		}
+		newAvatarURL = uploadedURL
 	}
 
 	// Check user credentials
@@ -224,9 +265,12 @@ func (s *adminService) UpdateUserWithSettings(ctx context.Context, userID int, u
 	}
 
 	// Update user and settings if any data provided
-	if normalizedUsername != "" || normalizedEmail != "" || userData.Role != nil || (userData.Settings != nil &&
-		userData.Settings.Language != nil && userData.Settings.NewWordCount != nil &&
-		userData.Settings.OldWordCount != nil && userData.Settings.AlphabetLearnCount != nil) {
+	hasUserUpdate := normalizedUsername != "" || normalizedEmail != "" || userData.Role != nil || newAvatarURL != ""
+	hasSettingsUpdate := userData.Settings != nil &&
+		(userData.Settings.Language != nil || userData.Settings.NewWordCount != nil ||
+			userData.Settings.OldWordCount != nil || userData.Settings.AlphabetLearnCount != nil)
+
+	if hasUserUpdate || hasSettingsUpdate {
 		// Create user model for update
 		userDataModel := &models.User{
 			ID:       userID,
@@ -236,23 +280,29 @@ func (s *adminService) UpdateUserWithSettings(ctx context.Context, userID int, u
 		if userData.Role != nil {
 			userDataModel.Role = *userData.Role
 		}
+		if newAvatarURL != "" {
+			userDataModel.Avatar = newAvatarURL
+		}
 
 		// Create settings model for update
-		settingsData := &models.UserSettings{
-			UserID: userID,
-		}
-		if userData.Settings != nil {
-			if userData.Settings.Language != nil {
-				settingsData.Language = *userData.Settings.Language
+		var settingsData *models.UserSettings
+		if hasSettingsUpdate {
+			settingsData = &models.UserSettings{
+				UserID: userID,
 			}
-			if userData.Settings.NewWordCount != nil {
-				settingsData.NewWordCount = *userData.Settings.NewWordCount
-			}
-			if userData.Settings.OldWordCount != nil {
-				settingsData.OldWordCount = *userData.Settings.OldWordCount
-			}
-			if userData.Settings.AlphabetLearnCount != nil {
-				settingsData.AlphabetLearnCount = *userData.Settings.AlphabetLearnCount
+			if userData.Settings != nil {
+				if userData.Settings.Language != nil {
+					settingsData.Language = *userData.Settings.Language
+				}
+				if userData.Settings.NewWordCount != nil {
+					settingsData.NewWordCount = *userData.Settings.NewWordCount
+				}
+				if userData.Settings.OldWordCount != nil {
+					settingsData.OldWordCount = *userData.Settings.OldWordCount
+				}
+				if userData.Settings.AlphabetLearnCount != nil {
+					settingsData.AlphabetLearnCount = *userData.Settings.AlphabetLearnCount
+				}
 			}
 		}
 
@@ -366,9 +416,177 @@ func (s *adminService) DeleteUser(ctx context.Context, userID int) error {
 		return fmt.Errorf("invalid user id")
 	}
 
-	err := s.userRepo.Delete(ctx, userID)
+	userWithSettings, err := s.GetUserWithSettings(ctx, userID)
 	if err != nil {
 		return err
 	}
+
+	err = s.userRepo.Delete(ctx, userID)
+	if err != nil {
+		return err
+	}
+
+	// Delete avatar file from media service if avatar exists
+	if userWithSettings.Avatar != "" && s.mediaBaseURL != "" && s.apiKey != "" {
+		// Extract file ID from avatar URL (last part of the path)
+		fileID := s.extractFileIDFromAvatarURL(userWithSettings.Avatar)
+		if fileID != "" {
+			if err := s.deleteAvatarFromMediaService(ctx, fileID); err != nil {
+				return fmt.Errorf("avatar file has not been deleted: %w", err)
+			}
+		}
+	}
 	return nil
+}
+
+// extractFileIDFromAvatarURL extracts the file ID (filename) from the avatar URL
+// The avatar URL format is expected to be like: http://.../media/avatar/{fileID}
+// Returns the last part of the URL path as the file ID
+func (s *adminService) extractFileIDFromAvatarURL(avatarURL string) string {
+	if avatarURL == "" {
+		return ""
+	}
+
+	// Parse URL to handle it properly
+	parsedURL, err := url.Parse(avatarURL)
+	if err != nil {
+		// If URL parsing fails, try to extract from string directly
+		// Remove query parameters and fragments
+		parts := strings.Split(avatarURL, "?")
+		parts = strings.Split(parts[0], "#")
+		urlPath := parts[0]
+
+		// Extract the last part of the path by splitting on "/"
+		pathParts := strings.Split(strings.Trim(urlPath, "/"), "/")
+		if len(pathParts) > 0 {
+			return pathParts[len(pathParts)-1]
+		}
+		return ""
+	}
+
+	// Extract the last part of the path
+	pathParts := strings.Split(strings.Trim(parsedURL.Path, "/"), "/")
+	if len(pathParts) > 0 {
+		return pathParts[len(pathParts)-1]
+	}
+
+	return ""
+}
+
+// deleteAvatarFromMediaService sends a DELETE request to media service to delete the avatar file
+func (s *adminService) deleteAvatarFromMediaService(ctx context.Context, fileID string) error {
+	if s.mediaBaseURL == "" || s.apiKey == "" {
+		return nil // Skip if media service is not configured
+	}
+
+	// Construct the delete URL: {mediaBaseURL}/media/avatar/{fileID}
+	deleteURL := strings.TrimSuffix(s.mediaBaseURL, "/") + "/media/avatar/" + fileID
+	fmt.Println("deleteURL", deleteURL)
+
+	// Create DELETE request
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, deleteURL, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create delete request: %w", err)
+	}
+
+	// Set API key header
+	req.Header.Set("X-API-Key", s.apiKey)
+
+	// Execute request
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to send delete request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Check response status
+	if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusNotFound {
+		return fmt.Errorf("media service returned status %d", resp.StatusCode)
+	}
+
+	return nil
+}
+
+// uploadAvatar uploads an avatar file to the media-service using io.Pipe for streaming
+// It is a shared function for both auth and admin services.
+func uploadAvatar(ctx context.Context, mediaBaseURL, apiKey string, avatarFile multipart.File, avatarFilename string) (string, error) {
+	if mediaBaseURL == "" {
+		return "", fmt.Errorf("MEDIA_BASE_URL is not configured")
+	}
+	if apiKey == "" {
+		return "", fmt.Errorf("API_KEY is not configured")
+	}
+
+	// Create a pipe for streaming
+	pr, pw := io.Pipe()
+	defer pr.Close()
+
+	// Create multipart writer
+	writer := multipart.NewWriter(pw)
+
+	// Start goroutine to write file to pipe
+	errChan := make(chan error, 1)
+	go func() {
+		defer pw.Close()
+		defer writer.Close()
+
+		// Create form field for file
+		part, err := writer.CreateFormFile("file", avatarFilename)
+		if err != nil {
+			errChan <- fmt.Errorf("failed to create form file: %w", err)
+			return
+		}
+
+		// Copy file content to form
+		_, err = io.Copy(part, avatarFile)
+		if err != nil {
+			errChan <- fmt.Errorf("failed to copy file: %w", err)
+			return
+		}
+
+		errChan <- nil
+	}()
+
+	// Build upload URL
+	uploadURL := fmt.Sprintf("%s/media/avatar", mediaBaseURL)
+
+	// Create HTTP request
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, uploadURL, pr)
+	if err != nil {
+		return "", fmt.Errorf("failed to create request: %w", err)
+	}
+
+	// Set headers
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Set("X-API-Key", apiKey)
+
+	// Make HTTP request
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		// We will wait for goroutine just in case.
+		<-errChan
+		return "", fmt.Errorf("failed to upload file: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Check for errors from goroutine
+	if err := <-errChan; err != nil {
+		return "", err
+	}
+
+	// Check response status
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("media-service returned error: status %d, body: %s", resp.StatusCode, string(body))
+	}
+
+	// Read avatar URL from response
+	avatarURL, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("failed to read response: %w", err)
+	}
+
+	return strings.TrimSpace(string(avatarURL)), nil
 }
