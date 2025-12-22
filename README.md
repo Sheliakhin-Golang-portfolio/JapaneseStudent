@@ -18,6 +18,7 @@ The project follows a **microservices architecture** with the following services
 
 1. **auth-service** - User authentication and authorization (Port: 8081)
 2. **learn-service** - Character learning, word dictionary, and test management (Port: 8080)
+3. **media-service** - Media file management (upload, download, metadata) (Port: 8082)
 
 Both services share common libraries in the `libs/` directory for:
 - Authentication middleware and JWT token generation
@@ -127,6 +128,29 @@ JapaneseStudent/
 │       ├── Dockerfile
 │       ├── go.mod
 │       └── go.sum
+│   └── media-service/             # Media management microservice
+│       ├── cmd/
+│       │   └── main.go            # Service entry point
+│       ├── internal/
+│       │   ├── handlers/          # HTTP handlers
+│       │   │   └── media_handler.go
+│       │   ├── models/           # Domain models
+│       │   │   └── metadata.go
+│       │   ├── repositories/      # Data access layer
+│       │   │   ├── metadata_repository.go
+│       │   │   └── metadata_repository_test.go
+│       │   ├── services/         # Business logic layer
+│       │   │   ├── media_service.go
+│       │   │   └── media_service_test.go
+│       │   └── storage/          # File storage
+│       │       ├── storage.go
+│       │       └── utils.go
+│       ├── migrations/            # Database migrations
+│       │   ├── 000001_create_metadata_table.up.sql
+│       │   └── 000001_create_metadata_table.down.sql
+│       ├── Dockerfile
+│       ├── go.mod
+│       └── go.sum
 ├── docker-compose.yml             # Docker Compose configuration
 ├── TESTING.md                     # Comprehensive testing guide
 └── README.md                      # This file
@@ -134,7 +158,7 @@ JapaneseStudent/
 
 ## Prerequisites
 
-- Go 1.22 or higher
+- Go 1.24 or higher
 - MariaDB 10.11 or higher
 - Docker and Docker Compose (for containerized deployment)
 
@@ -153,7 +177,7 @@ DB_PASSWORD=password
 DB_NAME=japanesestudent
 
 # Server Configuration
-SERVER_PORT=8081                  # For auth-service default is 8081, for learn-service - 8080
+SERVER_PORT=8081                  # For auth-service default is 8081, for learn-service - 8080, for media-service - 8082
 
 # Logging
 LOG_LEVEL=info
@@ -170,6 +194,14 @@ JWT_SECRET=your-secret-key-here-change-in-production-minimum-32-characters
 JWT_ACCESS_TOKEN_EXPIRY=1h
 # Refresh token expiry duration (e.g., "168h" for 7 days, "720h" for 30 days)
 JWT_REFRESH_TOKEN_EXPIRY=168h
+
+# Media Service Configuration
+# Base path for storing media files (required for media-service)
+MEDIA_BASE_PATH=/path/to/media/storage
+# API key for service-to-service authentication (required for media-service upload/delete endpoints)
+API_KEY=your-api-key-here
+# Base URL for generating download URLs (optional, defaults to http://localhost:{PORT})
+BASE_URL=http://localhost:8082
 ```
 
 ## Local Development
@@ -198,8 +230,9 @@ Create the required databases:
 ```sql
 CREATE DATABASE japanesestudent_auth;
 CREATE DATABASE japanesestudent_learn;
+CREATE DATABASE japanesestudent_media;
 ```
-or one database for both services:
+or one database for all services:
 ```sql
 CREATE DATABASE japanesestudent;
 ```
@@ -236,6 +269,17 @@ go run cmd/main.go
 
 The learn API will be available at `http://localhost:8080`
 
+#### Run media-service:
+
+```bash
+cd services/media-service
+go run cmd/main.go
+```
+
+The media API will be available at `http://localhost:8082`
+
+**Note**: media-service requires `MEDIA_BASE_PATH` environment variable to be set for file storage.
+
 ## Docker Deployment
 
 ### Build and Run with Docker Compose
@@ -247,6 +291,7 @@ docker-compose up -d
 # View logs
 docker-compose logs -f auth-service
 docker-compose logs -f learn-service
+docker-compose logs -f media-service
 
 # Stop services
 docker-compose down
@@ -361,6 +406,45 @@ docker-compose down -v
 - `DELETE /api/v3/admin/words/{id}` - Delete a word by ID
   - Returns: 204 No Content on success
 
+### Media Service (Port 8082)
+
+#### Media Management (Requires API Key for Upload/Delete)
+- `GET /api/v4/media/{id}` - Get file metadata by ID
+  - Returns: Metadata information (content type, size, URL, type)
+  - Public endpoint (no authentication required)
+- `GET /api/v4/media/{mediaType}/{filename}` - Download media file
+  - Path Parameters:
+    - `mediaType`: Type of media (`character`, `word`, `word_example`, `lesson_audio`, `lesson_video`, `lesson_doc`)
+    - `filename`: Name of the file to download
+  - Headers:
+    - `Range` (optional): For partial content requests (audio/video files)
+  - Returns: File content
+  - Character files are public; other types require JWT authentication
+  - Audio/video files support HTTP range requests (206 Partial Content)
+- `POST /api/v4/media/{mediaType}` - Upload media file
+  - Headers:
+    - `X-API-Key`: API key for service-to-service authentication (required)
+  - Body: `multipart/form-data` with `file` field
+  - Path Parameters:
+    - `mediaType`: Type of media (see above)
+  - Returns: Download URL as plain text
+  - Maximum file size: 50MB
+- `DELETE /api/v4/media/{mediaType}/{filename}` - Delete media file
+  - Headers:
+    - `X-API-Key`: API key for service-to-service authentication (required)
+  - Path Parameters:
+    - `mediaType`: Type of media
+    - `filename`: Name of the file to delete
+  - Returns: 204 No Content on success
+
+**Media Types**:
+- `character` - Character images (public access)
+- `word` - Word images (requires authentication)
+- `word_example` - Word example images (requires authentication)
+- `lesson_audio` - Lesson audio files (requires authentication, supports range requests)
+- `lesson_video` - Lesson video files (requires authentication, supports range requests)
+- `lesson_doc` - Lesson documents (requires authentication)
+
 ### API Documentation
 
 #### Auth Service
@@ -370,6 +454,10 @@ docker-compose down -v
 #### Learn Service
 - Swagger UI: `http://localhost:8080/swagger/index.html`
 - Swagger JSON: `http://localhost:8080/swagger/doc.json`
+
+#### Media Service
+- Swagger UI: `http://localhost:8082/swagger/index.html`
+- Swagger JSON: `http://localhost:8082/swagger/doc.json`
 
 ## Testing
 
@@ -398,6 +486,7 @@ go test ./services/.../test/integration/... -v
 # Run specific service integration tests
 go test ./services/auth-service/test/integration/... -v
 go test ./services/learn-service/test/integration/... -v
+# Note: media-service integration tests are not yet implemented
 ```
 
 ## Database Schema
@@ -473,6 +562,15 @@ go test ./services/learn-service/test/integration/... -v
 - `next_appearance` - Date when the word should appear again (indexed)
 - Unique constraint on (user_id, word_id)
 - Foreign key constraint on word_id with CASCADE delete
+
+### Media Service Database
+
+#### Metadata Table
+- `id` - Primary key (filename/ID)
+- `content_type` - MIME type of the file (e.g., "image/jpeg", "video/mp4")
+- `size` - File size in bytes
+- `url` - Download URL for the file
+- `type` - Media type (`character`, `word`, `word_example`, `lesson_audio`, `lesson_video`, `lesson_doc`)
 
 ## Middleware
 

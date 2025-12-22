@@ -3,9 +3,6 @@ FROM golang:1.24-alpine AS builder
 
 WORKDIR /app
 
-# Install git and ca-certificates (needed for go get)
-RUN apk add --no-cache git ca-certificates
-
 # Copy libs directory first (needed for local module replacement)
 COPY libs ./libs
 
@@ -24,9 +21,6 @@ RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o /app/bin/learn-se
 FROM alpine:latest
 
 WORKDIR /app
-
-# Install ca-certificates for HTTPS
-RUN apk --no-cache add ca-certificates
 
 # Copy the binary from builder
 COPY --from=builder /app/bin/learn-service .
