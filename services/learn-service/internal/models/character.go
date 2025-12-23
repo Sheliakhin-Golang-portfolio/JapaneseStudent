@@ -9,6 +9,7 @@ type Character struct {
 	RussianReading string `json:"russianReading"`
 	Katakana       string `json:"katakana"`
 	Hiragana       string `json:"hiragana"`
+	Audio          string `json:"audio,omitempty"` // URL to audio file on media server
 }
 
 // AlphabetType represents the type of alphabet (hiragana or katakana)
@@ -52,6 +53,14 @@ type WritingTestItem struct {
 	ID             int    `json:"id"`
 	CorrectReading string `json:"correctReading"` // English or Russian reading correct reading
 	Character      string `json:"Character"`      // Correct character whose reading is to be guessed
+}
+
+// ListeningTestItem represents an item in a listening test
+type ListeningTestItem struct {
+	ID           int      `json:"id"`
+	AudioURL     string   `json:"audioUrl"`
+	CorrectChar  string   `json:"correctChar"`
+	WrongOptions []string `json:"wrongOptions"` // Two wrong character options
 }
 
 // CharacterListItem represents a character in the list of characters for admin endpoints

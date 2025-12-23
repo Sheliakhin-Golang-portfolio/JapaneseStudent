@@ -189,8 +189,14 @@ func (r *charactersRepository) GetByID(ctx context.Context, id int, locale model
 	return &char, nil
 }
 
-// GetRandomForReadingTest retrieves a slice of random characters for reading test with multiple choice options
-func (r *charactersRepository) GetRandomForReadingTest(ctx context.Context, alphabetType models.AlphabetType, locale models.Locale, count int) ([]models.ReadingTestItem, error) {
+// GetCharactersForReadingTest retrieves characters for reading test with defined IDs
+//
+// "alphabetType" parameter is used to identify the alphabet type.
+// "locale" parameter is used to identify the locale.
+// "characterIDs" parameter is used to identify the character IDs.
+//
+// If some error will occur during data retrieval, the error will be returned together with "nil" value.
+func (r *charactersRepository) GetCharactersForReadingTest(ctx context.Context, alphabetType models.AlphabetType, locale models.Locale, characterIDs []int) ([]models.ReadingTestItem, error) {
 	var charField string
 	switch alphabetType {
 	case models.AlphabetTypeHiragana:
@@ -211,24 +217,29 @@ func (r *charactersRepository) GetRandomForReadingTest(ctx context.Context, alph
 		return nil, fmt.Errorf("invalid locale: %s", locale)
 	}
 
+	// Prepare the query for IN clause
+	// The query is prepared for IN clause to avoid multiple queries.
+	// Placeholders are transformed into "?, ?, ..., ?" string for slice insertion.
+	charPlaceholders := make([]string, len(characterIDs))
+	args := make([]any, len(characterIDs))
+	for i := range charPlaceholders {
+		charPlaceholders[i] = "?"
+		args[i] = characterIDs[i]
+	}
 	query := fmt.Sprintf(`
-		SELECT id, %s AS display_character, %s AS reading
+		SELECT DISTINCT id, %s AS display_character, %s AS reading
 		FROM characters
-		WHERE %s IS NOT NULL AND %s != ''
+		WHERE id IN (%s)
 		ORDER BY RAND()
-		LIMIT ?
-	`, charField, readingField, charField, readingField)
+	`, charField, readingField, strings.Join(charPlaceholders, ","))
 
-	rows, err := r.db.QueryContext(ctx, query, count)
+	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query characters: %w", err)
 	}
 	defer rows.Close()
 
 	var items []models.ReadingTestItem
-	// Prepare the slice for IN clause.
-	// Slice is of type any to avoid type assertion errors.
-	var correctChars []any
 	for rows.Next() {
 		var testItem models.ReadingTestItem
 		if err := rows.Scan(&testItem.ID, &testItem.CorrectChar, &testItem.Reading); err != nil {
@@ -236,28 +247,22 @@ func (r *charactersRepository) GetRandomForReadingTest(ctx context.Context, alph
 		}
 		testItem.WrongOptions = make([]string, 0, 2)
 		items = append(items, testItem)
-		correctChars = append(correctChars, testItem.CorrectChar)
 	}
 
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("error iterating rows: %w", err)
 	}
 
-	// Prepare the query for IN clause
-	charPlaceholders := make([]string, len(correctChars))
-	for i := range charPlaceholders {
-		charPlaceholders[i] = "?"
-	}
 	// Query to retrieve wrong options.
-	// The query is prepared for IN clause to avoid multiple queries.
-	// Placeholders are transformed into "?, ?, ?" string for slice insertion.
 	wrongQuery := fmt.Sprintf(`
 		SELECT %s AS display_character
 		FROM characters
-		WHERE %s NOT IN (%s) AND %s IS NOT NULL AND %s != ''
+		WHERE id NOT IN (%s) AND %s IS NOT NULL AND %s != ''
 		ORDER BY RAND()
-		`, charField, charField, strings.Join(charPlaceholders, ","), charField, charField)
-	wrongRows, err := r.db.QueryContext(ctx, wrongQuery, correctChars...)
+		LIMIT ?
+		`, charField, strings.Join(charPlaceholders, ","), charField, charField)
+	args = append(args, len(items)*2)
+	wrongRows, err := r.db.QueryContext(ctx, wrongQuery, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query wrong options: %w", err)
 	}
@@ -285,8 +290,14 @@ func (r *charactersRepository) GetRandomForReadingTest(ctx context.Context, alph
 	return items, nil
 }
 
-// GetRandomForWritingTest retrieves random characters for writing test with correct reading
-func (r *charactersRepository) GetRandomForWritingTest(ctx context.Context, alphabetType models.AlphabetType, locale models.Locale, count int) ([]models.WritingTestItem, error) {
+// GetCharactersForWritingTest retrieves characters for writing test with defined IDs
+//
+// "alphabetType" parameter is used to identify the alphabet type.
+// "locale" parameter is used to identify the locale.
+// "characterIDs" parameter is used to identify the character IDs.
+//
+// If some error will occur during data retrieval, the error will be returned together with "nil" value.
+func (r *charactersRepository) GetCharactersForWritingTest(ctx context.Context, alphabetType models.AlphabetType, locale models.Locale, characterIDs []int) ([]models.WritingTestItem, error) {
 	var charField string
 	switch alphabetType {
 	case models.AlphabetTypeHiragana:
@@ -307,16 +318,23 @@ func (r *charactersRepository) GetRandomForWritingTest(ctx context.Context, alph
 		return nil, fmt.Errorf("invalid locale: %s", locale)
 	}
 
-	// Get random characters
+	// Prepare the query for IN clause
+	// The query is prepared for IN clause to avoid multiple queries.
+	// Placeholders are transformed into "?, ?, ..., ?" string for slice insertion.
+	charPlaceholders := make([]string, len(characterIDs))
+	args := make([]any, len(characterIDs))
+	for i := range charPlaceholders {
+		charPlaceholders[i] = "?"
+		args[i] = characterIDs[i]
+	}
 	query := fmt.Sprintf(`
-		SELECT id, %s AS display_character, %s AS reading
+		SELECT DISTINCT id, %s AS display_character, %s AS reading
 		FROM characters
-		WHERE %s IS NOT NULL AND %s != ''
+		WHERE id IN (%s)
 		ORDER BY RAND()
-		LIMIT ?
-	`, charField, readingField, charField, readingField)
+	`, charField, readingField, strings.Join(charPlaceholders, ","))
 
-	rows, err := r.db.QueryContext(ctx, query, count)
+	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query characters: %w", err)
 	}
@@ -333,6 +351,97 @@ func (r *charactersRepository) GetRandomForWritingTest(ctx context.Context, alph
 
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("error iterating rows: %w", err)
+	}
+
+	return items, nil
+}
+
+// GetCharactersForListeningTest retrieves characters for listening test with defined IDs
+//
+// "alphabetType" parameter is used to identify the alphabet type.
+// "locale" parameter is used to identify the locale.
+// "characterIDs" parameter is used to identify the character IDs.
+//
+// If some error will occur during data retrieval, the error will be returned together with "nil" value.
+func (r *charactersRepository) GetCharactersForListeningTest(ctx context.Context, alphabetType models.AlphabetType, locale models.Locale, characterIDs []int) ([]models.ListeningTestItem, error) {
+	var charField string
+	switch alphabetType {
+	case models.AlphabetTypeHiragana:
+		charField = "hiragana"
+	case models.AlphabetTypeKatakana:
+		charField = "katakana"
+	default:
+		return nil, fmt.Errorf("invalid alphabet type: %s", alphabetType)
+	}
+
+	// Prepare the query for IN clause
+	// The query is prepared for IN clause to avoid multiple queries.
+	// Placeholders are transformed into "?, ?, ..., ?" string for slice insertion.
+	charPlaceholders := make([]string, len(characterIDs))
+	args := make([]any, len(characterIDs))
+	for i := range charPlaceholders {
+		charPlaceholders[i] = "?"
+		args[i] = characterIDs[i]
+	}
+	query := fmt.Sprintf(`
+		SELECT DISTINCT id, %s AS display_character, audio
+		FROM characters
+		WHERE id IN (%s) AND audio IS NOT NULL AND audio != ''
+		ORDER BY RAND()
+	`, charField, strings.Join(charPlaceholders, ","))
+
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query characters: %w", err)
+	}
+	defer rows.Close()
+
+	var items []models.ListeningTestItem
+	for rows.Next() {
+		var testItem models.ListeningTestItem
+		if err := rows.Scan(&testItem.ID, &testItem.CorrectChar, &testItem.AudioURL); err != nil {
+			return nil, fmt.Errorf("failed to scan item: %w", err)
+		}
+		testItem.WrongOptions = make([]string, 0, 2)
+		items = append(items, testItem)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating rows: %w", err)
+	}
+
+	// Query to retrieve wrong options.
+	wrongQuery := fmt.Sprintf(`
+		SELECT %s AS display_character
+		FROM characters
+		WHERE id NOT IN (%s) AND audio IS NOT NULL AND audio != ''
+		ORDER BY RAND()
+		LIMIT ?
+		`, charField, strings.Join(charPlaceholders, ","))
+	args = append(args, len(items)*2)
+	wrongRows, err := r.db.QueryContext(ctx, wrongQuery, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query wrong options: %w", err)
+	}
+	defer wrongRows.Close()
+
+	for i := range items {
+		var wrongCharFirst, wrongCharSecond string
+		if hasNext, err := wrongRows.Next(), wrongRows.Scan(&wrongCharFirst); !hasNext || err != nil {
+			wrongRows.Close()
+			if !hasNext {
+				return nil, fmt.Errorf("failed to scan wrong option: %w", fmt.Errorf("no more rows"))
+			}
+			return nil, fmt.Errorf("failed to scan wrong option: %w", err)
+		}
+		if hasNext, err := wrongRows.Next(), wrongRows.Scan(&wrongCharSecond); !hasNext || err != nil {
+			wrongRows.Close()
+			if !hasNext {
+				return nil, fmt.Errorf("failed to scan wrong option: %w", fmt.Errorf("no more rows"))
+			}
+			return nil, fmt.Errorf("failed to scan wrong option: %w", err)
+		}
+		items[i].WrongOptions = append(items[i].WrongOptions, wrongCharFirst, wrongCharSecond)
 	}
 
 	return items, nil
@@ -378,13 +487,14 @@ func (r *charactersRepository) GetAllForAdmin(ctx context.Context) ([]models.Cha
 // GetByID retrieves a character by ID
 func (r *charactersRepository) GetByIDAdmin(ctx context.Context, id int) (*models.Character, error) {
 	query := `
-		SELECT consonant, vowel, english_reading, russian_reading, katakana, hiragana
+		SELECT consonant, vowel, english_reading, russian_reading, katakana, hiragana, audio
 		FROM characters
 		WHERE id = ?
 		LIMIT 1
 	`
 
 	char := &models.Character{}
+	var audio sql.NullString
 	err := r.db.QueryRowContext(ctx, query, id).Scan(
 		&char.Consonant,
 		&char.Vowel,
@@ -392,6 +502,7 @@ func (r *charactersRepository) GetByIDAdmin(ctx context.Context, id int) (*model
 		&char.RussianReading,
 		&char.Katakana,
 		&char.Hiragana,
+		&audio,
 	)
 
 	if err == sql.ErrNoRows {
@@ -402,6 +513,9 @@ func (r *charactersRepository) GetByIDAdmin(ctx context.Context, id int) (*model
 	}
 
 	char.ID = id
+	if audio.Valid {
+		char.Audio = audio.String
+	}
 	return char, nil
 }
 
@@ -448,9 +562,16 @@ func (r *charactersRepository) ExistsByKatakanaOrHiragana(ctx context.Context, k
 // Create inserts a new character into the database
 func (r *charactersRepository) Create(ctx context.Context, character *models.Character) error {
 	query := `
-		INSERT INTO characters (consonant, vowel, english_reading, russian_reading, katakana, hiragana)
-		VALUES (?, ?, ?, ?, ?, ?)
+		INSERT INTO characters (consonant, vowel, english_reading, russian_reading, katakana, hiragana, audio)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
 	`
+
+	var audioValue interface{}
+	if character.Audio == "" {
+		audioValue = nil
+	} else {
+		audioValue = character.Audio
+	}
 
 	result, err := r.db.ExecContext(ctx, query,
 		character.Consonant,
@@ -459,6 +580,7 @@ func (r *charactersRepository) Create(ctx context.Context, character *models.Cha
 		character.RussianReading,
 		character.Katakana,
 		character.Hiragana,
+		audioValue,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create character: %w", err)
@@ -502,6 +624,10 @@ func (r *charactersRepository) Update(ctx context.Context, id int, character *mo
 	if character.Hiragana != "" {
 		setParts = append(setParts, "hiragana = ?")
 		args = append(args, character.Hiragana)
+	}
+	if character.Audio != "" {
+		setParts = append(setParts, "audio = ?")
+		args = append(args, character.Audio)
 	}
 
 	if len(setParts) == 0 {
@@ -552,4 +678,105 @@ func (r *charactersRepository) Delete(ctx context.Context, id int) error {
 	}
 
 	return nil
+}
+
+// GetCharactersWithoutHistory retrieves characters that don't have CharacterLearnHistory records for the user and specific test type
+func (r *charactersRepository) GetCharactersWithoutHistory(ctx context.Context, userID int, alphabetType models.AlphabetType, count int) ([]int, error) {
+	var charField string
+	switch alphabetType {
+	case models.AlphabetTypeHiragana:
+		charField = "hiragana"
+	case models.AlphabetTypeKatakana:
+		charField = "katakana"
+	default:
+		return nil, fmt.Errorf("invalid alphabet type: %s", alphabetType)
+	}
+
+	query := fmt.Sprintf(`
+		SELECT c.id
+		FROM characters c
+		LEFT JOIN character_learn_history clh ON c.id = clh.character_id AND clh.user_id = ?
+		WHERE c.%s IS NOT NULL AND c.%s != '' AND clh.id IS NULL
+		ORDER BY RAND()
+		LIMIT ?
+	`, charField, charField)
+
+	rows, err := r.db.QueryContext(ctx, query, userID, count)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query characters without history: %w", err)
+	}
+	defer rows.Close()
+
+	var characterIDs []int
+	for rows.Next() {
+		var id int
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("failed to scan character ID: %w", err)
+		}
+		characterIDs = append(characterIDs, id)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating rows: %w", err)
+	}
+
+	return characterIDs, nil
+}
+
+// GetCharactersWithLowestResults retrieves characters with lowest result values for the user and specific test type
+// testTypeResultField should be one of: "hiragana_reading_result", "hiragana_writing_result", "hiragana_listening_result",
+// "katakana_reading_result", "katakana_writing_result", "katakana_listening_result"
+func (r *charactersRepository) GetCharactersWithLowestResults(ctx context.Context, userID int, alphabetType models.AlphabetType, testTypeResultField string, count int) ([]int, error) {
+	var charField string
+	switch alphabetType {
+	case models.AlphabetTypeHiragana:
+		charField = "hiragana"
+	case models.AlphabetTypeKatakana:
+		charField = "katakana"
+	default:
+		return nil, fmt.Errorf("invalid alphabet type: %s", alphabetType)
+	}
+
+	// Validate testTypeResultField to prevent SQL injection
+	validFields := []string{
+		"hiragana_reading_result",
+		"hiragana_writing_result",
+		"hiragana_listening_result",
+		"katakana_reading_result",
+		"katakana_writing_result",
+		"katakana_listening_result",
+	}
+	if !slices.Contains(validFields, testTypeResultField) {
+		return nil, fmt.Errorf("invalid test type result field: %s", testTypeResultField)
+	}
+
+	query := fmt.Sprintf(`
+		SELECT c.id
+		FROM characters c
+		INNER JOIN character_learn_history clh ON c.id = clh.character_id AND clh.user_id = ?
+		WHERE c.%s IS NOT NULL AND c.%s != ''
+		ORDER BY clh.%s ASC
+		LIMIT ?
+	`, charField, charField, testTypeResultField)
+
+	rows, err := r.db.QueryContext(ctx, query, userID, count)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query characters with lowest results: %w", err)
+	}
+	defer rows.Close()
+
+	var characterIDs []int
+	for rows.Next() {
+		var id int
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("failed to scan character ID: %w", err)
+		}
+		characterIDs = append(characterIDs, id)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating rows: %w", err)
+	}
+
+	return characterIDs, nil
 }

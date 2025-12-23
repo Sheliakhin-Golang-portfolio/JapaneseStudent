@@ -54,13 +54,50 @@ func (m *mockRepository) GetRandomForWritingTest(ctx context.Context, alphabetTy
 	return m.writingTestItems, nil
 }
 
+func (m *mockRepository) GetCharactersForReadingTest(ctx context.Context, alphabetType models.AlphabetType, locale models.Locale, characterIDs []int) ([]models.ReadingTestItem, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	return m.readingTestItems, nil
+}
+
+func (m *mockRepository) GetCharactersForWritingTest(ctx context.Context, alphabetType models.AlphabetType, locale models.Locale, characterIDs []int) ([]models.WritingTestItem, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	return m.writingTestItems, nil
+}
+
+func (m *mockRepository) GetCharactersForListeningTest(ctx context.Context, alphabetType models.AlphabetType, locale models.Locale, characterIDs []int) ([]models.ListeningTestItem, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	return []models.ListeningTestItem{}, nil
+}
+
+func (m *mockRepository) GetCharactersWithoutHistory(ctx context.Context, userID int, alphabetType models.AlphabetType, count int) ([]int, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	return []int{1, 2, 3, 4, 5}, nil
+}
+
+func (m *mockRepository) GetCharactersWithLowestResults(ctx context.Context, userID int, alphabetType models.AlphabetType, testTypeResultField string, count int) ([]int, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	return []int{1, 2, 3, 4, 5}, nil
+}
+
 func TestNewCharactersService(t *testing.T) {
 	mockRepo := &mockRepository{}
+	mockHistoryRepo := &mockHistoryRepository{}
 
-	svc := NewCharactersService(mockRepo)
+	svc := NewCharactersService(mockRepo, mockHistoryRepo)
 
 	assert.NotNil(t, svc)
 	assert.Equal(t, mockRepo, svc.repo)
+	assert.Equal(t, mockHistoryRepo, svc.historyRepo)
 }
 
 func TestService_GetAll(t *testing.T) {
@@ -138,7 +175,8 @@ func TestService_GetAll(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc := NewCharactersService(tt.mockRepo)
+			mockHistoryRepo := &mockHistoryRepository{}
+			svc := NewCharactersService(tt.mockRepo, mockHistoryRepo)
 			ctx := context.Background()
 
 			result, err := svc.GetAll(ctx, tt.alphabetType, tt.locale)
@@ -246,7 +284,8 @@ func TestService_GetByRowColumn(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc := NewCharactersService(tt.mockRepo)
+			mockHistoryRepo := &mockHistoryRepository{}
+			svc := NewCharactersService(tt.mockRepo, mockHistoryRepo)
 			ctx := context.Background()
 
 			result, err := svc.GetByRowColumn(ctx, tt.alphabetType, tt.locale, tt.character)
@@ -354,7 +393,8 @@ func TestService_GetByID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc := NewCharactersService(tt.mockRepo)
+			mockHistoryRepo := &mockHistoryRepository{}
+			svc := NewCharactersService(tt.mockRepo, mockHistoryRepo)
 			ctx := context.Background()
 
 			result, err := svc.GetByID(ctx, tt.id, tt.locale)
@@ -445,10 +485,11 @@ func TestService_GetReadingTest(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc := NewCharactersService(tt.mockRepo)
+			mockHistoryRepo := &mockHistoryRepository{}
+			svc := NewCharactersService(tt.mockRepo, mockHistoryRepo)
 			ctx := context.Background()
 
-			result, err := svc.GetReadingTest(ctx, tt.alphabetType, tt.locale, 20)
+			result, err := svc.GetReadingTest(ctx, tt.alphabetType, tt.locale, 20, 1)
 
 			if tt.expectedError {
 				assert.Error(t, err)
@@ -538,10 +579,11 @@ func TestService_GetWritingTest(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc := NewCharactersService(tt.mockRepo)
+			mockHistoryRepo := &mockHistoryRepository{}
+			svc := NewCharactersService(tt.mockRepo, mockHistoryRepo)
 			ctx := context.Background()
 
-			result, err := svc.GetWritingTest(ctx, tt.alphabetType, tt.locale, 20)
+			result, err := svc.GetWritingTest(ctx, tt.alphabetType, tt.locale, 20, 1)
 
 			if tt.expectedError {
 				assert.Error(t, err)

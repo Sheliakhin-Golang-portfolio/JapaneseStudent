@@ -1,4 +1,4 @@
-basePath: /api/v3
+basePath: /api/v4
 definitions:
   handlers.SubmitWordResultsRequest:
     properties:
@@ -16,6 +16,9 @@ definitions:
     type: object
   models.Character:
     properties:
+      audio:
+        description: URL to audio file on media server
+        type: string
       consonant:
         description: defines a membership to a consonant group
         type: string
@@ -63,21 +66,6 @@ definitions:
         description: Not always present, depends on the context
         type: string
     type: object
-  models.CreateCharacterRequest:
-    properties:
-      consonant:
-        type: string
-      englishReading:
-        type: string
-      hiragana:
-        type: string
-      katakana:
-        type: string
-      russianReading:
-        type: string
-      vowel:
-        type: string
-    type: object
   models.CreateWordRequest:
     properties:
       easyPeriod:
@@ -107,6 +95,20 @@ definitions:
       word:
         type: string
     type: object
+  models.ListeningTestItem:
+    properties:
+      audioUrl:
+        type: string
+      correctChar:
+        type: string
+      id:
+        type: integer
+      wrongOptions:
+        description: Two wrong character options
+        items:
+          type: string
+        type: array
+    type: object
   models.ReadingTestItem:
     properties:
       correctChar:
@@ -129,21 +131,6 @@ definitions:
         type: integer
       passed:
         type: boolean
-    type: object
-  models.UpdateCharacterRequest:
-    properties:
-      consonant:
-        type: string
-      englishReading:
-        type: string
-      hiragana:
-        type: string
-      katakana:
-        type: string
-      russianReading:
-        type: string
-      vowel:
-        type: string
     type: object
   models.UpdateWordRequest:
     properties:
@@ -324,15 +311,43 @@ paths:
       - admin
     post:
       consumes:
-      - application/json
-      description: Create a new character
+      - multipart/form-data
+      description: Create a new character with optional audio file
       parameters:
-      - description: Character creation request
-        in: body
-        name: request
+      - description: Consonant
+        in: formData
+        name: consonant
         required: true
-        schema:
-          $ref: '#/definitions/models.CreateCharacterRequest'
+        type: string
+      - description: Vowel
+        in: formData
+        name: vowel
+        required: true
+        type: string
+      - description: English reading
+        in: formData
+        name: englishReading
+        required: true
+        type: string
+      - description: Russian reading
+        in: formData
+        name: russianReading
+        required: true
+        type: string
+      - description: Katakana character
+        in: formData
+        name: katakana
+        required: true
+        type: string
+      - description: Hiragana character
+        in: formData
+        name: hiragana
+        required: true
+        type: string
+      - description: Audio file (optional)
+        in: formData
+        name: audio
+        type: file
       produces:
       - application/json
       responses:
@@ -434,19 +449,42 @@ paths:
       - admin
     patch:
       consumes:
-      - application/json
-      description: Update character fields (partial update)
+      - multipart/form-data
+      description: Update character fields (partial update) with optional audio file
       parameters:
       - description: Character ID
         in: path
         name: id
         required: true
         type: integer
-      - description: Update request
-        in: body
-        name: request
-        schema:
-          $ref: '#/definitions/models.UpdateCharacterRequest'
+      - description: Consonant
+        in: formData
+        name: consonant
+        type: string
+      - description: Vowel
+        in: formData
+        name: vowel
+        type: string
+      - description: English reading
+        in: formData
+        name: englishReading
+        type: string
+      - description: Russian reading
+        in: formData
+        name: russianReading
+        type: string
+      - description: Katakana character
+        in: formData
+        name: katakana
+        type: string
+      - description: Hiragana character
+        in: formData
+        name: hiragana
+        type: string
+      - description: Audio file (optional)
+        in: formData
+        name: audio
+        type: file
       produces:
       - application/json
       responses:
@@ -666,187 +704,6 @@ paths:
       summary: Update a word
       tags:
       - admin
-  /api/v1/test-results/{type}/{testType}:
-    post:
-      consumes:
-      - application/json
-      description: Submit test results for hiragana or katakana reading, writing,
-        or listening tests. Requires authentication.
-      parameters:
-      - description: 'Alphabet type: hiragana or katakana'
-        in: path
-        name: type
-        required: true
-        type: string
-      - description: 'Test type: reading, writing, or listening'
-        in: path
-        name: testType
-        required: true
-        type: string
-      - description: Test results
-        in: body
-        name: results
-        required: true
-        schema:
-          $ref: '#/definitions/handlers.TestResultRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: Test results submitted successfully
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "400":
-          description: Bad request - invalid request body, empty results array, or
-            invalid alphabet/test type
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "401":
-          description: Unauthorized - authentication required, invalid/expired token,
-            or user ID not found in context
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "500":
-          description: Internal server error - failed to process or save test results
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-      security:
-      - ApiKeyAuth: []
-      summary: Submit test results
-      tags:
-      - tests
-  /api/v1/test-results/history:
-    get:
-      consumes:
-      - application/json
-      description: Get all learn history records for the authenticated user. Requires
-        authentication.
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: List of learn history records (empty array if no records found)
-          schema:
-            items:
-              $ref: '#/definitions/models.UserLearnHistory'
-            type: array
-        "401":
-          description: Unauthorized - authentication required, invalid/expired token,
-            or user ID not found in context
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "500":
-          description: Internal server error - failed to retrieve learn history
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-      security:
-      - ApiKeyAuth: []
-      summary: Get user's learn history
-      tags:
-      - tests
-  /api/v1/words:
-    get:
-      consumes:
-      - application/json
-      description: Get a mixed list of old and new words for the authenticated user.
-        Requires authentication.
-      parameters:
-      - description: 'Number of new words (10-40), default: 20'
-        in: query
-        name: newCount
-        type: integer
-      - description: 'Number of old words (10-40), default: 20'
-        in: query
-        name: oldCount
-        type: integer
-      - description: 'Locale: en, ru, or de, default: en'
-        in: query
-        name: locale
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: List of words
-          schema:
-            items:
-              $ref: '#/definitions/models.WordResponse'
-            type: array
-        "400":
-          description: Bad request - invalid parameters
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "401":
-          description: Unauthorized - authentication required
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "500":
-          description: Internal server error
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-      security:
-      - ApiKeyAuth: []
-      summary: Get word list
-      tags:
-      - dictionary
-  /api/v1/words/results:
-    post:
-      consumes:
-      - application/json
-      description: Submit word learning results with period values. Requires authentication.
-      parameters:
-      - description: Word results
-        in: body
-        name: results
-        required: true
-        schema:
-          $ref: '#/definitions/handlers.SubmitWordResultsRequest'
-      produces:
-      - application/json
-      responses:
-        "204":
-          description: No Content
-        "400":
-          description: Bad request - invalid request body or validation error
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "401":
-          description: Unauthorized - authentication required
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "500":
-          description: Internal server error
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-      security:
-      - ApiKeyAuth: []
-      summary: Submit word learning results
-      tags:
-      - dictionary
   /characters:
     get:
       consumes:
@@ -969,11 +826,102 @@ paths:
       summary: Get characters by row or column
       tags:
       - characters
-  /tests/{type}/reading:
+  /test-results/{type}/{testType}:
+    post:
+      consumes:
+      - application/json
+      description: Submit test results for hiragana or katakana reading, writing,
+        or listening tests. Requires authentication.
+      parameters:
+      - description: 'Alphabet type: hiragana or katakana'
+        in: path
+        name: type
+        required: true
+        type: string
+      - description: 'Test type: reading, writing, or listening'
+        in: path
+        name: testType
+        required: true
+        type: string
+      - description: Test results
+        in: body
+        name: results
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.TestResultRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Test results submitted successfully
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad request - invalid request body, empty results array, or
+            invalid alphabet/test type
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized - authentication required, invalid/expired token,
+            or user ID not found in context
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error - failed to process or save test results
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Submit test results
+      tags:
+      - tests
+  /test-results/history:
     get:
       consumes:
       - application/json
-      description: Get random characters for reading test. Requires authentication.
+      description: Get all learn history records for the authenticated user. Requires
+        authentication.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of learn history records (empty array if no records found)
+          schema:
+            items:
+              $ref: '#/definitions/models.UserLearnHistory'
+            type: array
+        "401":
+          description: Unauthorized - authentication required, invalid/expired token,
+            or user ID not found in context
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error - failed to retrieve learn history
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Get user's learn history
+      tags:
+      - tests
+  /tests/{type}/listening:
+    get:
+      consumes:
+      - application/json
+      description: Get semi-randomized characters for listening test with audio URLs.
+        Requires authentication. Uses smart filtering based on user's learning history.
       parameters:
       - description: 'Alphabet type: hiragana or katakana'
         in: path
@@ -993,7 +941,62 @@ paths:
       - application/json
       responses:
         "200":
-          description: List of random characters for reading test
+          description: List of semi-randomized characters for listening test
+          schema:
+            items:
+              $ref: '#/definitions/models.ListeningTestItem'
+            type: array
+        "400":
+          description: Bad request - type parameter is required or invalid alphabet
+            type/locale/count
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized - authentication required or user ID not found
+            in context
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error - failed to retrieve test characters
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Get listening test
+      tags:
+      - tests
+  /tests/{type}/reading:
+    get:
+      consumes:
+      - application/json
+      description: Get semi-randomized characters for reading test. Requires authentication.
+        Uses smart filtering based on user's learning history.
+      parameters:
+      - description: 'Alphabet type: hiragana or katakana'
+        in: path
+        name: type
+        required: true
+        type: string
+      - description: 'Locale: en (English), ru (Russian), or de (German - treated
+          as English), default: en'
+        in: query
+        name: locale
+        type: string
+      - description: 'Number of characters to return, default: 10'
+        in: query
+        name: count
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of semi-randomized characters for reading test
           schema:
             items:
               $ref: '#/definitions/models.ReadingTestItem'
@@ -1006,7 +1009,8 @@ paths:
               type: string
             type: object
         "401":
-          description: Unauthorized - authentication required or invalid/expired token
+          description: Unauthorized - authentication required or user ID not found
+            in context
           schema:
             additionalProperties:
               type: string
@@ -1026,8 +1030,9 @@ paths:
     get:
       consumes:
       - application/json
-      description: Get random characters for writing test with multiple choice options.
-        Requires authentication.
+      description: Get semi-randomized characters for writing test with multiple choice
+        options. Requires authentication. Uses smart filtering based on user's learning
+        history.
       parameters:
       - description: 'Alphabet type: hiragana or katakana'
         in: path
@@ -1047,8 +1052,8 @@ paths:
       - application/json
       responses:
         "200":
-          description: List of random characters for writing test with multiple choice
-            options
+          description: List of semi-randomized characters for writing test with multiple
+            choice options
           schema:
             items:
               $ref: '#/definitions/models.WritingTestItem'
@@ -1061,7 +1066,8 @@ paths:
               type: string
             type: object
         "401":
-          description: Unauthorized - authentication required or invalid/expired token
+          description: Unauthorized - authentication required or user ID not found
+            in context
           schema:
             additionalProperties:
               type: string
@@ -1077,6 +1083,97 @@ paths:
       summary: Get writing test
       tags:
       - tests
+  /words:
+    get:
+      consumes:
+      - application/json
+      description: Get a mixed list of old and new words for the authenticated user.
+        Requires authentication.
+      parameters:
+      - description: 'Number of new words (10-40), default: 20'
+        in: query
+        name: newCount
+        type: integer
+      - description: 'Number of old words (10-40), default: 20'
+        in: query
+        name: oldCount
+        type: integer
+      - description: 'Locale: en, ru, or de, default: en'
+        in: query
+        name: locale
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of words
+          schema:
+            items:
+              $ref: '#/definitions/models.WordResponse'
+            type: array
+        "400":
+          description: Bad request - invalid parameters
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized - authentication required
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Get word list
+      tags:
+      - dictionary
+  /words/results:
+    post:
+      consumes:
+      - application/json
+      description: Submit word learning results with period values. Requires authentication.
+      parameters:
+      - description: Word results
+        in: body
+        name: results
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.SubmitWordResultsRequest'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad request - invalid request body or validation error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized - authentication required
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Submit word learning results
+      tags:
+      - dictionary
 securityDefinitions:
   ApiKeyAuth:
     description: Type "Bearer" followed by a space and JWT token.

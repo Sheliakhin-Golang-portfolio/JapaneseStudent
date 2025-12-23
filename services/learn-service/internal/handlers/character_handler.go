@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/japanesestudent/learn-service/internal/models"
+	authMiddleware "github.com/japanesestudent/libs/auth/middleware"
 	"github.com/japanesestudent/libs/handlers"
 	"go.uber.org/zap"
 )
@@ -36,13 +37,22 @@ type CharactersService interface {
 	// Method GetReadingTest retrieve a list of random characters for reading test using configured repository.
 	//
 	// "count" parameter is used to specify the number of characters to return (default: 10).
+	// "userID" is required - uses smart filtering based on user's learning history.
 	//
 	// Please reference GetAll method for more information about other parameters and error values.
-	GetReadingTest(ctx context.Context, alphabetTypeStr string, localeParam string, count int) ([]models.ReadingTestItem, error)
+	GetReadingTest(ctx context.Context, alphabetTypeStr string, localeParam string, count int, userID int) ([]models.ReadingTestItem, error)
 	// Method GetWritingTest retrieve a list of random characters for writing test using configured repository.
 	//
+	// "userID" is required - uses smart filtering based on user's learning history.
+	//
 	// Please reference GetReadingTest method for more information about parameters and error values.
-	GetWritingTest(ctx context.Context, alphabetTypeStr string, localeParam string, count int) ([]models.WritingTestItem, error)
+	GetWritingTest(ctx context.Context, alphabetTypeStr string, localeParam string, count int, userID int) ([]models.WritingTestItem, error)
+	// Method GetListeningTest retrieve a list of random characters for listening test using configured repository.
+	//
+	// "userID" is required - uses smart filtering based on user's learning history.
+	//
+	// Please reference GetReadingTest method for more information about parameters and error values.
+	GetListeningTest(ctx context.Context, alphabetTypeStr string, localeParam string, count int, userID int) ([]models.ListeningTestItem, error)
 }
 
 // Handler handles HTTP requests for characters
@@ -60,7 +70,7 @@ func NewCharactersHandler(svc CharactersService, logger *zap.Logger) *Characters
 }
 
 // RegisterRoutes registers all character handler routes
-// Note: This assumes the router is already scoped to /api/v3
+// Note: This assumes the router is already scoped to /api/v4
 func (h *CharactersHandler) RegisterRoutes(r chi.Router, authMiddleware func(http.Handler) http.Handler) {
 	r.Route("/characters", func(r chi.Router) {
 		r.Get("/", h.GetAll)
@@ -68,10 +78,10 @@ func (h *CharactersHandler) RegisterRoutes(r chi.Router, authMiddleware func(htt
 		r.Get("/{id}", h.GetByID)
 	})
 	r.Route("/tests", func(r chi.Router) {
-		// Apply auth middleware to all test routes
 		r.Use(authMiddleware)
 		r.Get("/{type}/reading", h.GetReadingTest)
 		r.Get("/{type}/writing", h.GetWritingTest)
+		r.Get("/{type}/listening", h.GetListeningTest)
 	})
 }
 
@@ -197,7 +207,7 @@ func (h *CharactersHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 
 // GetReadingTest handles GET /tests/{type}/reading
 // @Summary Get reading test
-// @Description Get random characters for reading test. Requires authentication.
+// @Description Get semi-randomized characters for reading test. Requires authentication. Uses smart filtering based on user's learning history.
 // @Tags tests
 // @Accept json
 // @Produce json
@@ -205,9 +215,9 @@ func (h *CharactersHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 // @Param type path string true "Alphabet type: hiragana or katakana"
 // @Param locale query string false "Locale: en (English), ru (Russian), or de (German - treated as English), default: en"
 // @Param count query int false "Number of characters to return, default: 10"
-// @Success 200 {array} models.ReadingTestItem "List of random characters for reading test"
+// @Success 200 {array} models.ReadingTestItem "List of semi-randomized characters for reading test"
 // @Failure 400 {object} map[string]string "Bad request - type parameter is required or invalid alphabet type/locale/count"
-// @Failure 401 {object} map[string]string "Unauthorized - authentication required or invalid/expired token"
+// @Failure 401 {object} map[string]string "Unauthorized - authentication required or user ID not found in context"
 // @Failure 500 {object} map[string]string "Internal server error - failed to retrieve test characters"
 // @Router /tests/{type}/reading [get]
 func (h *CharactersHandler) GetReadingTest(w http.ResponseWriter, r *http.Request) {
@@ -236,7 +246,15 @@ func (h *CharactersHandler) GetReadingTest(w http.ResponseWriter, r *http.Reques
 		count = parsed
 	}
 
-	items, err := h.service.GetReadingTest(r.Context(), typeParam, localeParam, count)
+	// Extract userID from context (required - auth middleware ensures it's present)
+	userID, ok := authMiddleware.GetUserID(r.Context())
+	if !ok {
+		h.Logger.Error("user ID not found in context")
+		h.RespondError(w, http.StatusUnauthorized, "user ID not found in context")
+		return
+	}
+
+	items, err := h.service.GetReadingTest(r.Context(), typeParam, localeParam, count, userID)
 	if err != nil {
 		h.Logger.Error("failed to get reading test", zap.Error(err))
 		h.RespondError(w, http.StatusBadRequest, err.Error())
@@ -248,7 +266,7 @@ func (h *CharactersHandler) GetReadingTest(w http.ResponseWriter, r *http.Reques
 
 // GetWritingTest handles GET /tests/{type}/writing
 // @Summary Get writing test
-// @Description Get random characters for writing test with multiple choice options. Requires authentication.
+// @Description Get semi-randomized characters for writing test with multiple choice options. Requires authentication. Uses smart filtering based on user's learning history.
 // @Tags tests
 // @Accept json
 // @Produce json
@@ -256,9 +274,9 @@ func (h *CharactersHandler) GetReadingTest(w http.ResponseWriter, r *http.Reques
 // @Param type path string true "Alphabet type: hiragana or katakana"
 // @Param locale query string false "Locale: en (English), ru (Russian), or de (German - treated as English), default: en"
 // @Param count query int false "Number of characters to return, default: 10"
-// @Success 200 {array} models.WritingTestItem "List of random characters for writing test with multiple choice options"
+// @Success 200 {array} models.WritingTestItem "List of semi-randomized characters for writing test with multiple choice options"
 // @Failure 400 {object} map[string]string "Bad request - type parameter is required or invalid alphabet type/locale/count"
-// @Failure 401 {object} map[string]string "Unauthorized - authentication required or invalid/expired token"
+// @Failure 401 {object} map[string]string "Unauthorized - authentication required or user ID not found in context"
 // @Failure 500 {object} map[string]string "Internal server error - failed to retrieve test characters"
 // @Router /tests/{type}/writing [get]
 func (h *CharactersHandler) GetWritingTest(w http.ResponseWriter, r *http.Request) {
@@ -287,9 +305,76 @@ func (h *CharactersHandler) GetWritingTest(w http.ResponseWriter, r *http.Reques
 		count = parsed
 	}
 
-	items, err := h.service.GetWritingTest(r.Context(), typeParam, localeParam, count)
+	// Extract userID from context (required - auth middleware ensures it's present)
+	userID, ok := authMiddleware.GetUserID(r.Context())
+	if !ok {
+		h.Logger.Error("user ID not found in context")
+		h.RespondError(w, http.StatusUnauthorized, "user ID not found in context")
+		return
+	}
+
+	items, err := h.service.GetWritingTest(r.Context(), typeParam, localeParam, count, userID)
 	if err != nil {
 		h.Logger.Error("failed to get writing test", zap.Error(err))
+		h.RespondError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	h.RespondJSON(w, http.StatusOK, items)
+}
+
+// GetListeningTest handles GET /tests/{type}/listening
+// @Summary Get listening test
+// @Description Get semi-randomized characters for listening test with audio URLs. Requires authentication. Uses smart filtering based on user's learning history.
+// @Tags tests
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param type path string true "Alphabet type: hiragana or katakana"
+// @Param locale query string false "Locale: en (English), ru (Russian), or de (German - treated as English), default: en"
+// @Param count query int false "Number of characters to return, default: 10"
+// @Success 200 {array} models.ListeningTestItem "List of semi-randomized characters for listening test"
+// @Failure 400 {object} map[string]string "Bad request - type parameter is required or invalid alphabet type/locale/count"
+// @Failure 401 {object} map[string]string "Unauthorized - authentication required or user ID not found in context"
+// @Failure 500 {object} map[string]string "Internal server error - failed to retrieve test characters"
+// @Router /tests/{type}/listening [get]
+func (h *CharactersHandler) GetListeningTest(w http.ResponseWriter, r *http.Request) {
+	typeParam := chi.URLParam(r, "type")
+	localeParam := r.URL.Query().Get("locale")
+	countStr := r.URL.Query().Get("count")
+
+	if typeParam == "" {
+		h.Logger.Error("type parameter is required")
+		h.RespondError(w, http.StatusBadRequest, "type parameter is required")
+		return
+	}
+	if localeParam == "" {
+		localeParam = "en"
+	}
+
+	// Parse count parameter
+	count := 10 // default
+	if countStr != "" {
+		parsed, err := strconv.Atoi(countStr)
+		if err != nil || parsed <= 0 {
+			h.Logger.Error("failed to parse count parameter", zap.Error(err))
+			h.RespondError(w, http.StatusBadRequest, "invalid count parameter")
+			return
+		}
+		count = parsed
+	}
+
+	// Extract userID from context (required - auth middleware ensures it's present)
+	userID, ok := authMiddleware.GetUserID(r.Context())
+	if !ok {
+		h.Logger.Error("user ID not found in context")
+		h.RespondError(w, http.StatusUnauthorized, "user ID not found in context")
+		return
+	}
+
+	items, err := h.service.GetListeningTest(r.Context(), typeParam, localeParam, count, userID)
+	if err != nil {
+		h.Logger.Error("failed to get listening test", zap.Error(err))
 		h.RespondError(w, http.StatusBadRequest, err.Error())
 		return
 	}

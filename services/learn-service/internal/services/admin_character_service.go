@@ -3,6 +3,11 @@ package services
 import (
 	"context"
 	"fmt"
+	"io"
+	"mime/multipart"
+	"net/http"
+	"net/url"
+	"strings"
 
 	"github.com/japanesestudent/learn-service/internal/models"
 )
@@ -55,13 +60,17 @@ type AdminCharactersRepository interface {
 }
 
 type adminService struct {
-	repo AdminCharactersRepository
+	repo         AdminCharactersRepository
+	mediaBaseURL string
+	apiKey       string
 }
 
 // NewAdminService creates a new admin service
-func NewAdminService(repo AdminCharactersRepository) *adminService {
+func NewAdminService(repo AdminCharactersRepository, mediaBaseURL, apiKey string) *adminService {
 	return &adminService{
-		repo: repo,
+		repo:         repo,
+		mediaBaseURL: mediaBaseURL,
+		apiKey:       apiKey,
 	}
 }
 
@@ -94,7 +103,7 @@ func (s *adminService) GetByIDAdmin(ctx context.Context, id int) (*models.Charac
 }
 
 // CreateCharacter creates a new character
-func (s *adminService) CreateCharacter(ctx context.Context, request *models.CreateCharacterRequest) (int, error) {
+func (s *adminService) CreateCharacter(ctx context.Context, request *models.CreateCharacterRequest, audioFile multipart.File, audioFilename string) (int, error) {
 	// Perform validation before creating a new character
 	if err := s.checkCreateCharacterValidation(ctx, request); err != nil {
 		return 0, err
@@ -108,6 +117,16 @@ func (s *adminService) CreateCharacter(ctx context.Context, request *models.Crea
 		Katakana:       request.Katakana,
 		Hiragana:       request.Hiragana,
 	}
+
+	// Handle audio file upload if provided
+	if audioFile != nil && audioFilename != "" {
+		audioURL, err := s.uploadAudio(ctx, audioFile, audioFilename)
+		if err != nil {
+			return 0, fmt.Errorf("failed to upload audio: %w", err)
+		}
+		character.Audio = audioURL
+	}
+
 	err := s.repo.Create(ctx, character)
 	if err != nil {
 		return 0, err
@@ -153,42 +172,80 @@ func (s *adminService) checkCreateCharacterValidation(ctx context.Context, reque
 }
 
 // UpdateCharacter updates a character (partial update)
-func (s *adminService) UpdateCharacter(ctx context.Context, id int, request *models.UpdateCharacterRequest) error {
+func (s *adminService) UpdateCharacter(ctx context.Context, id int, request *models.UpdateCharacterRequest, audioFile multipart.File, audioFilename string) error {
 	if id <= 0 {
 		return fmt.Errorf("invalid character id")
 	}
 
-	if err := s.checkUpdateCharacterValidation(ctx, id, request); err != nil {
+	// Get current character to check for existing audio URL
+	currentCharacter, err := s.repo.GetByIDAdmin(ctx, id)
+	if err != nil {
+		return fmt.Errorf("character not found")
+	}
+
+	if err := s.checkUpdateCharacterValidation(ctx, currentCharacter, request); err != nil {
 		return err
 	}
 
-	character := &models.Character{
-		ID:             id,
-		Consonant:      request.Consonant,
-		Vowel:          request.Vowel,
-		EnglishReading: request.EnglishReading,
-		RussianReading: request.RussianReading,
-		Katakana:       request.Katakana,
-		Hiragana:       request.Hiragana,
+	// Handle audio file update if provided
+	newAudioURL := ""
+	if audioFile != nil && audioFilename != "" {
+		// Delete old audio file if it exists
+		if currentCharacter.Audio != "" && s.mediaBaseURL != "" && s.apiKey != "" {
+			fileID := s.extractFileIDFromAudioURL(currentCharacter.Audio)
+			if fileID != "" {
+				if err := s.deleteAudioFromMediaService(ctx, fileID); err != nil {
+					return fmt.Errorf("failed to delete old audio: %w", err)
+				}
+			}
+		}
+
+		// Upload new audio file
+		audioURL, err := s.uploadAudio(ctx, audioFile, audioFilename)
+		if err != nil {
+			return fmt.Errorf("failed to upload audio: %w", err)
+		}
+		newAudioURL = audioURL
 	}
-	return s.repo.Update(ctx, id, character)
+
+	characterToUpdate := &models.Character{
+		ID: id,
+	}
+	if request.Consonant != "" {
+		characterToUpdate.Consonant = request.Consonant
+	}
+	if request.Vowel != "" {
+		characterToUpdate.Vowel = request.Vowel
+	}
+	if request.EnglishReading != "" {
+		characterToUpdate.EnglishReading = request.EnglishReading
+	}
+	if request.RussianReading != "" {
+		characterToUpdate.RussianReading = request.RussianReading
+	}
+	if request.Katakana != "" {
+		characterToUpdate.Katakana = request.Katakana
+	}
+	if request.Hiragana != "" {
+		characterToUpdate.Hiragana = request.Hiragana
+	}
+	if newAudioURL != "" {
+		characterToUpdate.Audio = newAudioURL
+	}
+
+	return s.repo.Update(ctx, id, characterToUpdate)
 }
 
 // checkUpdateCharacterValidation checks the validity of the character update request
-func (s *adminService) checkUpdateCharacterValidation(ctx context.Context, id int, request *models.UpdateCharacterRequest) error {
+func (s *adminService) checkUpdateCharacterValidation(ctx context.Context, currentCharacter *models.Character, request *models.UpdateCharacterRequest) error {
 	validationErrors := make(chan error, 2)
 	go func() {
 		if request.Consonant != "" || request.Vowel != "" {
-			character, err := s.repo.GetByIDAdmin(ctx, id)
-			if err != nil {
-				validationErrors <- fmt.Errorf("failed to get character by id: %w", err)
-				return
-			}
 			if request.Consonant == "" {
-				request.Consonant = character.Consonant
+				request.Consonant = currentCharacter.Consonant
 			}
 			if request.Vowel == "" {
-				request.Vowel = character.Vowel
+				request.Vowel = currentCharacter.Vowel
 			}
 		}
 		if request.Consonant != "" && request.Vowel != "" {
@@ -233,5 +290,171 @@ func (s *adminService) DeleteCharacter(ctx context.Context, id int) error {
 	if id <= 0 {
 		return fmt.Errorf("invalid character id")
 	}
+
+	// Get character first to retrieve audio URL
+	character, err := s.repo.GetByIDAdmin(ctx, id)
+	if err != nil {
+		return fmt.Errorf("character not found")
+	}
+
+	// Delete audio file from media service if audio URL exists
+	if character.Audio != "" && s.mediaBaseURL != "" && s.apiKey != "" {
+		fileID := s.extractFileIDFromAudioURL(character.Audio)
+		if fileID != "" {
+			if err := s.deleteAudioFromMediaService(ctx, fileID); err != nil {
+				return fmt.Errorf("audio file has not been deleted: %w", err)
+			}
+		}
+	}
+
 	return s.repo.Delete(ctx, id)
+}
+
+// uploadAudio uploads an audio file to the media-service using io.Pipe for streaming
+func (s *adminService) uploadAudio(ctx context.Context, audioFile multipart.File, audioFilename string) (string, error) {
+	if s.mediaBaseURL == "" {
+		return "", fmt.Errorf("MEDIA_BASE_URL is not configured")
+	}
+	if s.apiKey == "" {
+		return "", fmt.Errorf("API_KEY is not configured")
+	}
+
+	// Create a pipe for streaming
+	pr, pw := io.Pipe()
+	defer pr.Close()
+
+	// Create multipart writer
+	writer := multipart.NewWriter(pw)
+
+	// Start goroutine to write file to pipe
+	errChan := make(chan error, 1)
+	go func() {
+		defer pw.Close()
+		defer writer.Close()
+
+		// Create form field for file
+		part, err := writer.CreateFormFile("file", audioFilename)
+		if err != nil {
+			errChan <- fmt.Errorf("failed to create form file: %w", err)
+			return
+		}
+
+		// Copy file content to form
+		_, err = io.Copy(part, audioFile)
+		if err != nil {
+			errChan <- fmt.Errorf("failed to copy file: %w", err)
+			return
+		}
+
+		errChan <- nil
+	}()
+
+	// Build upload URL
+	uploadURL := fmt.Sprintf("%s/media/character", s.mediaBaseURL)
+
+	// Create HTTP request
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, uploadURL, pr)
+	if err != nil {
+		return "", fmt.Errorf("failed to create request: %w", err)
+	}
+
+	// Set headers
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Set("X-API-Key", s.apiKey)
+
+	// Make HTTP request
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		// We will not wait for goroutine to complete. Instead it will finish when we close the pipe.
+		return "", fmt.Errorf("failed to upload file: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Check for errors from goroutine
+	if err := <-errChan; err != nil {
+		return "", err
+	}
+
+	// Check response status
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("media-service returned error: status %d, body: %s", resp.StatusCode, string(body))
+	}
+
+	// Read audio URL from response
+	audioURL, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("failed to read response: %w", err)
+	}
+
+	return strings.TrimSpace(string(audioURL)), nil
+}
+
+// deleteAudioFromMediaService sends a DELETE request to media service to delete the audio file
+func (s *adminService) deleteAudioFromMediaService(ctx context.Context, fileID string) error {
+	if s.mediaBaseURL == "" || s.apiKey == "" {
+		return nil // Skip if media service is not configured
+	}
+
+	// Construct the delete URL: {mediaBaseURL}/media/character/{fileID}
+	deleteURL := strings.TrimSuffix(s.mediaBaseURL, "/") + "/media/character/" + fileID
+
+	// Create DELETE request
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, deleteURL, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create delete request: %w", err)
+	}
+
+	// Set API key header
+	req.Header.Set("X-API-Key", s.apiKey)
+
+	// Execute request
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to send delete request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Check response status
+	if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusNotFound {
+		return fmt.Errorf("media service returned status %d", resp.StatusCode)
+	}
+
+	return nil
+}
+
+// extractFileIDFromAudioURL extracts the file ID (filename) from the audio URL
+// The audio URL format is expected to be like: http://.../media/audio/{fileID}
+// Returns the last part of the URL path as the file ID
+func (s *adminService) extractFileIDFromAudioURL(audioURL string) string {
+	if audioURL == "" {
+		return ""
+	}
+
+	// Parse URL to handle it properly
+	parsedURL, err := url.Parse(audioURL)
+	if err != nil {
+		// If URL parsing fails, try to extract from string directly
+		// Remove query parameters and fragments
+		parts := strings.Split(audioURL, "?")
+		parts = strings.Split(parts[0], "#")
+		urlPath := parts[0]
+
+		// Extract the last part of the path by splitting on "/"
+		pathParts := strings.Split(strings.Trim(urlPath, "/"), "/")
+		if len(pathParts) > 0 {
+			return pathParts[len(pathParts)-1]
+		}
+		return ""
+	}
+
+	// Extract the last part of the path
+	pathParts := strings.Split(strings.Trim(parsedURL.Path, "/"), "/")
+	if len(pathParts) > 0 {
+		return pathParts[len(pathParts)-1]
+	}
+
+	return ""
 }

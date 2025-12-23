@@ -2,7 +2,7 @@ package handlers
 
 import (
 	"context"
-	"encoding/json"
+	"mime/multipart"
 	"net/http"
 	"strconv"
 
@@ -27,16 +27,18 @@ type AdminCharactersService interface {
 	// Method CreateCharacter creates a new character using configured repository.
 	//
 	// "character" parameter is used to create a new character.
+	// "audioFile" and "audioFilename" are optional parameters for audio file upload.
 	//
 	// If some error will occur during data creation, the error will be returned together with 0 as character ID.
-	CreateCharacter(ctx context.Context, character *models.CreateCharacterRequest) (int, error)
+	CreateCharacter(ctx context.Context, character *models.CreateCharacterRequest, audioFile multipart.File, audioFilename string) (int, error)
 	// Method UpdateCharacter updates a character using configured repository.
 	//
 	// "id" parameter is used to identify the character.
 	// "character" parameter is used to update the character.
+	// "audioFile" and "audioFilename" are optional parameters for audio file upload.
 	//
 	// If some error will occur during data update, the error will be returned together with "nil" value.
-	UpdateCharacter(ctx context.Context, id int, character *models.UpdateCharacterRequest) error
+	UpdateCharacter(ctx context.Context, id int, character *models.UpdateCharacterRequest, audioFile multipart.File, audioFilename string) error
 	// Method DeleteCharacter deletes a character using configured repository.
 	//
 	// "id" parameter is used to identify the character.
@@ -60,7 +62,7 @@ func NewAdminCharactersHandler(svc AdminCharactersService, logger *zap.Logger) *
 }
 
 // RegisterRoutes registers all admin character handler routes
-// Note: This assumes the router is already scoped to /api/v3
+// Note: This assumes the router is already scoped to /api/v4
 func (h *AdminCharactersHandler) RegisterRoutes(r chi.Router) {
 	r.Route("/admin/characters", func(r chi.Router) {
 		r.Get("/", h.GetAll)
@@ -129,24 +131,55 @@ func (h *AdminCharactersHandler) GetByID(w http.ResponseWriter, r *http.Request)
 
 // Create handles POST /admin/characters
 // @Summary Create a character
-// @Description Create a new character
+// @Description Create a new character with optional audio file
 // @Tags admin
-// @Accept json
+// @Accept multipart/form-data
 // @Produce json
-// @Param request body models.CreateCharacterRequest true "Character creation request"
+// @Param consonant formData string true "Consonant"
+// @Param vowel formData string true "Vowel"
+// @Param englishReading formData string true "English reading"
+// @Param russianReading formData string true "Russian reading"
+// @Param katakana formData string true "Katakana character"
+// @Param hiragana formData string true "Hiragana character"
+// @Param audio formData file false "Audio file (optional)"
 // @Success 201 {object} map[string]string "Character created successfully"
 // @Failure 400 {object} map[string]string "Invalid request body or character already exists"
 // @Failure 500 {object} map[string]string "Internal server error"
 // @Router /admin/characters [post]
 func (h *AdminCharactersHandler) Create(w http.ResponseWriter, r *http.Request) {
-	var req models.CreateCharacterRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		h.Logger.Error("failed to decode request body", zap.Error(err))
-		h.RespondError(w, http.StatusBadRequest, "invalid request body")
+	// Parse multipart form (20MB max)
+	const maxMemory = 20 << 20 // 20MB
+	if err := r.ParseMultipartForm(maxMemory); err != nil {
+		h.Logger.Error("failed to parse multipart form", zap.Error(err))
+		h.RespondError(w, http.StatusBadRequest, "failed to parse multipart form")
 		return
 	}
 
-	characterID, err := h.service.CreateCharacter(r.Context(), &req)
+	// Extract character data from form fields
+	req := models.CreateCharacterRequest{
+		Consonant:      r.FormValue("consonant"),
+		Vowel:          r.FormValue("vowel"),
+		EnglishReading: r.FormValue("englishReading"),
+		RussianReading: r.FormValue("russianReading"),
+		Katakana:       r.FormValue("katakana"),
+		Hiragana:       r.FormValue("hiragana"),
+	}
+
+	// Extract audio file (optional)
+	var audioFile multipart.File
+	var audioFilename string
+	file, header, err := r.FormFile("audio")
+	if err == nil {
+		audioFile = file
+		audioFilename = header.Filename
+		defer file.Close()
+	} else if err != http.ErrMissingFile {
+		h.Logger.Error("failed to get audio file from form", zap.Error(err))
+		h.RespondError(w, http.StatusBadRequest, "failed to get audio file")
+		return
+	}
+
+	characterID, err := h.service.CreateCharacter(r.Context(), &req, audioFile, audioFilename)
 	if err != nil {
 		h.Logger.Error("failed to create character", zap.Error(err))
 		errStatus := http.StatusInternalServerError
@@ -165,12 +198,18 @@ func (h *AdminCharactersHandler) Create(w http.ResponseWriter, r *http.Request) 
 
 // Update handles PATCH /admin/characters/{id}
 // @Summary Update a character
-// @Description Update character fields (partial update)
+// @Description Update character fields (partial update) with optional audio file
 // @Tags admin
-// @Accept json
+// @Accept multipart/form-data
 // @Produce json
 // @Param id path int true "Character ID"
-// @Param request body models.UpdateCharacterRequest false "Update request"
+// @Param consonant formData string false "Consonant"
+// @Param vowel formData string false "Vowel"
+// @Param englishReading formData string false "English reading"
+// @Param russianReading formData string false "Russian reading"
+// @Param katakana formData string false "Katakana character"
+// @Param hiragana formData string false "Hiragana character"
+// @Param audio formData file false "Audio file (optional)"
 // @Success 204 "No Content"
 // @Failure 400 {object} map[string]string "Invalid request"
 // @Failure 404 {object} map[string]string "Character not found"
@@ -186,14 +225,50 @@ func (h *AdminCharactersHandler) Update(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	var req models.UpdateCharacterRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		h.Logger.Error("failed to decode request body", zap.Error(err))
-		h.RespondError(w, http.StatusBadRequest, "invalid request body")
+	// Parse multipart form (20MB max)
+	const maxMemory = 20 << 20 // 20MB
+	if err := r.ParseMultipartForm(maxMemory); err != nil {
+		h.Logger.Error("failed to parse multipart form", zap.Error(err))
+		h.RespondError(w, http.StatusBadRequest, "failed to parse multipart form")
 		return
 	}
 
-	err = h.service.UpdateCharacter(r.Context(), id, &req)
+	// Extract character data from form fields (all optional)
+	var req models.UpdateCharacterRequest
+	if consonant := r.FormValue("consonant"); consonant != "" {
+		req.Consonant = consonant
+	}
+	if vowel := r.FormValue("vowel"); vowel != "" {
+		req.Vowel = vowel
+	}
+	if englishReading := r.FormValue("englishReading"); englishReading != "" {
+		req.EnglishReading = englishReading
+	}
+	if russianReading := r.FormValue("russianReading"); russianReading != "" {
+		req.RussianReading = russianReading
+	}
+	if katakana := r.FormValue("katakana"); katakana != "" {
+		req.Katakana = katakana
+	}
+	if hiragana := r.FormValue("hiragana"); hiragana != "" {
+		req.Hiragana = hiragana
+	}
+
+	// Extract audio file (optional)
+	var audioFile multipart.File
+	var audioFilename string
+	file, header, err := r.FormFile("audio")
+	if err == nil {
+		audioFile = file
+		audioFilename = header.Filename
+		defer file.Close()
+	} else if err != http.ErrMissingFile {
+		h.Logger.Error("failed to get audio file from form", zap.Error(err))
+		h.RespondError(w, http.StatusBadRequest, "failed to get audio file")
+		return
+	}
+
+	err = h.service.UpdateCharacter(r.Context(), id, &req, audioFile, audioFilename)
 	if err != nil {
 		h.Logger.Error("failed to update character", zap.Error(err))
 		errStatus := http.StatusBadRequest

@@ -506,7 +506,7 @@ func TestAdminService_CreateUser(t *testing.T) {
 			svc := NewAdminService(tt.mockUserRepo, &mockAdminUserTokenRepository{}, tt.mockSettingsRepo, tokenGen, logger, "", "")
 			ctx := context.Background()
 
-			result, err := svc.CreateUser(ctx, tt.request)
+			result, err := svc.CreateUser(ctx, tt.request, nil, "")
 
 			if tt.expectedError {
 				assert.Error(t, err)

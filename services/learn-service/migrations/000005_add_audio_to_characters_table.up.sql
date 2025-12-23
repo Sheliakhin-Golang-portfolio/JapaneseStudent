@@ -1,0 +1,2 @@
+ALTER TABLE characters ADD COLUMN audio VARCHAR(500) NULL;
+

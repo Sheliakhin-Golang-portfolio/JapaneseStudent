@@ -58,9 +58,9 @@ const docTemplate = `{
                 }
             },
             "post": {
-                "description": "Create a new character",
+                "description": "Create a new character with optional audio file",
                 "consumes": [
-                    "application/json"
+                    "multipart/form-data"
                 ],
                 "produces": [
                     "application/json"
@@ -71,13 +71,52 @@ const docTemplate = `{
                 "summary": "Create a character",
                 "parameters": [
                     {
-                        "description": "Character creation request",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/models.CreateCharacterRequest"
-                        }
+                        "type": "string",
+                        "description": "Consonant",
+                        "name": "consonant",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Vowel",
+                        "name": "vowel",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "English reading",
+                        "name": "englishReading",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Russian reading",
+                        "name": "russianReading",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Katakana character",
+                        "name": "katakana",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Hiragana character",
+                        "name": "hiragana",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "file",
+                        "description": "Audio file (optional)",
+                        "name": "audio",
+                        "in": "formData"
                     }
                 ],
                 "responses": {
@@ -224,9 +263,9 @@ const docTemplate = `{
                 }
             },
             "patch": {
-                "description": "Update character fields (partial update)",
+                "description": "Update character fields (partial update) with optional audio file",
                 "consumes": [
-                    "application/json"
+                    "multipart/form-data"
                 ],
                 "produces": [
                     "application/json"
@@ -244,12 +283,46 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Update request",
-                        "name": "request",
-                        "in": "body",
-                        "schema": {
-                            "$ref": "#/definitions/models.UpdateCharacterRequest"
-                        }
+                        "type": "string",
+                        "description": "Consonant",
+                        "name": "consonant",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Vowel",
+                        "name": "vowel",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "English reading",
+                        "name": "englishReading",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Russian reading",
+                        "name": "russianReading",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Katakana character",
+                        "name": "katakana",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Hiragana character",
+                        "name": "hiragana",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "file",
+                        "description": "Audio file (optional)",
+                        "name": "audio",
+                        "in": "formData"
                     }
                 ],
                 "responses": {
@@ -578,279 +651,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/test-results/history": {
-            "get": {
-                "security": [
-                    {
-                        "ApiKeyAuth": []
-                    }
-                ],
-                "description": "Get all learn history records for the authenticated user. Requires authentication.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "tests"
-                ],
-                "summary": "Get user's learn history",
-                "responses": {
-                    "200": {
-                        "description": "List of learn history records (empty array if no records found)",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/models.UserLearnHistory"
-                            }
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized - authentication required, invalid/expired token, or user ID not found in context",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error - failed to retrieve learn history",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v1/test-results/{type}/{testType}": {
-            "post": {
-                "security": [
-                    {
-                        "ApiKeyAuth": []
-                    }
-                ],
-                "description": "Submit test results for hiragana or katakana reading, writing, or listening tests. Requires authentication.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "tests"
-                ],
-                "summary": "Submit test results",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Alphabet type: hiragana or katakana",
-                        "name": "type",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Test type: reading, writing, or listening",
-                        "name": "testType",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Test results",
-                        "name": "results",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/handlers.TestResultRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Test results submitted successfully",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Bad request - invalid request body, empty results array, or invalid alphabet/test type",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized - authentication required, invalid/expired token, or user ID not found in context",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error - failed to process or save test results",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v1/words": {
-            "get": {
-                "security": [
-                    {
-                        "ApiKeyAuth": []
-                    }
-                ],
-                "description": "Get a mixed list of old and new words for the authenticated user. Requires authentication.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "dictionary"
-                ],
-                "summary": "Get word list",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "Number of new words (10-40), default: 20",
-                        "name": "newCount",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Number of old words (10-40), default: 20",
-                        "name": "oldCount",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Locale: en, ru, or de, default: en",
-                        "name": "locale",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "List of words",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/models.WordResponse"
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Bad request - invalid parameters",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized - authentication required",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v1/words/results": {
-            "post": {
-                "security": [
-                    {
-                        "ApiKeyAuth": []
-                    }
-                ],
-                "description": "Submit word learning results with period values. Requires authentication.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "dictionary"
-                ],
-                "summary": "Submit word learning results",
-                "parameters": [
-                    {
-                        "description": "Word results",
-                        "name": "results",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/handlers.SubmitWordResultsRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    },
-                    "400": {
-                        "description": "Bad request - invalid request body or validation error",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized - authentication required",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            }
-        },
         "/characters": {
             "get": {
                 "description": "Get a list of all hiragana or katakana characters",
@@ -1030,6 +830,217 @@ const docTemplate = `{
                 }
             }
         },
+        "/test-results/history": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Get all learn history records for the authenticated user. Requires authentication.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tests"
+                ],
+                "summary": "Get user's learn history",
+                "responses": {
+                    "200": {
+                        "description": "List of learn history records (empty array if no records found)",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.UserLearnHistory"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized - authentication required, invalid/expired token, or user ID not found in context",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error - failed to retrieve learn history",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/test-results/{type}/{testType}": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Submit test results for hiragana or katakana reading, writing, or listening tests. Requires authentication.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tests"
+                ],
+                "summary": "Submit test results",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Alphabet type: hiragana or katakana",
+                        "name": "type",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Test type: reading, writing, or listening",
+                        "name": "testType",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Test results",
+                        "name": "results",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.TestResultRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Test results submitted successfully",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request - invalid request body, empty results array, or invalid alphabet/test type",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized - authentication required, invalid/expired token, or user ID not found in context",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error - failed to process or save test results",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/tests/{type}/listening": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Get semi-randomized characters for listening test with audio URLs. Requires authentication. Uses smart filtering based on user's learning history.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tests"
+                ],
+                "summary": "Get listening test",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Alphabet type: hiragana or katakana",
+                        "name": "type",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Locale: en (English), ru (Russian), or de (German - treated as English), default: en",
+                        "name": "locale",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Number of characters to return, default: 10",
+                        "name": "count",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "List of semi-randomized characters for listening test",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.ListeningTestItem"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request - type parameter is required or invalid alphabet type/locale/count",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized - authentication required or user ID not found in context",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error - failed to retrieve test characters",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/tests/{type}/reading": {
             "get": {
                 "security": [
@@ -1037,7 +1048,7 @@ const docTemplate = `{
                         "ApiKeyAuth": []
                     }
                 ],
-                "description": "Get random characters for reading test. Requires authentication.",
+                "description": "Get semi-randomized characters for reading test. Requires authentication. Uses smart filtering based on user's learning history.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1071,7 +1082,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "List of random characters for reading test",
+                        "description": "List of semi-randomized characters for reading test",
                         "schema": {
                             "type": "array",
                             "items": {
@@ -1089,7 +1100,7 @@ const docTemplate = `{
                         }
                     },
                     "401": {
-                        "description": "Unauthorized - authentication required or invalid/expired token",
+                        "description": "Unauthorized - authentication required or user ID not found in context",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -1116,7 +1127,7 @@ const docTemplate = `{
                         "ApiKeyAuth": []
                     }
                 ],
-                "description": "Get random characters for writing test with multiple choice options. Requires authentication.",
+                "description": "Get semi-randomized characters for writing test with multiple choice options. Requires authentication. Uses smart filtering based on user's learning history.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1150,7 +1161,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "List of random characters for writing test with multiple choice options",
+                        "description": "List of semi-randomized characters for writing test with multiple choice options",
                         "schema": {
                             "type": "array",
                             "items": {
@@ -1168,7 +1179,7 @@ const docTemplate = `{
                         }
                     },
                     "401": {
-                        "description": "Unauthorized - authentication required or invalid/expired token",
+                        "description": "Unauthorized - authentication required or user ID not found in context",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -1178,6 +1189,147 @@ const docTemplate = `{
                     },
                     "500": {
                         "description": "Internal server error - failed to retrieve test characters",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/words": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Get a mixed list of old and new words for the authenticated user. Requires authentication.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "dictionary"
+                ],
+                "summary": "Get word list",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Number of new words (10-40), default: 20",
+                        "name": "newCount",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Number of old words (10-40), default: 20",
+                        "name": "oldCount",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Locale: en, ru, or de, default: en",
+                        "name": "locale",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "List of words",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.WordResponse"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request - invalid parameters",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized - authentication required",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/words/results": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Submit word learning results with period values. Requires authentication.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "dictionary"
+                ],
+                "summary": "Submit word learning results",
+                "parameters": [
+                    {
+                        "description": "Word results",
+                        "name": "results",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.SubmitWordResultsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad request - invalid request body or validation error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized - authentication required",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -1215,6 +1367,10 @@ const docTemplate = `{
         "models.Character": {
             "type": "object",
             "properties": {
+                "audio": {
+                    "description": "URL to audio file on media server",
+                    "type": "string"
+                },
                 "consonant": {
                     "description": "defines a membership to a consonant group",
                     "type": "string"
@@ -1284,29 +1440,6 @@ const docTemplate = `{
                 }
             }
         },
-        "models.CreateCharacterRequest": {
-            "type": "object",
-            "properties": {
-                "consonant": {
-                    "type": "string"
-                },
-                "englishReading": {
-                    "type": "string"
-                },
-                "hiragana": {
-                    "type": "string"
-                },
-                "katakana": {
-                    "type": "string"
-                },
-                "russianReading": {
-                    "type": "string"
-                },
-                "vowel": {
-                    "type": "string"
-                }
-            }
-        },
         "models.CreateWordRequest": {
             "type": "object",
             "properties": {
@@ -1351,6 +1484,27 @@ const docTemplate = `{
                 }
             }
         },
+        "models.ListeningTestItem": {
+            "type": "object",
+            "properties": {
+                "audioUrl": {
+                    "type": "string"
+                },
+                "correctChar": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "wrongOptions": {
+                    "description": "Two wrong character options",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
         "models.ReadingTestItem": {
             "type": "object",
             "properties": {
@@ -1382,29 +1536,6 @@ const docTemplate = `{
                 },
                 "passed": {
                     "type": "boolean"
-                }
-            }
-        },
-        "models.UpdateCharacterRequest": {
-            "type": "object",
-            "properties": {
-                "consonant": {
-                    "type": "string"
-                },
-                "englishReading": {
-                    "type": "string"
-                },
-                "hiragana": {
-                    "type": "string"
-                },
-                "katakana": {
-                    "type": "string"
-                },
-                "russianReading": {
-                    "type": "string"
-                },
-                "vowel": {
-                    "type": "string"
                 }
             }
         },
@@ -1632,7 +1763,7 @@ const docTemplate = `{
 var SwaggerInfo = &swag.Spec{
 	Version:          "1.0",
 	Host:             "localhost:8080",
-	BasePath:         "/api/v3",
+	BasePath:         "/api/v4",
 	Schemes:          []string{},
 	Title:            "JapaneseStudent Characters API",
 	Description:      "API for managing hiragana and katakana characters",
