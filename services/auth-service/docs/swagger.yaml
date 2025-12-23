@@ -5,17 +5,6 @@ definitions:
       refresh_token:
         type: string
     type: object
-  models.CreateUserRequest:
-    properties:
-      email:
-        type: string
-      password:
-        type: string
-      role:
-        $ref: '#/definitions/models.Role'
-      username:
-        type: string
-    type: object
   models.Language:
     enum:
     - en
@@ -176,15 +165,33 @@ paths:
       - admin
     post:
       consumes:
-      - application/json
-      description: Create a new user with settings
+      - multipart/form-data
+      description: Create a new user with settings and optional avatar
       parameters:
-      - description: User creation request
-        in: body
-        name: request
+      - description: Username
+        in: formData
+        name: username
         required: true
-        schema:
-          $ref: '#/definitions/models.CreateUserRequest'
+        type: string
+      - description: Email
+        in: formData
+        name: email
+        required: true
+        type: string
+      - description: Password
+        in: formData
+        name: password
+        required: true
+        type: string
+      - description: Role (1=User, 2=Tutor, 3=Admin)
+        in: formData
+        name: role
+        required: true
+        type: integer
+      - description: Avatar image (optional)
+        in: formData
+        name: avatar
+        type: file
       produces:
       - application/json
       responses:

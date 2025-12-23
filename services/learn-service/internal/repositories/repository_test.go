@@ -403,12 +403,12 @@ func TestCharactersRepository_GetByID(t *testing.T) {
 	}
 }
 
-func TestCharactersRepository_GetRandomForReadingTest(t *testing.T) {
+func TestCharactersRepository_GetCharactersForReadingTest(t *testing.T) {
 	tests := []struct {
 		name          string
 		alphabetType  models.AlphabetType
 		locale        models.Locale
-		count         int
+		characterIDs  []int
 		setupMock     func(sqlmock.Sqlmock)
 		expectedError bool
 		expectedCount int
@@ -417,24 +417,24 @@ func TestCharactersRepository_GetRandomForReadingTest(t *testing.T) {
 			name:         "success hiragana english",
 			alphabetType: models.AlphabetTypeHiragana,
 			locale:       models.LocaleEnglish,
-			count:        2,
+			characterIDs: []int{1, 2},
 			setupMock: func(mock sqlmock.Sqlmock) {
 				// First query for correct characters
 				rows1 := sqlmock.NewRows([]string{"id", "display_character", "reading"}).
 					AddRow(1, "あ", "a").
 					AddRow(2, "い", "i")
-				mock.ExpectQuery(`SELECT id, hiragana AS display_character, english_reading AS reading FROM characters WHERE hiragana IS NOT NULL AND english_reading != '' ORDER BY RAND\(\) LIMIT \?`).
-					WithArgs(2).
+				mock.ExpectQuery(`SELECT DISTINCT id, hiragana AS display_character, english_reading AS reading FROM characters WHERE id IN \(\?,\?\) ORDER BY RAND\(\)`).
+					WithArgs(1, 2).
 					WillReturnRows(rows1)
 
-				// Second query for wrong options (filters by character, not ID)
+				// Second query for wrong options (filters by ID, not character)
 				rows2 := sqlmock.NewRows([]string{"display_character"}).
 					AddRow("う").
 					AddRow("え").
 					AddRow("お").
 					AddRow("か")
-				mock.ExpectQuery(`SELECT hiragana AS display_character FROM characters WHERE hiragana NOT IN \(\?,\?\) AND hiragana IS NOT NULL AND hiragana != '' ORDER BY RAND\(\)`).
-					WithArgs("あ", "い").
+				mock.ExpectQuery(`SELECT hiragana AS display_character FROM characters WHERE id NOT IN \(\?,\?\) AND hiragana IS NOT NULL AND hiragana != '' ORDER BY RAND\(\) LIMIT \?`).
+					WithArgs(1, 2, 4).
 					WillReturnRows(rows2)
 			},
 			expectedError: false,
@@ -444,7 +444,7 @@ func TestCharactersRepository_GetRandomForReadingTest(t *testing.T) {
 			name:         "invalid alphabet type",
 			alphabetType: "invalid",
 			locale:       models.LocaleEnglish,
-			count:        2,
+			characterIDs: []int{1, 2},
 			setupMock: func(mock sqlmock.Sqlmock) {
 				// No query expected
 			},
@@ -455,7 +455,7 @@ func TestCharactersRepository_GetRandomForReadingTest(t *testing.T) {
 			name:         "invalid locale",
 			alphabetType: models.AlphabetTypeHiragana,
 			locale:       "invalid",
-			count:        2,
+			characterIDs: []int{1, 2},
 			setupMock: func(mock sqlmock.Sqlmock) {
 				// No query expected
 			},
@@ -466,10 +466,10 @@ func TestCharactersRepository_GetRandomForReadingTest(t *testing.T) {
 			name:         "database query error on correct chars",
 			alphabetType: models.AlphabetTypeHiragana,
 			locale:       models.LocaleEnglish,
-			count:        2,
+			characterIDs: []int{1, 2},
 			setupMock: func(mock sqlmock.Sqlmock) {
-				mock.ExpectQuery(`SELECT id, hiragana AS display_character, english_reading AS reading FROM characters WHERE hiragana IS NOT NULL AND english_reading != '' ORDER BY RAND\(\) LIMIT \?`).
-					WithArgs(2).
+				mock.ExpectQuery(`SELECT DISTINCT id, hiragana AS display_character, english_reading AS reading FROM characters WHERE id IN \(\?,\?\) ORDER BY RAND\(\)`).
+					WithArgs(1, 2).
 					WillReturnError(errors.New("database error"))
 			},
 			expectedError: true,
@@ -479,16 +479,16 @@ func TestCharactersRepository_GetRandomForReadingTest(t *testing.T) {
 			name:         "database query error on wrong options",
 			alphabetType: models.AlphabetTypeHiragana,
 			locale:       models.LocaleEnglish,
-			count:        1,
+			characterIDs: []int{1},
 			setupMock: func(mock sqlmock.Sqlmock) {
 				rows1 := sqlmock.NewRows([]string{"id", "display_character", "reading"}).
 					AddRow(1, "あ", "a")
-				mock.ExpectQuery(`SELECT id, hiragana AS display_character, english_reading AS reading FROM characters WHERE hiragana IS NOT NULL AND english_reading != '' ORDER BY RAND\(\) LIMIT \?`).
+				mock.ExpectQuery(`SELECT DISTINCT id, hiragana AS display_character, english_reading AS reading FROM characters WHERE id IN \(\?\) ORDER BY RAND\(\)`).
 					WithArgs(1).
 					WillReturnRows(rows1)
 
-				mock.ExpectQuery(`SELECT hiragana AS display_character FROM characters WHERE hiragana NOT IN \(\?\) AND hiragana IS NOT NULL AND hiragana != '' ORDER BY RAND\(\)`).
-					WithArgs("あ").
+				mock.ExpectQuery(`SELECT hiragana AS display_character FROM characters WHERE id NOT IN \(\?\) AND hiragana IS NOT NULL AND hiragana != '' ORDER BY RAND\(\) LIMIT \?`).
+					WithArgs(1, 2).
 					WillReturnError(errors.New("database error"))
 			},
 			expectedError: true,
@@ -498,18 +498,18 @@ func TestCharactersRepository_GetRandomForReadingTest(t *testing.T) {
 			name:         "insufficient wrong options",
 			alphabetType: models.AlphabetTypeHiragana,
 			locale:       models.LocaleEnglish,
-			count:        1,
+			characterIDs: []int{1},
 			setupMock: func(mock sqlmock.Sqlmock) {
 				rows1 := sqlmock.NewRows([]string{"id", "display_character", "reading"}).
 					AddRow(1, "あ", "a")
-				mock.ExpectQuery(`SELECT id, hiragana AS display_character, english_reading AS reading FROM characters WHERE hiragana IS NOT NULL AND english_reading != '' ORDER BY RAND\(\) LIMIT \?`).
+				mock.ExpectQuery(`SELECT DISTINCT id, hiragana AS display_character, english_reading AS reading FROM characters WHERE id IN \(\?\) ORDER BY RAND\(\)`).
 					WithArgs(1).
 					WillReturnRows(rows1)
 
 				rows2 := sqlmock.NewRows([]string{"display_character"}).
 					AddRow("い") // Only one wrong option, need 2
-				mock.ExpectQuery(`SELECT hiragana AS display_character FROM characters WHERE hiragana NOT IN \(\?\) AND hiragana IS NOT NULL AND hiragana != '' ORDER BY RAND\(\)`).
-					WithArgs("あ").
+				mock.ExpectQuery(`SELECT hiragana AS display_character FROM characters WHERE id NOT IN \(\?\) AND hiragana IS NOT NULL AND hiragana != '' ORDER BY RAND\(\) LIMIT \?`).
+					WithArgs(1, 2).
 					WillReturnRows(rows2)
 			},
 			expectedError: true,
@@ -524,7 +524,7 @@ func TestCharactersRepository_GetRandomForReadingTest(t *testing.T) {
 
 			tt.setupMock(mock)
 
-			result, err := repo.GetRandomForReadingTest(context.Background(), tt.alphabetType, tt.locale, tt.count)
+			result, err := repo.GetCharactersForReadingTest(context.Background(), tt.alphabetType, tt.locale, tt.characterIDs)
 
 			if tt.expectedError {
 				assert.Error(t, err)
@@ -552,12 +552,12 @@ func TestCharactersRepository_GetRandomForReadingTest(t *testing.T) {
 	}
 }
 
-func TestCharactersRepository_GetRandomForWritingTest(t *testing.T) {
+func TestCharactersRepository_GetCharactersForWritingTest(t *testing.T) {
 	tests := []struct {
 		name          string
 		alphabetType  models.AlphabetType
 		locale        models.Locale
-		count         int
+		characterIDs  []int
 		setupMock     func(sqlmock.Sqlmock)
 		expectedError bool
 		expectedCount int
@@ -566,14 +566,14 @@ func TestCharactersRepository_GetRandomForWritingTest(t *testing.T) {
 			name:         "success katakana russian",
 			alphabetType: models.AlphabetTypeKatakana,
 			locale:       models.LocaleRussian,
-			count:        3,
+			characterIDs: []int{1, 2, 3},
 			setupMock: func(mock sqlmock.Sqlmock) {
 				rows := sqlmock.NewRows([]string{"id", "display_character", "reading"}).
 					AddRow(1, "ア", "а").
 					AddRow(2, "イ", "и").
 					AddRow(3, "ウ", "у")
-				mock.ExpectQuery(`SELECT id, katakana AS display_character, russian_reading AS reading FROM characters WHERE katakana IS NOT NULL AND russian_reading != '' ORDER BY RAND\(\) LIMIT \?`).
-					WithArgs(3).
+				mock.ExpectQuery(`SELECT DISTINCT id, katakana AS display_character, russian_reading AS reading FROM characters WHERE id IN \(\?,\?,\?\) ORDER BY RAND\(\)`).
+					WithArgs(1, 2, 3).
 					WillReturnRows(rows)
 			},
 			expectedError: false,
@@ -583,7 +583,7 @@ func TestCharactersRepository_GetRandomForWritingTest(t *testing.T) {
 			name:         "invalid alphabet type",
 			alphabetType: "invalid",
 			locale:       models.LocaleEnglish,
-			count:        2,
+			characterIDs: []int{1, 2},
 			setupMock: func(mock sqlmock.Sqlmock) {
 				// No query expected
 			},
@@ -594,7 +594,7 @@ func TestCharactersRepository_GetRandomForWritingTest(t *testing.T) {
 			name:         "invalid locale",
 			alphabetType: models.AlphabetTypeHiragana,
 			locale:       "invalid",
-			count:        2,
+			characterIDs: []int{1, 2},
 			setupMock: func(mock sqlmock.Sqlmock) {
 				// No query expected
 			},
@@ -605,10 +605,10 @@ func TestCharactersRepository_GetRandomForWritingTest(t *testing.T) {
 			name:         "database query error",
 			alphabetType: models.AlphabetTypeHiragana,
 			locale:       models.LocaleEnglish,
-			count:        2,
+			characterIDs: []int{1, 2},
 			setupMock: func(mock sqlmock.Sqlmock) {
-				mock.ExpectQuery(`SELECT id, hiragana AS display_character, english_reading AS reading FROM characters WHERE hiragana IS NOT NULL AND english_reading != '' ORDER BY RAND\(\) LIMIT \?`).
-					WithArgs(2).
+				mock.ExpectQuery(`SELECT DISTINCT id, hiragana AS display_character, english_reading AS reading FROM characters WHERE id IN \(\?,\?\) ORDER BY RAND\(\)`).
+					WithArgs(1, 2).
 					WillReturnError(errors.New("database error"))
 			},
 			expectedError: true,
@@ -618,11 +618,11 @@ func TestCharactersRepository_GetRandomForWritingTest(t *testing.T) {
 			name:         "scan error",
 			alphabetType: models.AlphabetTypeHiragana,
 			locale:       models.LocaleEnglish,
-			count:        1,
+			characterIDs: []int{1},
 			setupMock: func(mock sqlmock.Sqlmock) {
 				rows := sqlmock.NewRows([]string{"id", "display_character", "reading"}).
 					AddRow("invalid", "あ", "a")
-				mock.ExpectQuery(`SELECT id, hiragana AS display_character, english_reading AS reading FROM characters WHERE hiragana IS NOT NULL AND english_reading != '' ORDER BY RAND\(\) LIMIT \?`).
+				mock.ExpectQuery(`SELECT DISTINCT id, hiragana AS display_character, english_reading AS reading FROM characters WHERE id IN \(\?\) ORDER BY RAND\(\)`).
 					WithArgs(1).
 					WillReturnRows(rows)
 			},
@@ -633,13 +633,13 @@ func TestCharactersRepository_GetRandomForWritingTest(t *testing.T) {
 			name:         "rows iteration error",
 			alphabetType: models.AlphabetTypeHiragana,
 			locale:       models.LocaleEnglish,
-			count:        2,
+			characterIDs: []int{1, 2},
 			setupMock: func(mock sqlmock.Sqlmock) {
 				rows := sqlmock.NewRows([]string{"id", "display_character", "reading"}).
 					AddRow(1, "あ", "a").
 					RowError(0, errors.New("row error"))
-				mock.ExpectQuery(`SELECT id, hiragana AS display_character, english_reading AS reading FROM characters WHERE hiragana IS NOT NULL AND english_reading != '' ORDER BY RAND\(\) LIMIT \?`).
-					WithArgs(2).
+				mock.ExpectQuery(`SELECT DISTINCT id, hiragana AS display_character, english_reading AS reading FROM characters WHERE id IN \(\?,\?\) ORDER BY RAND\(\)`).
+					WithArgs(1, 2).
 					WillReturnRows(rows)
 			},
 			expectedError: true,
@@ -649,11 +649,11 @@ func TestCharactersRepository_GetRandomForWritingTest(t *testing.T) {
 			name:         "empty result",
 			alphabetType: models.AlphabetTypeKatakana,
 			locale:       models.LocaleEnglish,
-			count:        5,
+			characterIDs: []int{1, 2, 3, 4, 5},
 			setupMock: func(mock sqlmock.Sqlmock) {
 				rows := sqlmock.NewRows([]string{"id", "display_character", "reading"})
-				mock.ExpectQuery(`SELECT id, katakana AS display_character, english_reading AS reading FROM characters WHERE katakana IS NOT NULL AND english_reading != '' ORDER BY RAND\(\) LIMIT \?`).
-					WithArgs(5).
+				mock.ExpectQuery(`SELECT DISTINCT id, katakana AS display_character, english_reading AS reading FROM characters WHERE id IN \(\?,\?,\?,\?,\?\) ORDER BY RAND\(\)`).
+					WithArgs(1, 2, 3, 4, 5).
 					WillReturnRows(rows)
 			},
 			expectedError: false,
@@ -668,7 +668,7 @@ func TestCharactersRepository_GetRandomForWritingTest(t *testing.T) {
 
 			tt.setupMock(mock)
 
-			result, err := repo.GetRandomForWritingTest(context.Background(), tt.alphabetType, tt.locale, tt.count)
+			result, err := repo.GetCharactersForWritingTest(context.Background(), tt.alphabetType, tt.locale, tt.characterIDs)
 
 			if tt.expectedError {
 				assert.Error(t, err)

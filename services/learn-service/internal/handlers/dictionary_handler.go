@@ -58,7 +58,7 @@ func (h *DictionaryHandler) RegisterRoutes(r chi.Router, authMiddleware func(htt
 	})
 }
 
-// GetWordList handles GET /api/v1/words
+// GetWordList handles GET /words
 // @Summary Get word list
 // @Description Get a mixed list of old and new words for the authenticated user. Requires authentication.
 // @Tags dictionary
@@ -72,7 +72,7 @@ func (h *DictionaryHandler) RegisterRoutes(r chi.Router, authMiddleware func(htt
 // @Failure 400 {object} map[string]string "Bad request - invalid parameters"
 // @Failure 401 {object} map[string]string "Unauthorized - authentication required"
 // @Failure 500 {object} map[string]string "Internal server error"
-// @Router /api/v1/words [get]
+// @Router /words [get]
 func (h *DictionaryHandler) GetWordList(w http.ResponseWriter, r *http.Request) {
 	// Extract userID from auth middleware context
 	userID, ok := middleware.GetUserID(r.Context())
@@ -139,7 +139,7 @@ type SubmitWordResultsRequest struct {
 	Results []models.WordResult `json:"results"`
 }
 
-// SubmitWordResults handles POST /api/v1/words/results
+// SubmitWordResults handles POST /words/results
 // @Summary Submit word learning results
 // @Description Submit word learning results with period values. Requires authentication.
 // @Tags dictionary
@@ -151,7 +151,7 @@ type SubmitWordResultsRequest struct {
 // @Failure 400 {object} map[string]string "Bad request - invalid request body or validation error"
 // @Failure 401 {object} map[string]string "Unauthorized - authentication required"
 // @Failure 500 {object} map[string]string "Internal server error"
-// @Router /api/v1/words/results [post]
+// @Router /words/results [post]
 func (h *DictionaryHandler) SubmitWordResults(w http.ResponseWriter, r *http.Request) {
 	// Extract userID from auth middleware context
 	userID, ok := middleware.GetUserID(r.Context())

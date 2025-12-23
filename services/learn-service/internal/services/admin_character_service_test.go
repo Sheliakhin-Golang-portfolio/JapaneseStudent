@@ -85,7 +85,7 @@ func (m *mockAdminCharactersRepository) Delete(ctx context.Context, id int) erro
 func TestNewAdminService(t *testing.T) {
 	mockRepo := &mockAdminCharactersRepository{}
 
-	svc := NewAdminService(mockRepo)
+	svc := NewAdminService(mockRepo, "", "")
 
 	assert.NotNil(t, svc)
 	assert.Equal(t, mockRepo, svc.repo)
@@ -102,8 +102,8 @@ func TestAdminService_GetAllForAdmin(t *testing.T) {
 			name: "success",
 			mockRepo: &mockAdminCharactersRepository{
 				characters: []models.Character{
-					{ID: 1, Consonant: "", Vowel: "a", Katakana: "ア", Hiragana: "あ"},
-					{ID: 2, Consonant: "k", Vowel: "a", Katakana: "カ", Hiragana: "か"},
+					{ID: 1, Consonant: "", Vowel: "a", Katakana: "ア", Hiragana: "あ", Audio: ""},
+					{ID: 2, Consonant: "k", Vowel: "a", Katakana: "カ", Hiragana: "か", Audio: ""},
 				},
 			},
 			expectedError: false,
@@ -129,7 +129,7 @@ func TestAdminService_GetAllForAdmin(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc := NewAdminService(tt.mockRepo)
+			svc := NewAdminService(tt.mockRepo, "", "")
 			ctx := context.Background()
 
 			result, err := svc.GetAllForAdmin(ctx)
@@ -166,6 +166,7 @@ func TestAdminService_GetByIDAdmin(t *testing.T) {
 					RussianReading: "а",
 					Katakana:       "ア",
 					Hiragana:       "あ",
+					Audio:          "",
 				},
 			},
 			expectedError: false,
@@ -198,7 +199,7 @@ func TestAdminService_GetByIDAdmin(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc := NewAdminService(tt.mockRepo)
+			svc := NewAdminService(tt.mockRepo, "", "")
 			ctx := context.Background()
 
 			result, err := svc.GetByIDAdmin(ctx, tt.id)
@@ -283,10 +284,10 @@ func TestAdminService_CreateCharacter(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc := NewAdminService(tt.mockRepo)
+			svc := NewAdminService(tt.mockRepo, "", "")
 			ctx := context.Background()
 
-			result, err := svc.CreateCharacter(ctx, tt.request)
+			result, err := svc.CreateCharacter(ctx, tt.request, nil, "")
 
 			if tt.expectedError {
 				assert.Error(t, err)
@@ -322,6 +323,7 @@ func TestAdminService_UpdateCharacter(t *testing.T) {
 					ID:        1,
 					Consonant: "k",
 					Vowel:     "a",
+					Audio:     "",
 				},
 			},
 			expectedError: false,
@@ -338,6 +340,7 @@ func TestAdminService_UpdateCharacter(t *testing.T) {
 					ID:        1,
 					Consonant: "k",
 					Vowel:     "a",
+					Audio:     "",
 				},
 				exists: false,
 			},
@@ -354,6 +357,7 @@ func TestAdminService_UpdateCharacter(t *testing.T) {
 					ID:        1,
 					Consonant: "k",
 					Vowel:     "a",
+					Audio:     "",
 				},
 				exists: false,
 			},
@@ -370,6 +374,7 @@ func TestAdminService_UpdateCharacter(t *testing.T) {
 					ID:        1,
 					Consonant: "k",
 					Vowel:     "a",
+					Audio:     "",
 				},
 				exists: false,
 			},
@@ -401,7 +406,7 @@ func TestAdminService_UpdateCharacter(t *testing.T) {
 				err: errors.New("character not found"),
 			},
 			expectedError: true,
-			errorContains: "failed to get character by id",
+			errorContains: "character not found",
 		},
 		{
 			name: "character with new vowel and consonant already exists",
@@ -415,6 +420,7 @@ func TestAdminService_UpdateCharacter(t *testing.T) {
 					ID:        1,
 					Consonant: "k",
 					Vowel:     "a",
+					Audio:     "",
 				},
 				exists: true,
 			},
@@ -433,6 +439,7 @@ func TestAdminService_UpdateCharacter(t *testing.T) {
 					ID:        1,
 					Consonant: "k",
 					Vowel:     "a",
+					Audio:     "",
 				},
 				existsErr: errors.New("database error"), // Use existsErr instead of err
 			},
@@ -450,6 +457,7 @@ func TestAdminService_UpdateCharacter(t *testing.T) {
 					ID:        1,
 					Consonant: "k",
 					Vowel:     "a",
+					Audio:     "",
 				},
 				updateErr: errors.New("update error"),
 			},
@@ -459,10 +467,10 @@ func TestAdminService_UpdateCharacter(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc := NewAdminService(tt.mockRepo)
+			svc := NewAdminService(tt.mockRepo, "", "")
 			ctx := context.Background()
 
-			err := svc.UpdateCharacter(ctx, tt.id, tt.request)
+			err := svc.UpdateCharacter(ctx, tt.id, tt.request, nil, "")
 
 			if tt.expectedError {
 				assert.Error(t, err)
@@ -485,9 +493,14 @@ func TestAdminService_DeleteCharacter(t *testing.T) {
 		errorContains string
 	}{
 		{
-			name:          "success",
-			id:            1,
-			mockRepo:      &mockAdminCharactersRepository{},
+			name: "success",
+			id:   1,
+			mockRepo: &mockAdminCharactersRepository{
+				character: &models.Character{
+					ID:    1,
+					Audio: "",
+				},
+			},
 			expectedError: false,
 		},
 		{
@@ -508,6 +521,10 @@ func TestAdminService_DeleteCharacter(t *testing.T) {
 			name: "repository error",
 			id:   1,
 			mockRepo: &mockAdminCharactersRepository{
+				character: &models.Character{
+					ID:    1,
+					Audio: "",
+				},
 				deleteErr: errors.New("delete error"),
 			},
 			expectedError: true,
@@ -516,7 +533,7 @@ func TestAdminService_DeleteCharacter(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc := NewAdminService(tt.mockRepo)
+			svc := NewAdminService(tt.mockRepo, "", "")
 			ctx := context.Background()
 
 			err := svc.DeleteCharacter(ctx, tt.id)

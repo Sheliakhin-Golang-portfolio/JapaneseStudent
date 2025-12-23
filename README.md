@@ -311,40 +311,40 @@ docker-compose down -v
 ### Authentication Service (Port 8081)
 
 #### Authentication
-- `POST /api/v3/auth/register` - Register a new user
+- `POST /api/v4/auth/register` - Register a new user
   - Body: `{ "email": "user@example.com", "username": "username", "password": "Password123!" }`
   - Returns: Access and refresh tokens as HTTP-only cookies
-- `POST /api/v3/auth/login` - Login with email/username and password
+- `POST /api/v4/auth/login` - Login with email/username and password
   - Body: `{ "login": "user@example.com", "password": "Password123!" }`
   - Returns: Access and refresh tokens as HTTP-only cookies
-- `POST /api/v3/auth/refresh` - Refresh access token using refresh token
+- `POST /api/v4/auth/refresh` - Refresh access token using refresh token
   - Body: `{ "refreshToken": "token" }` (or cookie)
   - Returns: New access and refresh tokens
 
 #### User Settings (Requires Authentication)
-- `GET /api/v3/settings` - Get user settings for the authenticated user
+- `GET /api/v4/settings` - Get user settings for the authenticated user
   - Returns: User settings including word counts, alphabet learn count, and language preference
-- `PATCH /api/v3/settings` - Update user settings
+- `PATCH /api/v4/settings` - Update user settings
   - Body: `{ "newWordCount": 20, "oldWordCount": 20, "alphabetLearnCount": 10, "language": "en" }`
   - At least one field must be provided
   - Returns: 204 No Content on success
 
 #### Admin Endpoints (Requires Authentication & Admin Role)
-- `GET /api/v3/admin/users` - Get paginated list of users
+- `GET /api/v4/admin/users` - Get paginated list of users
   - Query Parameters:
     - `page` (optional): Page number (default: 1)
     - `count` (optional): Items per page (default: 20)
     - `role` (optional): Filter by role (integer)
     - `search` (optional): Search in email or username
   - Returns: List of users with pagination
-- `GET /api/v3/admin/users/{id}` - Get user with settings by ID
+- `GET /api/v4/admin/users/{id}` - Get user with settings by ID
   - Returns: Full user information including settings
-- `POST /api/v3/admin/users` - Create a new user with settings
+- `POST /api/v4/admin/users` - Create a new user with settings
   - Body: `{ "email": "user@example.com", "username": "username", "password": "Password123!", "role": 0 }`
   - Returns: Created user ID
-- `POST /api/v3/admin/users/{id}/settings` - Create user settings for a user
+- `POST /api/v4/admin/users/{id}/settings` - Create user settings for a user
   - Returns: Success message or "Settings already exist"
-- `PATCH /api/v3/admin/users/{id}` - Update user and/or settings
+- `PATCH /api/v4/admin/users/{id}` - Update user and/or settings
   - Content-Type: `multipart/form-data`
   - Form Fields:
     - `username` (optional): New username
@@ -357,34 +357,54 @@ docker-compose down -v
     - `avatar` (optional): Avatar image file
   - Returns: 204 No Content on success
   - Note: Avatar upload integrates with media-service. Old avatar is automatically deleted when uploading a new one.
-- `DELETE /api/v3/admin/users/{id}` - Delete a user by ID
+- `DELETE /api/v4/admin/users/{id}` - Delete a user by ID
   - Returns: 204 No Content on success (or 200 with message if avatar deletion fails)
   - Note: Automatically deletes user's avatar from media-service if present
 
 ### Learning Service (Port 8080)
 
 #### Characters
-- `GET /api/v3/characters?type={hr|kt}&locale={en|ru}` - Get all characters
-- `GET /api/v3/characters/row-column?type={hr|kt}&locale={en|ru}&character={char}` - Get characters by row/column
-- `GET /api/v3/characters/{id}?locale={en|ru}` - Get character by ID
+- `GET /api/v4/characters?type={hr|kt}&locale={en|ru}` - Get all characters
+- `GET /api/v4/characters/row-column?type={hr|kt}&locale={en|ru}&character={char}` - Get characters by row/column
+- `GET /api/v4/characters/{id}?locale={en|ru}` - Get character by ID
+  - Returns: Character information including audio URL (if available)
 
 #### Tests (Requires Authentication)
-- `GET /api/v3/tests/{hiragana|katakana}/reading?locale={en|ru}` - Get reading test (10 random characters with options)
-- `GET /api/v3/tests/{hiragana|katakana}/writing?locale={en|ru}` - Get writing test (10 random characters)
+- `GET /api/v4/tests/{hiragana|katakana}/reading?locale={en|ru}&count={number}` - Get reading test
+  - Query Parameters:
+    - `locale` (optional): Locale for reading - `en` or `ru` (default: `en`)
+    - `count` (optional): Number of characters to return (default: 10)
+  - Returns: List of characters with multiple choice options
+  - **Smart Filtering**: When authenticated, prioritizes characters with no learning history, then characters with lowest reading test results
+- `GET /api/v4/tests/{hiragana|katakana}/writing?locale={en|ru}&count={number}` - Get writing test
+  - Query Parameters:
+    - `locale` (optional): Locale for reading - `en` or `ru` (default: `en`)
+    - `count` (optional): Number of characters to return (default: 10)
+  - Returns: List of characters for writing practice
+  - **Smart Filtering**: When authenticated, prioritizes characters with no learning history, then characters with lowest writing test results
+- `GET /api/v4/tests/{hiragana|katakana}/listening?locale={en|ru}&count={number}` - Get listening test
+  - Query Parameters:
+    - `locale` (optional): Locale for reading - `en` or `ru` (default: `en`)
+    - `count` (optional): Number of characters to return (default: 10)
+  - Returns: List of characters with audio URLs, correct character, and wrong options
+  - **Smart Filtering**: When authenticated, prioritizes characters with no learning history, then characters with lowest listening test results
+  - **Note**: Only returns characters that have audio files uploaded
 
 #### Test Results (Requires Authentication)
-- `POST /api/v3/test-results/{hiragana|katakana}/{reading|writing|listening}` - Submit test results
+- `POST /api/v4/test-results/{hiragana|katakana}/{reading|writing|listening}` - Submit test results
   - Body: `{ "results": [{ "characterId": 1, "passed": true }, ...] }`
-- `GET /api/v3/test-results/history` - Get user's learning history
+  - Test types: `reading`, `writing`, or `listening`
+- `GET /api/v4/test-results/history` - Get user's learning history
+  - Returns: All learning history records for the authenticated user
 
 #### Dictionary / Words (Requires Authentication)
-- `GET /api/v3/words?newCount={10-40}&oldCount={10-40}&locale={en|ru|de}` - Get word list
+- `GET /api/v4/words?newCount={10-40}&oldCount={10-40}&locale={en|ru|de}` - Get word list
   - Query Parameters:
     - `newCount` (optional): Number of new words to return (10-40, default: 20)
-    - `oldCount` (optional): Number of old words to return (10-40, default: 20)
+    - `oldWordCount` (optional): Number of old words to return (10-40, default: 20)
     - `locale` (optional): Translation locale - `en`, `ru`, or `de` (default: `en`)
   - Returns: Mixed list of new and old words with locale-specific translations
-- `POST /api/v3/words/results` - Submit word learning results
+- `POST /api/v4/words/results` - Submit word learning results
   - Body: `{ "results": [{ "wordId": 1, "period": 7 }, ...] }`
   - `period`: Days until next appearance (1-30)
   - Returns: 204 No Content on success
@@ -392,35 +412,54 @@ docker-compose down -v
 #### Admin Endpoints (Requires Authentication & Admin Role)
 
 ##### Admin Characters
-- `GET /api/v3/admin/characters` - Get full list of characters ordered by ID
-  - Returns: List of all characters with full information
-- `GET /api/v3/admin/characters/{id}` - Get character by ID
-  - Returns: Full character information
-- `POST /api/v3/admin/characters` - Create a new character
-  - Body: `{ "consonant": "k", "vowel": "a", "englishReading": "ka", "russianReading": "ка", "hiragana": "か", "katakana": "カ" }`
+- `GET /api/v4/admin/characters` - Get full list of characters ordered by ID
+  - Returns: List of all characters with full information including audio URLs
+- `GET /api/v4/admin/characters/{id}` - Get character by ID
+  - Returns: Full character information including audio URL (if available)
+- `POST /api/v4/admin/characters` - Create a new character
+  - Content-Type: `multipart/form-data`
+  - Form Fields:
+    - `consonant`: Consonant character
+    - `vowel`: Vowel character
+    - `englishReading`: English reading
+    - `russianReading`: Russian reading
+    - `hiragana`: Hiragana character
+    - `katakana`: Katakana character
+    - `audio` (optional): Audio file (MP3, WAV, etc.)
   - Returns: Created character ID
-- `PATCH /api/v3/admin/characters/{id}` - Update a character (partial update)
-  - Body: Partial update request with character fields
+  - Note: Audio file is uploaded to media-service and URL is stored in the database
+- `PATCH /api/v4/admin/characters/{id}` - Update a character (partial update)
+  - Content-Type: `multipart/form-data`
+  - Form Fields:
+    - `consonant` (optional): Consonant character
+    - `vowel` (optional): Vowel character
+    - `englishReading` (optional): English reading
+    - `russianReading` (optional): Russian reading
+    - `hiragana` (optional): Hiragana character
+    - `katakana` (optional): Katakana character
+    - `audio` (optional): New audio file (replaces existing audio if provided)
   - Returns: 204 No Content on success
-- `DELETE /api/v3/admin/characters/{id}` - Delete a character by ID
+  - Note: If new audio is provided, old audio file is automatically deleted from media-service
+- `DELETE /api/v4/admin/characters/{id}` - Delete a character by ID
   - Returns: 204 No Content on success
+  - Note: Automatically deletes character's audio file from media-service if present
 
 ##### Admin Words
-- `GET /api/v3/admin/words` - Get paginated list of words with optional search
+- `GET /api/v4/admin/words` - Get paginated list of words with optional search
   - Query Parameters:
     - `page` (optional): Page number (default: 1)
     - `count` (optional): Items per page (default: 20)
     - `search` (optional): Search in word, phonetic clues, or translations
   - Returns: List of words with pagination
-- `GET /api/v3/admin/words/{id}` - Get word by ID
+- `GET /api/v4/admin/words/{id}` - Get word by ID
   - Returns: Full word information including all translations and examples
-- `POST /api/v3/admin/words` - Create a new word
+- `POST /api/v4/admin/words` - Create a new word
   - Body: Word creation request with all required fields
   - Returns: Created word ID
-- `PATCH /api/v3/admin/words/{id}` - Update a word (partial update)
+- `PATCH /api/v4/admin/words/{id}` - Update a word (partial update)
   - Body: Partial update request with word fields
   - Returns: 204 No Content on success
-- `DELETE /api/v3/admin/words/{id}` - Delete a word by ID
+- `DELETE /api/v4/admin/words/{id}` - Delete a word by ID
   - Returns: 204 No Content on success
 
 ### Media Service (Port 8082)
@@ -545,6 +584,7 @@ go test ./services/learn-service/test/integration/... -v
 - `russian_reading` - Russian reading
 - `katakana` - Katakana character
 - `hiragana` - Hiragana character
+- `audio` - Audio file URL (VARCHAR(500), nullable) - URL to audio file stored on media-service
 
 #### Character Learn History Table
 - `id` - Primary key (auto-increment)
@@ -552,11 +592,12 @@ go test ./services/learn-service/test/integration/... -v
 - `character_id` - Foreign key to characters.id
 - `hiragana_reading_result` - Test result (0.0-1.0)
 - `hiragana_writing_result` - Test result (0.0-1.0)
-- `hiragana_listening_result` - Test result (0.0-1.0)
+- `hiragana_listening_result` - Test result (0.0-1.0) - Used for listening test results
 - `katakana_reading_result` - Test result (0.0-1.0)
 - `katakana_writing_result` - Test result (0.0-1.0)
-- `katakana_listening_result` - Test result (0.0-1.0)
+- `katakana_listening_result` - Test result (0.0-1.0) - Used for listening test results
 - Unique constraint on (user_id, character_id)
+- **Note**: Test results are used for smart filtering in test endpoints to prioritize characters that need more practice
 
 #### Words Table
 - `id` - Primary key (auto-increment)

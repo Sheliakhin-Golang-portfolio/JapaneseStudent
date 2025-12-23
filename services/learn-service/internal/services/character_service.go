@@ -27,25 +27,57 @@ type CharactersRepository interface {
 	//
 	// If wrong parameters will be used or some error will occur during data retrieve, the error will be returned together with "nil" value.
 	GetByID(ctx context.Context, id int, locale models.Locale) (*models.Character, error)
-	// Method GetRandomForReadingTest retrieve random characters for reading test.
+	// Method GetCharactersForReadingTest retrieve characters for reading test with defined IDs.
 	//
-	// This method returns a slice of "count" random ReadingTestItem objects, each containing one correct character and two wrong characters.
-	// Please reference GetAll method for more information about other parameters and error values.
-	GetRandomForReadingTest(ctx context.Context, alphabetType models.AlphabetType, locale models.Locale, count int) ([]models.ReadingTestItem, error)
-	// Method GetRandomForWritingTest retrieve random characters for writing test.
+	// This method returns a slice of ReadingTestItem objects with defined Id, each containing one correct character and two wrong characters.
+	// "alphabetType" parameter is used to identify the alphabet type.
+	// "locale" parameter is used to identify the locale.
+	// "characterIDs" parameter is used to identify the character IDs.
 	//
-	// Please reference GetRandomForReadingTest method for more information about parameters and error values.
-	GetRandomForWritingTest(ctx context.Context, alphabetType models.AlphabetType, locale models.Locale, count int) ([]models.WritingTestItem, error)
+	// If some error will occur during data retrieval, the error will be returned together with "nil" value.
+	GetCharactersForReadingTest(ctx context.Context, alphabetType models.AlphabetType, locale models.Locale, characterIDs []int) ([]models.ReadingTestItem, error)
+	// Method GetCharactersForWritingTest retrieve characters for writing test with defined IDs.
+	//
+	// This method returns a slice of "characterIDs" WritingTestItem objects, each containing one correct character and two wrong characters.
+	// "alphabetType" parameter is used to identify the alphabet type.
+	// "locale" parameter is used to identify the locale.
+	// "characterIDs" parameter is used to identify the character IDs.
+	//
+	// If some error will occur during data retrieval, the error will be returned together with "nil" value.
+	GetCharactersForWritingTest(ctx context.Context, alphabetType models.AlphabetType, locale models.Locale, characterIDs []int) ([]models.WritingTestItem, error)
+	// Method GetCharactersForListeningTest retrieve characters for listening test with defined IDs.
+	//
+	// Please reference GetCharactersForReadingTest method for more information about parameters and error values.
+	GetCharactersForListeningTest(ctx context.Context, alphabetType models.AlphabetType, locale models.Locale, characterIDs []int) ([]models.ListeningTestItem, error)
+	// Method GetCharactersWithoutHistory retrieve characters that don't have CharacterLearnHistory records for the user.
+	//
+	// "alphabetType" parameter is used to identify the alphabet type.
+	// "userID" parameter is used to identify the user.
+	// "count" parameter is used to identify the number of characters to retrieve.
+	//
+	// If some error will occur during data retrieval, the error will be returned together with "nil" value.
+	GetCharactersWithoutHistory(ctx context.Context, userID int, alphabetType models.AlphabetType, count int) ([]int, error)
+	// Method GetCharactersWithLowestResults retrieve characters with lowest result values for the user.
+	//
+	// "alphabetType" parameter is used to identify the alphabet type.
+	// "userID" parameter is used to identify the user.
+	// "testTypeResultField" parameter is used to identify the test type result field.
+	// "count" parameter is used to identify the number of characters to retrieve.
+	//
+	// If some error will occur during data retrieval, the error will be returned together with "nil" value.
+	GetCharactersWithLowestResults(ctx context.Context, userID int, alphabetType models.AlphabetType, testTypeResultField string, count int) ([]int, error)
 }
 
 type charactersService struct {
-	repo CharactersRepository
+	repo        CharactersRepository
+	historyRepo CharacterLearnHistoryRepository
 }
 
 // NewCharactersService creates a new character service
-func NewCharactersService(repo CharactersRepository) *charactersService {
+func NewCharactersService(repo CharactersRepository, historyRepo CharacterLearnHistoryRepository) *charactersService {
 	return &charactersService{
-		repo: repo,
+		repo:        repo,
+		historyRepo: historyRepo,
 	}
 }
 
@@ -113,7 +145,8 @@ func (s *charactersService) GetByID(ctx context.Context, id int, localeParam str
 // For successful results alphabetTypeStr must be either "hiragana" or "katakana" (from URL path).
 // localeParam must be either "ru" (Russian), "en" (English), or "de" (German - treated as English).
 // count must be a positive integer.
-func (s *charactersService) GetReadingTest(ctx context.Context, alphabetTypeStr string, localeParam string, count int) ([]models.ReadingTestItem, error) {
+// userID is required - uses smart filtering based on user's learning history.
+func (s *charactersService) GetReadingTest(ctx context.Context, alphabetTypeStr string, localeParam string, count int, userID int) ([]models.ReadingTestItem, error) {
 	locale := models.Locale(localeParam)
 
 	var at models.AlphabetType
@@ -132,7 +165,22 @@ func (s *charactersService) GetReadingTest(ctx context.Context, alphabetTypeStr 
 		return nil, err
 	}
 
-	return s.repo.GetRandomForReadingTest(ctx, at, normalizedLocale, count)
+	// Determine the result field based on alphabet type and test type
+	var testTypeResultField string
+	if alphabetTypeStr == "hiragana" {
+		testTypeResultField = "hiragana_reading_result"
+	} else {
+		testTypeResultField = "katakana_reading_result"
+	}
+
+	// Get character IDs with smart filtering
+	characterIDs, err := s.getCharacterIDsWithSmartFiltering(ctx, userID, at, testTypeResultField, count)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get character IDs with smart filtering: %w", err)
+	}
+
+	// Get all test items
+	return s.repo.GetCharactersForReadingTest(ctx, at, normalizedLocale, characterIDs)
 }
 
 // GetWritingTest retrieves random characters for writing test
@@ -140,7 +188,8 @@ func (s *charactersService) GetReadingTest(ctx context.Context, alphabetTypeStr 
 // For successful results alphabetTypeStr must be either "hiragana" or "katakana" (from URL path).
 // localeParam must be either "ru" (Russian), "en" (English), or "de" (German - treated as English).
 // count must be a positive integer.
-func (s *charactersService) GetWritingTest(ctx context.Context, alphabetTypeStr string, localeParam string, count int) ([]models.WritingTestItem, error) {
+// userID is required - uses smart filtering based on user's learning history.
+func (s *charactersService) GetWritingTest(ctx context.Context, alphabetTypeStr string, localeParam string, count int, userID int) ([]models.WritingTestItem, error) {
 	locale := models.Locale(localeParam)
 
 	var at models.AlphabetType
@@ -159,7 +208,65 @@ func (s *charactersService) GetWritingTest(ctx context.Context, alphabetTypeStr 
 		return nil, err
 	}
 
-	return s.repo.GetRandomForWritingTest(ctx, at, normalizedLocale, count)
+	// Determine the result field based on alphabet type and test type
+	var testTypeResultField string
+	if alphabetTypeStr == "hiragana" {
+		testTypeResultField = "hiragana_writing_result"
+	} else {
+		testTypeResultField = "katakana_writing_result"
+	}
+
+	// Get character IDs with smart filtering
+	characterIDs, err := s.getCharacterIDsWithSmartFiltering(ctx, userID, at, testTypeResultField, count)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get character IDs with smart filtering: %w", err)
+	}
+
+	// Get all test items
+	return s.repo.GetCharactersForWritingTest(ctx, at, normalizedLocale, characterIDs)
+}
+
+// GetListeningTest retrieves random characters for listening test
+//
+// For successful results alphabetTypeStr must be either "hiragana" or "katakana" (from URL path).
+// localeParam must be either "ru" (Russian), "en" (English), or "de" (German - treated as English).
+// count must be a positive integer.
+// userID is required - uses smart filtering based on user's learning history.
+func (s *charactersService) GetListeningTest(ctx context.Context, alphabetTypeStr string, localeParam string, count int, userID int) ([]models.ListeningTestItem, error) {
+	locale := models.Locale(localeParam)
+
+	var at models.AlphabetType
+	switch alphabetTypeStr {
+	case "hiragana":
+		at = models.AlphabetTypeHiragana
+	case "katakana":
+		at = models.AlphabetTypeKatakana
+	default:
+		return nil, fmt.Errorf("invalid alphabet type: %s, must be 'hiragana' or 'katakana'", alphabetTypeStr)
+	}
+
+	// Normalize locale: treat "de" as "en"
+	normalizedLocale := s.normalizeLocale(locale)
+	if err := s.validateLocale(normalizedLocale); err != nil {
+		return nil, err
+	}
+
+	// Determine the result field based on alphabet type and test type
+	var testTypeResultField string
+	if alphabetTypeStr == "hiragana" {
+		testTypeResultField = "hiragana_listening_result"
+	} else {
+		testTypeResultField = "katakana_listening_result"
+	}
+
+	// Get character IDs with smart filtering
+	characterIDs, err := s.getCharacterIDsWithSmartFiltering(ctx, userID, at, testTypeResultField, count)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get character IDs with smart filtering: %w", err)
+	}
+
+	// Get all test items
+	return s.repo.GetCharactersForListeningTest(ctx, at, normalizedLocale, characterIDs)
 }
 
 // validateAlphabetType validates the alphabet type
@@ -184,4 +291,24 @@ func (s *charactersService) validateLocale(locale models.Locale) error {
 		return fmt.Errorf("invalid locale: %s, must be 'en' or 'ru'", locale)
 	}
 	return nil
+}
+
+// getCharacterIDsWithSmartFiltering retrieves character IDs with smart filtering based on user history
+func (s *charactersService) getCharacterIDsWithSmartFiltering(ctx context.Context, userID int, alphabetType models.AlphabetType, testTypeResultField string, count int) ([]int, error) {
+	// Get character IDs without history first
+	characterIDs, err := s.repo.GetCharactersWithoutHistory(ctx, userID, alphabetType, count)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get characters without history: %w", err)
+	}
+
+	// If not enough, get more from lowest results
+	if len(characterIDs) < count {
+		remainingCount := count - len(characterIDs)
+		lowestResultIDs, err := s.repo.GetCharactersWithLowestResults(ctx, userID, alphabetType, testTypeResultField, remainingCount)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get characters with lowest results: %w", err)
+		}
+		characterIDs = append(characterIDs, lowestResultIDs...)
+	}
+	return characterIDs, nil
 }

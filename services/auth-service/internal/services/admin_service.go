@@ -172,11 +172,20 @@ func (s *adminService) GetUserWithSettings(ctx context.Context, userID int) (*mo
 }
 
 // CreateUser creates a new user with settings
-func (s *adminService) CreateUser(ctx context.Context, user *models.CreateUserRequest) (int, error) {
+func (s *adminService) CreateUser(ctx context.Context, user *models.CreateUserRequest, avatarFile multipart.File, avatarFilename string) (int, error) {
 	// Check user credentials return normalized email and username
 	normalizedEmail, normalizedUsername, err := checkRegisterCredentials(ctx, s.userRepo.(UserSharedRepository), user.Email, user.Username, user.Password)
 	if err != nil {
 		return 0, err
+	}
+
+	// Upload avatar if provided (before creating user to maintain transaction safety)
+	var avatarURL string
+	if avatarFile != nil {
+		avatarURL, err = uploadAvatar(ctx, s.mediaBaseURL, s.apiKey, avatarFile, avatarFilename)
+		if err != nil {
+			return 0, fmt.Errorf("failed to upload avatar: %w", err)
+		}
 	}
 
 	// Hash password
@@ -191,6 +200,7 @@ func (s *adminService) CreateUser(ctx context.Context, user *models.CreateUserRe
 		Email:        normalizedEmail,
 		PasswordHash: string(passwordHash),
 		Role:         user.Role,
+		Avatar:       avatarURL,
 	}
 
 	if err := s.userRepo.Create(ctx, userModel); err != nil {
@@ -565,8 +575,7 @@ func uploadAvatar(ctx context.Context, mediaBaseURL, apiKey string, avatarFile m
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		// We will wait for goroutine just in case.
-		<-errChan
+		// We will not wait for goroutine to complete. Instead it will finish when we close the pipe.
 		return "", fmt.Errorf("failed to upload file: %w", err)
 	}
 	defer resp.Body.Close()

@@ -59,7 +59,7 @@ func (h *TestResultHandler) RegisterRoutes(r chi.Router, authMiddleware func(htt
 	})
 }
 
-// SubmitTestResult handles POST /api/v1/tests/{type}/{testType}
+// SubmitTestResult handles POST /tests/{type}/{testType}
 // @Summary Submit test results
 // @Description Submit test results for hiragana or katakana reading, writing, or listening tests. Requires authentication.
 // @Tags tests
@@ -73,7 +73,7 @@ func (h *TestResultHandler) RegisterRoutes(r chi.Router, authMiddleware func(htt
 // @Failure 400 {object} map[string]string "Bad request - invalid request body, empty results array, or invalid alphabet/test type"
 // @Failure 401 {object} map[string]string "Unauthorized - authentication required, invalid/expired token, or user ID not found in context"
 // @Failure 500 {object} map[string]string "Internal server error - failed to process or save test results"
-// @Router /api/v1/test-results/{type}/{testType} [post]
+// @Router /test-results/{type}/{testType} [post]
 func (h *TestResultHandler) SubmitTestResult(w http.ResponseWriter, r *http.Request) {
 	// Extract userID from auth middleware context
 	userID, ok := middleware.GetUserID(r.Context())
@@ -119,7 +119,7 @@ func (h *TestResultHandler) SubmitTestResult(w http.ResponseWriter, r *http.Requ
 	h.RespondJSON(w, http.StatusOK, map[string]string{"message": "test results submitted successfully"})
 }
 
-// GetUserHistory handles GET /api/v1/tests/history
+// GetUserHistory handles GET /tests/history
 // @Summary Get user's learn history
 // @Description Get all learn history records for the authenticated user. Requires authentication.
 // @Tags tests
@@ -129,7 +129,7 @@ func (h *TestResultHandler) SubmitTestResult(w http.ResponseWriter, r *http.Requ
 // @Success 200 {array} models.UserLearnHistory "List of learn history records (empty array if no records found)"
 // @Failure 401 {object} map[string]string "Unauthorized - authentication required, invalid/expired token, or user ID not found in context"
 // @Failure 500 {object} map[string]string "Internal server error - failed to retrieve learn history"
-// @Router /api/v1/test-results/history [get]
+// @Router /test-results/history [get]
 func (h *TestResultHandler) GetUserHistory(w http.ResponseWriter, r *http.Request) {
 	// Extract userID from auth middleware context
 	userID, ok := middleware.GetUserID(r.Context())

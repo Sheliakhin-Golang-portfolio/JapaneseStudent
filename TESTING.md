@@ -6,6 +6,39 @@ This document describes the comprehensive testing strategy, implementation statu
 
 A comprehensive test suite has been successfully implemented for the JapaneseStudent project, covering unit tests, integration tests, and achieving high code coverage across all services. The test suite includes 150+ unit test cases and 30+ integration test cases, with an estimated ~90% code coverage once all tests are running.
 
+## Recent Updates
+
+### API Version Migration
+- **Updated**: All API endpoints migrated from `/api/v3` to `/api/v4`
+- **Services affected**: auth-service, learn-service
+- **Impact**: All endpoint URLs in documentation and tests updated
+
+### Character Audio Support
+- **Feature**: Added audio file support for characters
+- **Database**: Added `audio` column to `characters` table (VARCHAR(500), nullable)
+- **Functionality**:
+  - Admin endpoints support audio upload via `multipart/form-data`
+  - Audio files stored on media-service, URLs stored in database
+  - Automatic audio cleanup on character update/delete
+  - Audio URLs included in character responses
+
+### Listening Test
+- **New Endpoint**: `GET /api/v4/tests/{hiragana|katakana}/listening`
+- **Functionality**:
+  - Returns characters with audio URLs for listening practice
+  - Includes correct character and wrong options
+  - Only returns characters that have audio files
+  - Requires authentication
+  - Supports smart filtering based on user learning history
+
+### Smart Test Filtering
+- **Feature**: Test endpoints now use intelligent filtering when user is authenticated
+- **Logic**:
+  1. First priority: Characters with no learning history for the user and test type
+  2. Second priority: Characters with lowest test results in corresponding field
+- **Applies to**: Reading, writing, and listening tests
+- **Benefits**: Helps users focus on characters that need more practice
+
 ## Test Structure
 
 The project includes three types of tests:
@@ -331,6 +364,7 @@ The test suite aims for comprehensive coverage across all services and layers.
   - Correct field selection based on alphabet type and locale
   - SQL query construction and execution
   - Result mapping to CharacterResponse models
+  - Includes audio field in character data
 - ✅ `GetByRowColumn` - vowel and consonant filtering
   - Filtering by vowel characters
   - Filtering by consonant characters
@@ -339,14 +373,25 @@ The test suite aims for comprehensive coverage across all services and layers.
   - Character retrieval by ID
   - Locale-based reading field selection
   - Not found scenarios
+  - Returns audio URL if available
 - ✅ `GetRandomForReadingTest` - random character selection with wrong options
   - Returns correct number of items (10 by default)
   - Generates 2 wrong options per correct character
   - Random selection logic
   - Shuffling of options
+  - Smart filtering support (characters without history, lowest results)
 - ✅ `GetRandomForWritingTest` - random character selection
   - Returns correct number of items (10 by default)
   - Random character selection
+  - Smart filtering support (characters without history, lowest results)
+- ✅ `GetRandomForListeningTest` - random character selection with audio filtering
+  - Returns correct number of items (10 by default)
+  - Only returns characters with audio files
+  - Generates 2 wrong options per correct character
+  - Smart filtering support (characters without history, lowest results)
+- ✅ Smart filtering methods:
+  - `GetCharactersWithoutHistory` - characters with no learning history for user/test type
+  - `GetCharactersWithLowestResults` - characters with lowest test results
 - ✅ Error handling: Database connection errors, SQL query errors, row scan errors, context cancellation
 - ✅ Input validation: Invalid alphabet types, invalid locales, invalid character parameters
 - ✅ Edge cases: Empty result sets, character not found, insufficient characters for test generation
@@ -407,23 +452,33 @@ The test suite aims for comprehensive coverage across all services and layers.
   - Invalid IDs (zero, negative)
   - Invalid locales
   - Repository error handling
-- ✅ `GetReadingTest` - validation and repository integration
+  - Returns character with audio URL if available
+- ✅ `GetReadingTest` - validation and repository integration with smart filtering
   - Valid alphabet types (hiragana, katakana) and locales
   - Invalid alphabet types (wrong URL path values)
   - Invalid locales
   - Returns 10 test items (testCount constant)
-- ✅ `GetWritingTest` - validation and repository integration
+  - Smart filtering: prioritizes characters with no learning history, then lowest results
+- ✅ `GetWritingTest` - validation and repository integration with smart filtering
   - Valid alphabet types and locales
   - Invalid alphabet types
   - Invalid locales
   - Returns 10 test items (testCount constant)
+  - Smart filtering: prioritizes characters with no learning history, then lowest results
+- ✅ `GetListeningTest` - validation and repository integration with smart filtering
+  - Valid alphabet types and locales
+  - Invalid alphabet types and locales
+  - Returns 10 test items (testCount constant)
+  - Smart filtering: prioritizes characters with no learning history, then lowest results
+  - Only returns characters with audio files
 - ✅ `validateAlphabetType` - all cases (hr, kt, invalid)
 - ✅ `validateLocale` - all cases (en, ru, invalid)
 - ✅ Error handling and propagation from repository layer
 
 #### learn-service TestResultService:
-- ✅ `SubmitTestResults` - all alphabet types and test types, update/create, invalid inputs, case insensitivity
+- ✅ `SubmitTestResults` - all alphabet types and test types (reading, writing, listening), update/create, invalid inputs, case insensitivity
 - ✅ `GetUserHistory` - success with records, empty history, database errors
+  - Returns listening test results in addition to reading and writing results
 
 #### learn-service DictionaryService:
 - ✅ `GetWordList` - success with old and new words, empty old words, validation errors, repository errors, concurrent operations
@@ -433,8 +488,13 @@ The test suite aims for comprehensive coverage across all services and layers.
 - ✅ `GetAllForAdmin` - success with characters, empty result, repository errors
 - ✅ `GetByIDAdmin` - success, invalid IDs, repository errors
 - ✅ `CreateCharacter` - success, character already exists (vowel/consonant and katakana/hiragana validation), failed existence checks, repository errors
+  - Audio upload integration with media-service
+  - Audio file validation and error handling
 - ✅ `UpdateCharacter` - success partial update, update with validation checks, invalid IDs, character not found, character already exists, failed existence checks, repository errors
+  - Audio upload/replace integration with media-service
+  - Old audio file deletion when updating
 - ✅ `DeleteCharacter` - success, invalid IDs, repository errors
+  - Audio file cleanup from media-service
 
 #### learn-service AdminWordService:
 - ✅ `GetAllForAdmin` - success with defaults, pagination, search, repository errors, empty result
@@ -473,15 +533,19 @@ The test suite aims for comprehensive coverage across all services and layers.
 
 #### learn-service Integration Tests:
 - ✅ All API endpoints end-to-end
-  - `GET /api/v3/characters` - with various type and locale combinations
-  - `GET /api/v3/characters/row-column` - with consonant and vowel filtering
-  - `GET /api/v3/characters/{id}` - with different locales
-  - `GET /api/v3/tests/{hiragana|katakana}/reading` - reading test generation
-  - `GET /api/v3/tests/{hiragana|katakana}/writing` - writing test generation
-  - `POST /api/v3/tests/{hiragana|katakana}/{reading|writing|listening}` - submit test results
-  - `GET /api/v3/tests/history` - get user learning history
-  - `GET /api/v3/words` - get word list with old and new words
-  - `POST /api/v3/words/results` - submit word learning results
+  - `GET /api/v4/characters` - with various type and locale combinations
+  - `GET /api/v4/characters/row-column` - with consonant and vowel filtering
+  - `GET /api/v4/characters/{id}` - with different locales (includes audio URL if available)
+  - `GET /api/v4/tests/{hiragana|katakana}/reading` - reading test generation with smart filtering
+  - `GET /api/v4/tests/{hiragana|katakana}/writing` - writing test generation with smart filtering
+  - `GET /api/v4/tests/{hiragana|katakana}/listening` - listening test generation with smart filtering (requires audio files)
+  - `POST /api/v4/test-results/{hiragana|katakana}/{reading|writing|listening}` - submit test results
+  - `GET /api/v4/test-results/history` - get user learning history
+  - `GET /api/v4/words` - get word list with old and new words
+  - `POST /api/v4/words/results` - submit word learning results
+  - `POST /api/v4/admin/characters` - create character with optional audio upload
+  - `PATCH /api/v4/admin/characters/{id}` - update character with optional audio upload/delete
+  - `DELETE /api/v4/admin/characters/{id}` - delete character with audio cleanup
 - ✅ Repository layer with real database
 - ✅ Service layer with real database
 - ✅ Handler layer with HTTP requests
@@ -490,17 +554,17 @@ The test suite aims for comprehensive coverage across all services and layers.
 - ✅ Benchmark tests for performance measurement
 
 #### auth-service Integration Tests:
-- ✅ `POST /api/v3/auth/register` - registration with validation
-- ✅ `POST /api/v3/auth/login` - login with email/username
-- ✅ `POST /api/v3/auth/refresh` - token refresh
-- ✅ `GET /api/v3/settings` - get user settings
-- ✅ `PATCH /api/v3/settings` - update user settings
-- ✅ `GET /api/v3/admin/users` - get paginated list of users with filters
-- ✅ `GET /api/v3/admin/users/{id}` - get user with settings
-- ✅ `POST /api/v3/admin/users` - create user with settings
-- ✅ `POST /api/v3/admin/users/{id}/settings` - create user settings
-- ✅ `PATCH /api/v3/admin/users/{id}` - update user and/or settings (with optional avatar upload)
-- ✅ `DELETE /api/v3/admin/users/{id}` - delete user (with avatar cleanup)
+- ✅ `POST /api/v4/auth/register` - registration with validation
+- ✅ `POST /api/v4/auth/login` - login with email/username
+- ✅ `POST /api/v4/auth/refresh` - token refresh
+- ✅ `GET /api/v4/settings` - get user settings
+- ✅ `PATCH /api/v4/settings` - update user settings
+- ✅ `GET /api/v4/admin/users` - get paginated list of users with filters
+- ✅ `GET /api/v4/admin/users/{id}` - get user with settings
+- ✅ `POST /api/v4/admin/users` - create user with settings
+- ✅ `POST /api/v4/admin/users/{id}/settings` - create user settings
+- ✅ `PATCH /api/v4/admin/users/{id}` - update user and/or settings (with optional avatar upload)
+- ✅ `DELETE /api/v4/admin/users/{id}` - delete user (with avatar cleanup)
 - ✅ Repository layer with real database
 - ✅ Service layer with real database
 - ✅ Handler layer with HTTP requests
@@ -530,7 +594,8 @@ Integration tests automatically seed test data before each test and clean up aft
   - And other common combinations
 - Both English and Russian readings for all characters
 - Full character data with consonant, vowel, hiragana, katakana, and both reading types
-- Character learn history records for testing history endpoints
+- Character audio URLs (empty string in tests, actual URLs in production)
+- Character learn history records for testing history endpoints and smart filtering
 
 ### auth-service Test Data:
 - Test users with various email formats

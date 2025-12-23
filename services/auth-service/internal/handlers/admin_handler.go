@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"mime/multipart"
 	"net/http"
@@ -36,9 +35,11 @@ type AdminService interface {
 	// Method CreateUser creates a new user with settings.
 	//
 	// "user" parameter is used to specify the user data.
+	// "avatarFile" parameter is an optional file reader for the avatar image.
+	// "avatarFilename" parameter is the name of the avatar image file.
 	//
 	// If some other error occurs, the error will be returned together with 0 as user ID.
-	CreateUser(ctx context.Context, user *models.CreateUserRequest) (int, error)
+	CreateUser(ctx context.Context, user *models.CreateUserRequest, avatarFile multipart.File, avatarFilename string) (int, error)
 	// Method CreateUserSettings creates settings for a user.
 	//
 	// "userID" parameter is used to specify the user ID.
@@ -191,25 +192,73 @@ func (h *AdminHandler) GetUserWithSettings(w http.ResponseWriter, r *http.Reques
 
 // CreateUser handles POST /admin/users
 // @Summary Create a user
-// @Description Create a new user with settings
+// @Description Create a new user with settings and optional avatar
 // @Tags admin
-// @Accept json
+// @Accept multipart/form-data
 // @Produce json
-// @Param request body models.CreateUserRequest true "User creation request"
+// @Param username formData string true "Username"
+// @Param email formData string true "Email"
+// @Param password formData string true "Password"
+// @Param role formData int true "Role (1=User, 2=Tutor, 3=Admin)"
+// @Param avatar formData file false "Avatar image (optional)"
 // @Success 201 {object} map[string]string "User created successfully"
 // @Failure 400 {object} map[string]string "Invalid request body or user already exists"
 // @Failure 500 {object} map[string]string "Internal server error"
 // @Router /admin/users [post]
 func (h *AdminHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
-	var req models.CreateUserRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		h.Logger.Error("failed to decode request body", zap.Error(err))
-		h.RespondError(w, http.StatusBadRequest, "invalid request body")
+	// Parse multipart form (limit to 20MB to match request size limit)
+	err := r.ParseMultipartForm(20 << 20) // 20MB
+	if err != nil {
+		h.Logger.Error("failed to parse multipart form", zap.Error(err))
+		h.RespondError(w, http.StatusBadRequest, "failed to parse request")
+		return
+	}
+
+	// Extract form values
+	username := r.FormValue("username")
+	email := r.FormValue("email")
+	password := r.FormValue("password")
+	roleStr := r.FormValue("role")
+
+	if username == "" || email == "" || password == "" || roleStr == "" {
+		h.RespondError(w, http.StatusBadRequest, "username, email, password, and role are required")
+		return
+	}
+
+	role, err := strconv.Atoi(roleStr)
+	if err != nil {
+		h.Logger.Error("failed to parse role", zap.Error(err))
+		h.RespondError(w, http.StatusBadRequest, "invalid role")
+		return
+	}
+
+	req := models.CreateUserRequest{
+		Username: username,
+		Email:    email,
+		Password: password,
+		Role:     models.Role(role),
+	}
+
+	// Extract avatar file (optional)
+	var avatarFile multipart.File
+	var avatarFilename string
+	file, fileHeader, err := r.FormFile("avatar")
+	if err == nil && file != nil {
+		// Validate file is actually provided (not just empty field)
+		if fileHeader.Size > 0 {
+			avatarFile = file
+			avatarFilename = fileHeader.Filename
+			defer file.Close()
+		}
+	} else if err != http.ErrMissingFile {
+		// If error is not "missing file", it's a real error
+		h.Logger.Error("failed to get avatar file from form", zap.Error(err))
+		h.RespondError(w, http.StatusBadRequest, "failed to process avatar file")
 		return
 	}
 
 	// Create user
-	userID, err := h.adminService.CreateUser(r.Context(), &req)
+	userID, err := h.adminService.CreateUser(r.Context(), &req, avatarFile, avatarFilename)
 	if err != nil {
 		h.Logger.Error("failed to create user", zap.Error(err))
 		errStatus := http.StatusInternalServerError

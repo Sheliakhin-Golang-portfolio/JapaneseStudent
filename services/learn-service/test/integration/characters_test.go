@@ -121,10 +121,10 @@ func cleanupTestData(t *testing.T, db *sql.DB) {
 // setupTestRouter creates a test router with all handlers
 func setupTestRouter(db *sql.DB, logger *zap.Logger) chi.Router {
 	repo := repositories.NewCharactersRepository(db)
-	svc := services.NewCharactersService(repo)
+	historyRepo := repositories.NewCharacterLearnHistoryRepository(db)
+	svc := services.NewCharactersService(repo, historyRepo)
 	charHandler := handlers.NewCharactersHandler(svc, logger)
 
-	historyRepo := repositories.NewCharacterLearnHistoryRepository(db)
 	testResultSvc := services.NewTestResultService(historyRepo)
 	testResultHandler := handlers.NewTestResultHandler(testResultSvc, logger)
 
@@ -605,6 +605,7 @@ func TestIntegration_GetReadingTest(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, "/api/v3/tests/"+tt.alphabetType+"/reading"+tt.queryParams, nil)
+			req = req.WithContext(middleware.SetUserID(req.Context(), 1))
 			w := httptest.NewRecorder()
 
 			testRouter.ServeHTTP(w, req)
@@ -688,6 +689,7 @@ func TestIntegration_GetWritingTest(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, "/api/v3/tests/"+tt.alphabetType+"/writing"+tt.queryParams, nil)
+			req = req.WithContext(middleware.SetUserID(req.Context(), 1))
 			w := httptest.NewRecorder()
 
 			testRouter.ServeHTTP(w, req)
@@ -744,8 +746,18 @@ func TestIntegration_RepositoryLayer(t *testing.T) {
 		assert.Equal(t, "a", result.EnglishReading)
 	})
 
-	t.Run("GetRandomForReadingTest", func(t *testing.T) {
-		result, err := repo.GetRandomForReadingTest(ctx, models.AlphabetTypeHiragana, models.LocaleEnglish, 5)
+	t.Run("GetCharactersForReadingTest", func(t *testing.T) {
+		// Get some character IDs first
+		allChars, err := repo.GetAll(ctx, models.AlphabetTypeHiragana, models.LocaleEnglish)
+		require.NoError(t, err)
+		require.GreaterOrEqual(t, len(allChars), 5)
+
+		characterIDs := make([]int, 5)
+		for i := 0; i < 5; i++ {
+			characterIDs[i] = allChars[i].ID
+		}
+
+		result, err := repo.GetCharactersForReadingTest(ctx, models.AlphabetTypeHiragana, models.LocaleEnglish, characterIDs)
 		require.NoError(t, err)
 		assert.Len(t, result, 5)
 		for _, item := range result {
@@ -755,8 +767,18 @@ func TestIntegration_RepositoryLayer(t *testing.T) {
 		}
 	})
 
-	t.Run("GetRandomForWritingTest", func(t *testing.T) {
-		result, err := repo.GetRandomForWritingTest(ctx, models.AlphabetTypeKatakana, models.LocaleRussian, 5)
+	t.Run("GetCharactersForWritingTest", func(t *testing.T) {
+		// Get some character IDs first
+		allChars, err := repo.GetAll(ctx, models.AlphabetTypeKatakana, models.LocaleRussian)
+		require.NoError(t, err)
+		require.GreaterOrEqual(t, len(allChars), 5)
+
+		characterIDs := make([]int, 5)
+		for i := 0; i < 5; i++ {
+			characterIDs[i] = allChars[i].ID
+		}
+
+		result, err := repo.GetCharactersForWritingTest(ctx, models.AlphabetTypeKatakana, models.LocaleRussian, characterIDs)
 		require.NoError(t, err)
 		assert.Len(t, result, 5)
 		for _, item := range result {
@@ -775,7 +797,8 @@ func TestIntegration_ServiceLayer(t *testing.T) {
 	defer cleanupTestData(t, testDB)
 
 	repo := repositories.NewCharactersRepository(testDB)
-	svc := services.NewCharactersService(repo)
+	historyRepo := repositories.NewCharacterLearnHistoryRepository(testDB)
+	svc := services.NewCharactersService(repo, historyRepo)
 	ctx := context.Background()
 
 	t.Run("GetAll", func(t *testing.T) {
@@ -798,13 +821,13 @@ func TestIntegration_ServiceLayer(t *testing.T) {
 	})
 
 	t.Run("GetReadingTest", func(t *testing.T) {
-		result, err := svc.GetReadingTest(ctx, "hiragana", "en", 10)
+		result, err := svc.GetReadingTest(ctx, "hiragana", "en", 10, 1)
 		require.NoError(t, err)
 		assert.Len(t, result, 10)
 	})
 
 	t.Run("GetWritingTest", func(t *testing.T) {
-		result, err := svc.GetWritingTest(ctx, "katakana", "ru", 10)
+		result, err := svc.GetWritingTest(ctx, "katakana", "ru", 10, 1)
 		require.NoError(t, err)
 		assert.Len(t, result, 10)
 	})
