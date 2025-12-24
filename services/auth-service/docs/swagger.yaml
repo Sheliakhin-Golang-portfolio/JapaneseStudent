@@ -115,7 +115,7 @@ info:
     url: http://www.apache.org/licenses/LICENSE-2.0.html
   termsOfService: http://swagger.io/terms/
   title: JapaneseStudent Auth API
-  version: "1.0"
+  version: "4.0"
 paths:
   /admin/users:
     get:

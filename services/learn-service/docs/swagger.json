@@ -1,8 +1,8 @@
 {
     "swagger": "2.0",
     "info": {
-        "description": "API for managing hiragana and katakana characters",
-        "title": "JapaneseStudent Characters API",
+        "description": "API for learning Japanese",
+        "title": "JapaneseStudent Learn API",
         "termsOfService": "http://swagger.io/terms/",
         "contact": {
             "name": "API Support",
@@ -12,7 +12,7 @@
             "name": "Apache 2.0",
             "url": "http://www.apache.org/licenses/LICENSE-2.0.html"
         },
-        "version": "1.0"
+        "version": "4.0"
     },
     "host": "localhost:8080",
     "basePath": "/api/v4",
@@ -417,9 +417,9 @@
                 }
             },
             "post": {
-                "description": "Create a new word",
+                "description": "Create a new word with optional audio files",
                 "consumes": [
-                    "application/json"
+                    "multipart/form-data"
                 ],
                 "produces": [
                     "application/json"
@@ -430,13 +430,107 @@
                 "summary": "Create a word",
                 "parameters": [
                     {
-                        "description": "Word creation request",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/models.CreateWordRequest"
-                        }
+                        "type": "string",
+                        "description": "Word",
+                        "name": "word",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Phonetic clues",
+                        "name": "phoneticClues",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Russian translation",
+                        "name": "russianTranslation",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "English translation",
+                        "name": "englishTranslation",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "German translation",
+                        "name": "germanTranslation",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Example",
+                        "name": "example",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Example Russian translation",
+                        "name": "exampleRussianTranslation",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Example English translation",
+                        "name": "exampleEnglishTranslation",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Example German translation",
+                        "name": "exampleGermanTranslation",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Easy period",
+                        "name": "easyPeriod",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Normal period",
+                        "name": "normalPeriod",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Hard period",
+                        "name": "hardPeriod",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Extra hard period",
+                        "name": "extraHardPeriod",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "file",
+                        "description": "Word audio file (optional)",
+                        "name": "wordAudio",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "file",
+                        "description": "Word example audio file (optional)",
+                        "name": "wordExampleAudio",
+                        "in": "formData"
                     }
                 ],
                 "responses": {
@@ -583,9 +677,9 @@
                 }
             },
             "patch": {
-                "description": "Update word fields (partial update)",
+                "description": "Update word fields (partial update) with optional audio files",
                 "consumes": [
-                    "application/json"
+                    "multipart/form-data"
                 ],
                 "produces": [
                     "application/json"
@@ -603,12 +697,94 @@
                         "required": true
                     },
                     {
-                        "description": "Update request",
-                        "name": "request",
-                        "in": "body",
-                        "schema": {
-                            "$ref": "#/definitions/models.UpdateWordRequest"
-                        }
+                        "type": "string",
+                        "description": "Word",
+                        "name": "word",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Phonetic clues",
+                        "name": "phoneticClues",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Russian translation",
+                        "name": "russianTranslation",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "English translation",
+                        "name": "englishTranslation",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "German translation",
+                        "name": "germanTranslation",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Example",
+                        "name": "example",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Example Russian translation",
+                        "name": "exampleRussianTranslation",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Example English translation",
+                        "name": "exampleEnglishTranslation",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Example German translation",
+                        "name": "exampleGermanTranslation",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Easy period",
+                        "name": "easyPeriod",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Normal period",
+                        "name": "normalPeriod",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Hard period",
+                        "name": "hardPeriod",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Extra hard period",
+                        "name": "extraHardPeriod",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "file",
+                        "description": "Word audio file (optional)",
+                        "name": "wordAudio",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "file",
+                        "description": "Word example audio file (optional)",
+                        "name": "wordExampleAudio",
+                        "in": "formData"
                     }
                 ],
                 "responses": {
@@ -1434,50 +1610,6 @@
                 }
             }
         },
-        "models.CreateWordRequest": {
-            "type": "object",
-            "properties": {
-                "easyPeriod": {
-                    "type": "integer"
-                },
-                "englishTranslation": {
-                    "type": "string"
-                },
-                "example": {
-                    "type": "string"
-                },
-                "exampleEnglishTranslation": {
-                    "type": "string"
-                },
-                "exampleGermanTranslation": {
-                    "type": "string"
-                },
-                "exampleRussianTranslation": {
-                    "type": "string"
-                },
-                "extraHardPeriod": {
-                    "type": "integer"
-                },
-                "germanTranslation": {
-                    "type": "string"
-                },
-                "hardPeriod": {
-                    "type": "integer"
-                },
-                "normalPeriod": {
-                    "type": "integer"
-                },
-                "phoneticClues": {
-                    "type": "string"
-                },
-                "russianTranslation": {
-                    "type": "string"
-                },
-                "word": {
-                    "type": "string"
-                }
-            }
-        },
         "models.ListeningTestItem": {
             "type": "object",
             "properties": {
@@ -1530,50 +1662,6 @@
                 },
                 "passed": {
                     "type": "boolean"
-                }
-            }
-        },
-        "models.UpdateWordRequest": {
-            "type": "object",
-            "properties": {
-                "easyPeriod": {
-                    "type": "integer"
-                },
-                "englishTranslation": {
-                    "type": "string"
-                },
-                "example": {
-                    "type": "string"
-                },
-                "exampleEnglishTranslation": {
-                    "type": "string"
-                },
-                "exampleGermanTranslation": {
-                    "type": "string"
-                },
-                "exampleRussianTranslation": {
-                    "type": "string"
-                },
-                "extraHardPeriod": {
-                    "type": "integer"
-                },
-                "germanTranslation": {
-                    "type": "string"
-                },
-                "hardPeriod": {
-                    "type": "integer"
-                },
-                "normalPeriod": {
-                    "type": "integer"
-                },
-                "phoneticClues": {
-                    "type": "string"
-                },
-                "russianTranslation": {
-                    "type": "string"
-                },
-                "word": {
-                    "type": "string"
                 }
             }
         },
@@ -1657,6 +1745,14 @@
                 "word": {
                     "description": "Kanji word",
                     "type": "string"
+                },
+                "wordAudio": {
+                    "description": "URL to word audio metadata on media server",
+                    "type": "string"
+                },
+                "wordExampleAudio": {
+                    "description": "URL to word example audio metadata on media server",
+                    "type": "string"
                 }
             }
         },
@@ -1710,6 +1806,14 @@
                     "type": "string"
                 },
                 "word": {
+                    "type": "string"
+                },
+                "wordAudio": {
+                    "description": "URL to word audio metadata on media server",
+                    "type": "string"
+                },
+                "wordExampleAudio": {
+                    "description": "URL to word example audio metadata on media server",
                     "type": "string"
                 }
             }

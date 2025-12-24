@@ -423,9 +423,9 @@ const docTemplate = `{
                 }
             },
             "post": {
-                "description": "Create a new word",
+                "description": "Create a new word with optional audio files",
                 "consumes": [
-                    "application/json"
+                    "multipart/form-data"
                 ],
                 "produces": [
                     "application/json"
@@ -436,13 +436,107 @@ const docTemplate = `{
                 "summary": "Create a word",
                 "parameters": [
                     {
-                        "description": "Word creation request",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/models.CreateWordRequest"
-                        }
+                        "type": "string",
+                        "description": "Word",
+                        "name": "word",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Phonetic clues",
+                        "name": "phoneticClues",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Russian translation",
+                        "name": "russianTranslation",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "English translation",
+                        "name": "englishTranslation",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "German translation",
+                        "name": "germanTranslation",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Example",
+                        "name": "example",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Example Russian translation",
+                        "name": "exampleRussianTranslation",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Example English translation",
+                        "name": "exampleEnglishTranslation",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Example German translation",
+                        "name": "exampleGermanTranslation",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Easy period",
+                        "name": "easyPeriod",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Normal period",
+                        "name": "normalPeriod",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Hard period",
+                        "name": "hardPeriod",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Extra hard period",
+                        "name": "extraHardPeriod",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "file",
+                        "description": "Word audio file (optional)",
+                        "name": "wordAudio",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "file",
+                        "description": "Word example audio file (optional)",
+                        "name": "wordExampleAudio",
+                        "in": "formData"
                     }
                 ],
                 "responses": {
@@ -589,9 +683,9 @@ const docTemplate = `{
                 }
             },
             "patch": {
-                "description": "Update word fields (partial update)",
+                "description": "Update word fields (partial update) with optional audio files",
                 "consumes": [
-                    "application/json"
+                    "multipart/form-data"
                 ],
                 "produces": [
                     "application/json"
@@ -609,12 +703,94 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Update request",
-                        "name": "request",
-                        "in": "body",
-                        "schema": {
-                            "$ref": "#/definitions/models.UpdateWordRequest"
-                        }
+                        "type": "string",
+                        "description": "Word",
+                        "name": "word",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Phonetic clues",
+                        "name": "phoneticClues",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Russian translation",
+                        "name": "russianTranslation",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "English translation",
+                        "name": "englishTranslation",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "German translation",
+                        "name": "germanTranslation",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Example",
+                        "name": "example",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Example Russian translation",
+                        "name": "exampleRussianTranslation",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Example English translation",
+                        "name": "exampleEnglishTranslation",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Example German translation",
+                        "name": "exampleGermanTranslation",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Easy period",
+                        "name": "easyPeriod",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Normal period",
+                        "name": "normalPeriod",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Hard period",
+                        "name": "hardPeriod",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Extra hard period",
+                        "name": "extraHardPeriod",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "file",
+                        "description": "Word audio file (optional)",
+                        "name": "wordAudio",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "file",
+                        "description": "Word example audio file (optional)",
+                        "name": "wordExampleAudio",
+                        "in": "formData"
                     }
                 ],
                 "responses": {
@@ -1440,50 +1616,6 @@ const docTemplate = `{
                 }
             }
         },
-        "models.CreateWordRequest": {
-            "type": "object",
-            "properties": {
-                "easyPeriod": {
-                    "type": "integer"
-                },
-                "englishTranslation": {
-                    "type": "string"
-                },
-                "example": {
-                    "type": "string"
-                },
-                "exampleEnglishTranslation": {
-                    "type": "string"
-                },
-                "exampleGermanTranslation": {
-                    "type": "string"
-                },
-                "exampleRussianTranslation": {
-                    "type": "string"
-                },
-                "extraHardPeriod": {
-                    "type": "integer"
-                },
-                "germanTranslation": {
-                    "type": "string"
-                },
-                "hardPeriod": {
-                    "type": "integer"
-                },
-                "normalPeriod": {
-                    "type": "integer"
-                },
-                "phoneticClues": {
-                    "type": "string"
-                },
-                "russianTranslation": {
-                    "type": "string"
-                },
-                "word": {
-                    "type": "string"
-                }
-            }
-        },
         "models.ListeningTestItem": {
             "type": "object",
             "properties": {
@@ -1536,50 +1668,6 @@ const docTemplate = `{
                 },
                 "passed": {
                     "type": "boolean"
-                }
-            }
-        },
-        "models.UpdateWordRequest": {
-            "type": "object",
-            "properties": {
-                "easyPeriod": {
-                    "type": "integer"
-                },
-                "englishTranslation": {
-                    "type": "string"
-                },
-                "example": {
-                    "type": "string"
-                },
-                "exampleEnglishTranslation": {
-                    "type": "string"
-                },
-                "exampleGermanTranslation": {
-                    "type": "string"
-                },
-                "exampleRussianTranslation": {
-                    "type": "string"
-                },
-                "extraHardPeriod": {
-                    "type": "integer"
-                },
-                "germanTranslation": {
-                    "type": "string"
-                },
-                "hardPeriod": {
-                    "type": "integer"
-                },
-                "normalPeriod": {
-                    "type": "integer"
-                },
-                "phoneticClues": {
-                    "type": "string"
-                },
-                "russianTranslation": {
-                    "type": "string"
-                },
-                "word": {
-                    "type": "string"
                 }
             }
         },
@@ -1663,6 +1751,14 @@ const docTemplate = `{
                 "word": {
                     "description": "Kanji word",
                     "type": "string"
+                },
+                "wordAudio": {
+                    "description": "URL to word audio metadata on media server",
+                    "type": "string"
+                },
+                "wordExampleAudio": {
+                    "description": "URL to word example audio metadata on media server",
+                    "type": "string"
                 }
             }
         },
@@ -1717,6 +1813,14 @@ const docTemplate = `{
                 },
                 "word": {
                     "type": "string"
+                },
+                "wordAudio": {
+                    "description": "URL to word audio metadata on media server",
+                    "type": "string"
+                },
+                "wordExampleAudio": {
+                    "description": "URL to word example audio metadata on media server",
+                    "type": "string"
                 }
             }
         },
@@ -1761,12 +1865,12 @@ const docTemplate = `{
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
-	Version:          "1.0",
+	Version:          "4.0",
 	Host:             "localhost:8080",
 	BasePath:         "/api/v4",
 	Schemes:          []string{},
-	Title:            "JapaneseStudent Characters API",
-	Description:      "API for managing hiragana and katakana characters",
+	Title:            "JapaneseStudent Learn API",
+	Description:      "API for learning Japanese",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",

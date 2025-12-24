@@ -37,7 +37,7 @@ func (r *wordRepository) GetByIDs(ctx context.Context, wordIds []int, translatio
 
 	query := fmt.Sprintf(`
 		SELECT id, word, phonetic_clues, %s as translation, example, %s as example_translation,
-		       easy_period, normal_period, hard_period, extra_hard_period
+		       easy_period, normal_period, hard_period, extra_hard_period, word_audio, word_example_audio
 		FROM words
 		WHERE id IN (%s)
 	`, translationField, exampleTranslationField, strings.Join(placeholders, ","))
@@ -62,6 +62,8 @@ func (r *wordRepository) GetByIDs(ctx context.Context, wordIds []int, translatio
 			&word.NormalPeriod,
 			&word.HardPeriod,
 			&word.ExtraHardPeriod,
+			&word.WordAudio,
+			&word.WordExampleAudio,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan word: %w", err)
@@ -85,7 +87,7 @@ func (r *wordRepository) GetExcludingIDs(ctx context.Context, userId int, exclud
 		// If no IDs to exclude, get random words
 		query = fmt.Sprintf(`
 			SELECT id, word, phonetic_clues, %s as translation, example, %s as example_translation,
-			       easy_period, normal_period, hard_period, extra_hard_period
+			       easy_period, normal_period, hard_period, extra_hard_period, word_audio, word_example_audio
 			FROM words
 			ORDER BY (EXISTS (SELECT 1 FROM dictionary_history WHERE word_id = words.id AND user_id = ?)), RAND()
 			LIMIT ?
@@ -104,7 +106,7 @@ func (r *wordRepository) GetExcludingIDs(ctx context.Context, userId int, exclud
 
 		query = fmt.Sprintf(`
 			SELECT id, word, phonetic_clues, %s as translation, example, %s as example_translation,
-			       easy_period, normal_period, hard_period, extra_hard_period
+			       easy_period, normal_period, hard_period, extra_hard_period, word_audio, word_example_audio
 			FROM words
 			WHERE id NOT IN (%s)
 			ORDER BY (EXISTS (SELECT 1 FROM dictionary_history WHERE word_id = words.id AND user_id = ?)), RAND()
@@ -132,6 +134,8 @@ func (r *wordRepository) GetExcludingIDs(ctx context.Context, userId int, exclud
 			&word.NormalPeriod,
 			&word.HardPeriod,
 			&word.ExtraHardPeriod,
+			&word.WordAudio,
+			&word.WordExampleAudio,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan word: %w", err)
@@ -233,7 +237,7 @@ func (r *wordRepository) GetByIDAdmin(ctx context.Context, id int) (*models.Word
 	query := `
 		SELECT id, word, phonetic_clues, russian_translation, english_translation, german_translation,
 		       example, example_russian_translation, example_english_translation, example_german_translation,
-		       easy_period, normal_period, hard_period, extra_hard_period
+		       easy_period, normal_period, hard_period, extra_hard_period, word_audio, word_example_audio
 		FROM words
 		WHERE id = ?
 		LIMIT 1
@@ -255,6 +259,8 @@ func (r *wordRepository) GetByIDAdmin(ctx context.Context, id int) (*models.Word
 		&word.NormalPeriod,
 		&word.HardPeriod,
 		&word.ExtraHardPeriod,
+		&word.WordAudio,
+		&word.WordExampleAudio,
 	)
 
 	if err == sql.ErrNoRows {
@@ -285,8 +291,8 @@ func (r *wordRepository) Create(ctx context.Context, word *models.Word) error {
 	query := `
 		INSERT INTO words (word, phonetic_clues, russian_translation, english_translation, german_translation,
 		                  example, example_russian_translation, example_english_translation, example_german_translation,
-		                  easy_period, normal_period, hard_period, extra_hard_period)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		                  easy_period, normal_period, hard_period, extra_hard_period, word_audio, word_example_audio)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 
 	result, err := r.db.ExecContext(ctx, query,
@@ -303,6 +309,8 @@ func (r *wordRepository) Create(ctx context.Context, word *models.Word) error {
 		word.NormalPeriod,
 		word.HardPeriod,
 		word.ExtraHardPeriod,
+		word.WordAudio,
+		word.WordExampleAudio,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create word: %w", err)
@@ -387,6 +395,14 @@ func (r *wordRepository) Update(ctx context.Context, id int, word *models.Word) 
 	if word.ExtraHardPeriod != 0 {
 		setParts = append(setParts, "extra_hard_period = ?")
 		args = append(args, word.ExtraHardPeriod)
+	}
+	if word.WordAudio != "" {
+		setParts = append(setParts, "word_audio = ?")
+		args = append(args, word.WordAudio)
+	}
+	if word.WordExampleAudio != "" {
+		setParts = append(setParts, "word_example_audio = ?")
+		args = append(args, word.WordExampleAudio)
 	}
 
 	if len(setParts) == 0 {

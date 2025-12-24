@@ -17,17 +17,17 @@ import (
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/mysql"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
-	_ "github.com/japanesestudent/media-service/docs"
-	"github.com/japanesestudent/media-service/internal/handlers"
-	"github.com/japanesestudent/media-service/internal/repositories"
-	"github.com/japanesestudent/media-service/internal/services"
-	"github.com/japanesestudent/media-service/internal/storage"
 	authMiddleware "github.com/japanesestudent/libs/auth/middleware"
 	authService "github.com/japanesestudent/libs/auth/service"
 	"github.com/japanesestudent/libs/config"
 	"github.com/japanesestudent/libs/logger"
 	loggerMiddleware "github.com/japanesestudent/libs/logger/middleware"
 	sharedMiddleware "github.com/japanesestudent/libs/middlewares"
+	_ "github.com/japanesestudent/media-service/docs"
+	"github.com/japanesestudent/media-service/internal/handlers"
+	"github.com/japanesestudent/media-service/internal/repositories"
+	"github.com/japanesestudent/media-service/internal/services"
+	"github.com/japanesestudent/media-service/internal/storage"
 	httpSwagger "github.com/swaggo/http-swagger"
 	"go.uber.org/zap"
 )
@@ -35,7 +35,7 @@ import (
 const maxRequestSize = 50 * 1024 * 1024 // 50MB for file uploads
 
 // @title JapaneseStudent Media API
-// @version 1.0
+// @version 4.0
 // @description API for managing media files
 // @termsOfService http://swagger.io/terms/
 
@@ -180,7 +180,6 @@ func main() {
 	logger.Logger.Info("Server exited")
 }
 
-
 // connectDB connects to the database
 func connectDB(dsn string) (*sql.DB, error) {
 	db, err := sql.Open("mysql", dsn)
@@ -233,4 +232,3 @@ func runMigrations(db *sql.DB) error {
 
 	return nil
 }
-

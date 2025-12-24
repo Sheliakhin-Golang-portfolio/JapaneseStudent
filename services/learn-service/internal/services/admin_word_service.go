@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"mime/multipart"
 
 	"github.com/japanesestudent/learn-service/internal/models"
 )
@@ -60,16 +61,21 @@ type AdminWordRepository interface {
 type adminWordService struct {
 	wordRepo              AdminWordRepository
 	dictionaryHistoryRepo DictionaryHistoryRepository
+	mediaBaseURL          string
+	apiKey                string
 }
 
-// NewDictionaryService creates a new dictionary service
+// NewAdminWordService creates a new admin word service
 func NewAdminWordService(
 	wordRepo AdminWordRepository,
 	dictionaryHistoryRepo DictionaryHistoryRepository,
+	mediaBaseURL, apiKey string,
 ) *adminWordService {
 	return &adminWordService{
 		wordRepo:              wordRepo,
 		dictionaryHistoryRepo: dictionaryHistoryRepo,
+		mediaBaseURL:          mediaBaseURL,
+		apiKey:                apiKey,
 	}
 }
 
@@ -109,7 +115,7 @@ func (s *adminWordService) GetByIDAdmin(ctx context.Context, id int) (*models.Wo
 }
 
 // CreateWord creates a new word
-func (s *adminWordService) CreateWord(ctx context.Context, request *models.CreateWordRequest) (int, error) {
+func (s *adminWordService) CreateWord(ctx context.Context, request *models.CreateWordRequest, wordAudioFile multipart.File, wordAudioFilename string, wordExampleAudioFile multipart.File, wordExampleAudioFilename string) (int, error) {
 	// Check if word with same Word field exists
 	exists, err := s.wordRepo.ExistsByWord(ctx, request.Word)
 	if err != nil {
@@ -134,6 +140,25 @@ func (s *adminWordService) CreateWord(ctx context.Context, request *models.Creat
 		HardPeriod:                request.HardPeriod,
 		ExtraHardPeriod:           request.ExtraHardPeriod,
 	}
+
+	// Handle word audio file upload if provided
+	if wordAudioFile != nil && wordAudioFilename != "" {
+		audioURL, err := uploadFileToMediaService(ctx, s.mediaBaseURL, s.apiKey, "word", wordAudioFile, wordAudioFilename)
+		if err != nil {
+			return 0, fmt.Errorf("failed to upload word audio: %w", err)
+		}
+		word.WordAudio = audioURL
+	}
+
+	// Handle word example audio file upload if provided
+	if wordExampleAudioFile != nil && wordExampleAudioFilename != "" {
+		audioURL, err := uploadFileToMediaService(ctx, s.mediaBaseURL, s.apiKey, "word_example", wordExampleAudioFile, wordExampleAudioFilename)
+		if err != nil {
+			return 0, fmt.Errorf("failed to upload word example audio: %w", err)
+		}
+		word.WordExampleAudio = audioURL
+	}
+
 	err = s.wordRepo.Create(ctx, word)
 	if err != nil {
 		return 0, fmt.Errorf("failed to create word: %w", err)
@@ -142,22 +167,33 @@ func (s *adminWordService) CreateWord(ctx context.Context, request *models.Creat
 }
 
 // UpdateWord updates a word (partial update)
-func (s *adminWordService) UpdateWord(ctx context.Context, id int, request *models.UpdateWordRequest) error {
+func (s *adminWordService) UpdateWord(ctx context.Context, id int, request *models.UpdateWordRequest, wordAudioFile multipart.File, wordAudioFilename string, wordExampleAudioFile multipart.File, wordExampleAudioFilename string) error {
 	if id <= 0 {
 		return fmt.Errorf("invalid word id")
 	}
 
+	// Validate first to get more specific error messages if validation fails
 	if err := s.validateWord(ctx, request); err != nil {
 		return err
 	}
 
+	// Get current word to check for existing audio URLs
+	currentWord, err := s.wordRepo.GetByIDAdmin(ctx, id)
+	if err != nil {
+		return fmt.Errorf("word not found")
+	}
+
 	word := &models.Word{
-		ID:                 id,
-		Word:               request.Word,
-		PhoneticClues:      request.PhoneticClues,
-		RussianTranslation: request.RussianTranslation,
-		EnglishTranslation: request.EnglishTranslation,
-		GermanTranslation:  request.GermanTranslation,
+		ID:                        id,
+		Word:                      request.Word,
+		PhoneticClues:             request.PhoneticClues,
+		RussianTranslation:        request.RussianTranslation,
+		EnglishTranslation:        request.EnglishTranslation,
+		GermanTranslation:         request.GermanTranslation,
+		Example:                   request.Example,
+		ExampleRussianTranslation: request.ExampleRussianTranslation,
+		ExampleEnglishTranslation: request.ExampleEnglishTranslation,
+		ExampleGermanTranslation:  request.ExampleGermanTranslation,
 	}
 	if request.EasyPeriod != nil {
 		word.EasyPeriod = *request.EasyPeriod
@@ -171,6 +207,47 @@ func (s *adminWordService) UpdateWord(ctx context.Context, id int, request *mode
 	if request.ExtraHardPeriod != nil {
 		word.ExtraHardPeriod = *request.ExtraHardPeriod
 	}
+
+	// Handle word audio file update if provided
+	if wordAudioFile != nil && wordAudioFilename != "" {
+		// Delete old audio file if it exists
+		if currentWord.WordAudio != "" && s.mediaBaseURL != "" && s.apiKey != "" {
+			fileID := extractFileIDFromURL(currentWord.WordAudio)
+			if fileID != "" {
+				if err := deleteFileFromMediaService(ctx, s.mediaBaseURL, s.apiKey, "word", fileID); err != nil {
+					return fmt.Errorf("failed to delete old word audio: %w", err)
+				}
+			}
+		}
+
+		// Upload new audio file
+		audioURL, err := uploadFileToMediaService(ctx, s.mediaBaseURL, s.apiKey, "word", wordAudioFile, wordAudioFilename)
+		if err != nil {
+			return fmt.Errorf("failed to upload word audio: %w", err)
+		}
+		word.WordAudio = audioURL
+	}
+
+	// Handle word example audio file update if provided
+	if wordExampleAudioFile != nil && wordExampleAudioFilename != "" {
+		// Delete old audio file if it exists
+		if currentWord.WordExampleAudio != "" && s.mediaBaseURL != "" && s.apiKey != "" {
+			fileID := extractFileIDFromURL(currentWord.WordExampleAudio)
+			if fileID != "" {
+				if err := deleteFileFromMediaService(ctx, s.mediaBaseURL, s.apiKey, "word_example", fileID); err != nil {
+					return fmt.Errorf("failed to delete old word example audio: %w", err)
+				}
+			}
+		}
+
+		// Upload new audio file
+		audioURL, err := uploadFileToMediaService(ctx, s.mediaBaseURL, s.apiKey, "word_example", wordExampleAudioFile, wordExampleAudioFilename)
+		if err != nil {
+			return fmt.Errorf("failed to upload word example audio: %w", err)
+		}
+		word.WordExampleAudio = audioURL
+	}
+
 	return s.wordRepo.Update(ctx, id, word)
 }
 
@@ -245,6 +322,32 @@ func (s *adminWordService) validateWord(ctx context.Context, request *models.Upd
 func (s *adminWordService) DeleteWord(ctx context.Context, id int) error {
 	if id <= 0 {
 		return fmt.Errorf("invalid word id")
+	}
+
+	// Get word first to retrieve audio URLs
+	word, err := s.wordRepo.GetByIDAdmin(ctx, id)
+	if err != nil {
+		return fmt.Errorf("word not found")
+	}
+
+	// Delete word audio file from media service if audio URL exists
+	if word.WordAudio != "" && s.mediaBaseURL != "" && s.apiKey != "" {
+		fileID := extractFileIDFromURL(word.WordAudio)
+		if fileID != "" {
+			if err := deleteFileFromMediaService(ctx, s.mediaBaseURL, s.apiKey, "word", fileID); err != nil {
+				return fmt.Errorf("word audio file has not been deleted: %w", err)
+			}
+		}
+	}
+
+	// Delete word example audio file from media service if audio URL exists
+	if word.WordExampleAudio != "" && s.mediaBaseURL != "" && s.apiKey != "" {
+		fileID := extractFileIDFromURL(word.WordExampleAudio)
+		if fileID != "" {
+			if err := deleteFileFromMediaService(ctx, s.mediaBaseURL, s.apiKey, "word_example", fileID); err != nil {
+				return fmt.Errorf("word example audio file has not been deleted: %w", err)
+			}
+		}
 	}
 
 	return s.wordRepo.Delete(ctx, id)

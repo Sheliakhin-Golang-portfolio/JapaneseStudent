@@ -1,0 +1,2 @@
+ALTER TABLE words ADD COLUMN word_audio VARCHAR(500) NULL, ADD COLUMN word_example_audio VARCHAR(500) NULL;
+

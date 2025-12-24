@@ -120,7 +120,7 @@ func (s *adminService) CreateCharacter(ctx context.Context, request *models.Crea
 
 	// Handle audio file upload if provided
 	if audioFile != nil && audioFilename != "" {
-		audioURL, err := s.uploadAudio(ctx, audioFile, audioFilename)
+		audioURL, err := uploadFileToMediaService(ctx, s.mediaBaseURL, s.apiKey, "character", audioFile, audioFilename)
 		if err != nil {
 			return 0, fmt.Errorf("failed to upload audio: %w", err)
 		}
@@ -192,16 +192,16 @@ func (s *adminService) UpdateCharacter(ctx context.Context, id int, request *mod
 	if audioFile != nil && audioFilename != "" {
 		// Delete old audio file if it exists
 		if currentCharacter.Audio != "" && s.mediaBaseURL != "" && s.apiKey != "" {
-			fileID := s.extractFileIDFromAudioURL(currentCharacter.Audio)
+			fileID := extractFileIDFromURL(currentCharacter.Audio)
 			if fileID != "" {
-				if err := s.deleteAudioFromMediaService(ctx, fileID); err != nil {
+				if err := deleteFileFromMediaService(ctx, s.mediaBaseURL, s.apiKey, "character", fileID); err != nil {
 					return fmt.Errorf("failed to delete old audio: %w", err)
 				}
 			}
 		}
 
 		// Upload new audio file
-		audioURL, err := s.uploadAudio(ctx, audioFile, audioFilename)
+		audioURL, err := uploadFileToMediaService(ctx, s.mediaBaseURL, s.apiKey, "character", audioFile, audioFilename)
 		if err != nil {
 			return fmt.Errorf("failed to upload audio: %w", err)
 		}
@@ -299,9 +299,9 @@ func (s *adminService) DeleteCharacter(ctx context.Context, id int) error {
 
 	// Delete audio file from media service if audio URL exists
 	if character.Audio != "" && s.mediaBaseURL != "" && s.apiKey != "" {
-		fileID := s.extractFileIDFromAudioURL(character.Audio)
+		fileID := extractFileIDFromURL(character.Audio)
 		if fileID != "" {
-			if err := s.deleteAudioFromMediaService(ctx, fileID); err != nil {
+			if err := deleteFileFromMediaService(ctx, s.mediaBaseURL, s.apiKey, "character", fileID); err != nil {
 				return fmt.Errorf("audio file has not been deleted: %w", err)
 			}
 		}
@@ -310,12 +310,12 @@ func (s *adminService) DeleteCharacter(ctx context.Context, id int) error {
 	return s.repo.Delete(ctx, id)
 }
 
-// uploadAudio uploads an audio file to the media-service using io.Pipe for streaming
-func (s *adminService) uploadAudio(ctx context.Context, audioFile multipart.File, audioFilename string) (string, error) {
-	if s.mediaBaseURL == "" {
+// uploadFileToMediaService uploads a file to the media-service using io.Pipe for streaming
+func uploadFileToMediaService(ctx context.Context, mediaBaseURL, apiKey, mediaType string, file multipart.File, filename string) (string, error) {
+	if mediaBaseURL == "" {
 		return "", fmt.Errorf("MEDIA_BASE_URL is not configured")
 	}
-	if s.apiKey == "" {
+	if apiKey == "" {
 		return "", fmt.Errorf("API_KEY is not configured")
 	}
 
@@ -333,14 +333,14 @@ func (s *adminService) uploadAudio(ctx context.Context, audioFile multipart.File
 		defer writer.Close()
 
 		// Create form field for file
-		part, err := writer.CreateFormFile("file", audioFilename)
+		part, err := writer.CreateFormFile("file", filename)
 		if err != nil {
 			errChan <- fmt.Errorf("failed to create form file: %w", err)
 			return
 		}
 
 		// Copy file content to form
-		_, err = io.Copy(part, audioFile)
+		_, err = io.Copy(part, file)
 		if err != nil {
 			errChan <- fmt.Errorf("failed to copy file: %w", err)
 			return
@@ -350,7 +350,7 @@ func (s *adminService) uploadAudio(ctx context.Context, audioFile multipart.File
 	}()
 
 	// Build upload URL
-	uploadURL := fmt.Sprintf("%s/media/character", s.mediaBaseURL)
+	uploadURL := fmt.Sprintf("%s/media/%s", mediaBaseURL, mediaType)
 
 	// Create HTTP request
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, uploadURL, pr)
@@ -360,7 +360,7 @@ func (s *adminService) uploadAudio(ctx context.Context, audioFile multipart.File
 
 	// Set headers
 	req.Header.Set("Content-Type", writer.FormDataContentType())
-	req.Header.Set("X-API-Key", s.apiKey)
+	req.Header.Set("X-API-Key", apiKey)
 
 	// Make HTTP request
 	client := &http.Client{}
@@ -391,14 +391,14 @@ func (s *adminService) uploadAudio(ctx context.Context, audioFile multipart.File
 	return strings.TrimSpace(string(audioURL)), nil
 }
 
-// deleteAudioFromMediaService sends a DELETE request to media service to delete the audio file
-func (s *adminService) deleteAudioFromMediaService(ctx context.Context, fileID string) error {
-	if s.mediaBaseURL == "" || s.apiKey == "" {
+// deleteFileFromMediaService sends a DELETE request to media service to delete the file
+func deleteFileFromMediaService(ctx context.Context, mediaBaseURL, apiKey, mediaType, fileID string) error {
+	if mediaBaseURL == "" || apiKey == "" {
 		return nil // Skip if media service is not configured
 	}
 
-	// Construct the delete URL: {mediaBaseURL}/media/character/{fileID}
-	deleteURL := strings.TrimSuffix(s.mediaBaseURL, "/") + "/media/character/" + fileID
+	// Construct the delete URL: {mediaBaseURL}/media/{mediaType}/{fileID}
+	deleteURL := strings.TrimSuffix(mediaBaseURL, "/") + "/media/" + mediaType + "/" + fileID
 
 	// Create DELETE request
 	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, deleteURL, nil)
@@ -407,7 +407,7 @@ func (s *adminService) deleteAudioFromMediaService(ctx context.Context, fileID s
 	}
 
 	// Set API key header
-	req.Header.Set("X-API-Key", s.apiKey)
+	req.Header.Set("X-API-Key", apiKey)
 
 	// Execute request
 	client := &http.Client{}
@@ -425,20 +425,20 @@ func (s *adminService) deleteAudioFromMediaService(ctx context.Context, fileID s
 	return nil
 }
 
-// extractFileIDFromAudioURL extracts the file ID (filename) from the audio URL
-// The audio URL format is expected to be like: http://.../media/audio/{fileID}
+// extractFileIDFromURL extracts the file ID (filename) from the audio URL
+// The URL format is expected to be like: http://.../media/{mediaType}/{fileID}
 // Returns the last part of the URL path as the file ID
-func (s *adminService) extractFileIDFromAudioURL(audioURL string) string {
-	if audioURL == "" {
+func extractFileIDFromURL(urlParam string) string {
+	if urlParam == "" {
 		return ""
 	}
 
 	// Parse URL to handle it properly
-	parsedURL, err := url.Parse(audioURL)
+	parsedURL, err := url.Parse(urlParam)
 	if err != nil {
 		// If URL parsing fails, try to extract from string directly
 		// Remove query parameters and fragments
-		parts := strings.Split(audioURL, "?")
+		parts := strings.Split(urlParam, "?")
 		parts = strings.Split(parts[0], "#")
 		urlPath := parts[0]
 

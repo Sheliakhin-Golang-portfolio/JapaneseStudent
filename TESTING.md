@@ -22,6 +22,16 @@ A comprehensive test suite has been successfully implemented for the JapaneseStu
   - Automatic audio cleanup on character update/delete
   - Audio URLs included in character responses
 
+### Word Audio Support
+- **Feature**: Added audio file support for words
+- **Database**: Added `word_audio` and `word_example_audio` columns to `words` table (VARCHAR(500), nullable)
+- **Functionality**:
+  - Admin endpoints support audio upload via `multipart/form-data` for both word audio and word example audio
+  - Audio files stored on media-service, URLs stored in database
+  - Automatic audio cleanup on word update/delete
+  - Audio URLs included in word responses
+  - Supports two types of audio: word pronunciation and example sentence pronunciation
+
 ### Listening Test
 - **New Endpoint**: `GET /api/v4/tests/{hiragana|katakana}/listening`
 - **Functionality**:
@@ -186,8 +196,13 @@ The project includes three types of tests:
 - `GetAllForAdmin`: Success with defaults, pagination, search, repository errors, empty result
 - `GetByIDAdmin`: Success, invalid IDs (zero, negative), repository errors
 - `CreateWord`: Success, word already exists, failed existence check, repository errors
+  - Audio upload integration with media-service (word audio and word example audio)
+  - Audio file validation and error handling
 - `UpdateWord`: Success partial update, update with word/clues field validation, invalid period values (all difficulty levels), invalid IDs, failed existence checks, repository errors
+  - Audio upload/replace integration with media-service
+  - Old audio file deletion when updating (both word audio and word example audio)
 - `DeleteWord`: Success, invalid IDs, repository errors
+  - Audio file cleanup from media-service (both word audio and word example audio)
 
 **Status**: ✅ All tests passing
 
@@ -500,8 +515,13 @@ The test suite aims for comprehensive coverage across all services and layers.
 - ✅ `GetAllForAdmin` - success with defaults, pagination, search, repository errors, empty result
 - ✅ `GetByIDAdmin` - success, invalid IDs, repository errors
 - ✅ `CreateWord` - success, word already exists, failed existence check, repository errors
+  - Audio upload integration with media-service (word audio and word example audio)
+  - Audio file validation and error handling
 - ✅ `UpdateWord` - success partial update, update with word/clues validation, invalid period values, invalid IDs, failed existence checks, repository errors
+  - Audio upload/replace integration with media-service
+  - Old audio file deletion when updating (both word audio and word example audio)
 - ✅ `DeleteWord` - success, invalid IDs, repository errors
+  - Audio file cleanup from media-service (both word audio and word example audio)
 
 #### auth-service AuthService:
 - ✅ `Register` - success, invalid email formats, password validation, duplicate email/username, database errors
@@ -541,11 +561,14 @@ The test suite aims for comprehensive coverage across all services and layers.
   - `GET /api/v4/tests/{hiragana|katakana}/listening` - listening test generation with smart filtering (requires audio files)
   - `POST /api/v4/test-results/{hiragana|katakana}/{reading|writing|listening}` - submit test results
   - `GET /api/v4/test-results/history` - get user learning history
-  - `GET /api/v4/words` - get word list with old and new words
+  - `GET /api/v4/words` - get word list with old and new words (includes audio URLs if available)
   - `POST /api/v4/words/results` - submit word learning results
   - `POST /api/v4/admin/characters` - create character with optional audio upload
   - `PATCH /api/v4/admin/characters/{id}` - update character with optional audio upload/delete
   - `DELETE /api/v4/admin/characters/{id}` - delete character with audio cleanup
+  - `POST /api/v4/admin/words` - create word with optional audio upload (word audio and word example audio)
+  - `PATCH /api/v4/admin/words/{id}` - update word with optional audio upload/delete
+  - `DELETE /api/v4/admin/words/{id}` - delete word with audio cleanup
 - ✅ Repository layer with real database
 - ✅ Service layer with real database
 - ✅ Handler layer with HTTP requests

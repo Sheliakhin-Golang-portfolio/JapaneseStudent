@@ -32,7 +32,7 @@ import (
 )
 
 // @title JapaneseStudent Auth API
-// @version 1.0
+// @version 4.0
 // @description API for user authentication and authorization
 // @termsOfService http://swagger.io/terms/
 
