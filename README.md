@@ -404,6 +404,7 @@ docker-compose down -v
     - `oldWordCount` (optional): Number of old words to return (10-40, default: 20)
     - `locale` (optional): Translation locale - `en`, `ru`, or `de` (default: `en`)
   - Returns: Mixed list of new and old words with locale-specific translations
+  - Note: Includes audio URLs (`wordAudio` and `wordExampleAudio`) if available
 - `POST /api/v4/words/results` - Submit word learning results
   - Body: `{ "results": [{ "wordId": 1, "period": 7 }, ...] }`
   - `period`: Days until next appearance (1-30)
@@ -452,15 +453,50 @@ docker-compose down -v
     - `search` (optional): Search in word, phonetic clues, or translations
   - Returns: List of words with pagination
 - `GET /api/v4/admin/words/{id}` - Get word by ID
-  - Returns: Full word information including all translations and examples
+  - Returns: Full word information including all translations, examples, and audio URLs
 - `POST /api/v4/admin/words` - Create a new word
-  - Body: Word creation request with all required fields
+  - Content-Type: `multipart/form-data`
+  - Form Fields:
+    - `word`: Japanese word (Kanji)
+    - `phoneticClues`: Hiragana reading
+    - `russianTranslation`: Russian translation
+    - `englishTranslation`: English translation
+    - `germanTranslation`: German translation
+    - `example`: Japanese example sentence
+    - `exampleRussianTranslation`: Russian translation of example
+    - `exampleEnglishTranslation`: English translation of example
+    - `exampleGermanTranslation`: German translation of example
+    - `easyPeriod`: Days until next appearance for easy difficulty (1-30)
+    - `normalPeriod`: Days until next appearance for normal difficulty (1-30)
+    - `hardPeriod`: Days until next appearance for hard difficulty (1-30)
+    - `extraHardPeriod`: Days until next appearance for extra hard difficulty (1-30)
+    - `wordAudio` (optional): Word audio file (MP3, WAV, etc.)
+    - `wordExampleAudio` (optional): Word example audio file (MP3, WAV, etc.)
   - Returns: Created word ID
+  - Note: Audio files are uploaded to media-service and URLs are stored in the database
 - `PATCH /api/v4/admin/words/{id}` - Update a word (partial update)
-  - Body: Partial update request with word fields
+  - Content-Type: `multipart/form-data`
+  - Form Fields (all optional):
+    - `word`: Japanese word (Kanji)
+    - `phoneticClues`: Hiragana reading
+    - `russianTranslation`: Russian translation
+    - `englishTranslation`: English translation
+    - `germanTranslation`: German translation
+    - `example`: Japanese example sentence
+    - `exampleRussianTranslation`: Russian translation of example
+    - `exampleEnglishTranslation`: English translation of example
+    - `exampleGermanTranslation`: German translation of example
+    - `easyPeriod`: Days until next appearance for easy difficulty (1-30)
+    - `normalPeriod`: Days until next appearance for normal difficulty (1-30)
+    - `hardPeriod`: Days until next appearance for hard difficulty (1-30)
+    - `extraHardPeriod`: Days until next appearance for extra hard difficulty (1-30)
+    - `wordAudio` (optional): New word audio file (replaces existing audio if provided)
+    - `wordExampleAudio` (optional): New word example audio file (replaces existing audio if provided)
   - Returns: 204 No Content on success
+  - Note: If new audio files are provided, old audio files are automatically deleted from media-service
 - `DELETE /api/v4/admin/words/{id}` - Delete a word by ID
   - Returns: 204 No Content on success
+  - Note: Automatically deletes word's audio files (word audio and word example audio) from media-service if present
 
 ### Media Service (Port 8082)
 
@@ -614,6 +650,8 @@ go test ./services/learn-service/test/integration/... -v
 - `normal_period` - Days until next appearance for normal difficulty
 - `hard_period` - Days until next appearance for hard difficulty
 - `extra_hard_period` - Days until next appearance for extra hard difficulty
+- `word_audio` - Word audio file URL (VARCHAR(500), nullable) - URL to audio file stored on media-service
+- `word_example_audio` - Word example audio file URL (VARCHAR(500), nullable) - URL to example audio file stored on media-service
 
 #### Dictionary History Table
 - `id` - Primary key (auto-increment)

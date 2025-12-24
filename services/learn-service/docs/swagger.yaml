@@ -66,35 +66,6 @@ definitions:
         description: Not always present, depends on the context
         type: string
     type: object
-  models.CreateWordRequest:
-    properties:
-      easyPeriod:
-        type: integer
-      englishTranslation:
-        type: string
-      example:
-        type: string
-      exampleEnglishTranslation:
-        type: string
-      exampleGermanTranslation:
-        type: string
-      exampleRussianTranslation:
-        type: string
-      extraHardPeriod:
-        type: integer
-      germanTranslation:
-        type: string
-      hardPeriod:
-        type: integer
-      normalPeriod:
-        type: integer
-      phoneticClues:
-        type: string
-      russianTranslation:
-        type: string
-      word:
-        type: string
-    type: object
   models.ListeningTestItem:
     properties:
       audioUrl:
@@ -131,35 +102,6 @@ definitions:
         type: integer
       passed:
         type: boolean
-    type: object
-  models.UpdateWordRequest:
-    properties:
-      easyPeriod:
-        type: integer
-      englishTranslation:
-        type: string
-      example:
-        type: string
-      exampleEnglishTranslation:
-        type: string
-      exampleGermanTranslation:
-        type: string
-      exampleRussianTranslation:
-        type: string
-      extraHardPeriod:
-        type: integer
-      germanTranslation:
-        type: string
-      hardPeriod:
-        type: integer
-      normalPeriod:
-        type: integer
-      phoneticClues:
-        type: string
-      russianTranslation:
-        type: string
-      word:
-        type: string
     type: object
   models.UserLearnHistory:
     properties:
@@ -217,6 +159,12 @@ definitions:
       word:
         description: Kanji word
         type: string
+      wordAudio:
+        description: URL to word audio metadata on media server
+        type: string
+      wordExampleAudio:
+        description: URL to word example audio metadata on media server
+        type: string
     type: object
   models.WordListItem:
     properties:
@@ -253,6 +201,12 @@ definitions:
         type: string
       word:
         type: string
+      wordAudio:
+        description: URL to word audio metadata on media server
+        type: string
+      wordExampleAudio:
+        description: URL to word example audio metadata on media server
+        type: string
     type: object
   models.WordResult:
     properties:
@@ -278,13 +232,13 @@ info:
   contact:
     email: shelyahin.mihail@gmail.com
     name: API Support
-  description: API for managing hiragana and katakana characters
+  description: API for learning Japanese
   license:
     name: Apache 2.0
     url: http://www.apache.org/licenses/LICENSE-2.0.html
   termsOfService: http://swagger.io/terms/
-  title: JapaneseStudent Characters API
-  version: "1.0"
+  title: JapaneseStudent Learn API
+  version: "4.0"
 paths:
   /admin/characters:
     get:
@@ -555,15 +509,82 @@ paths:
       - admin
     post:
       consumes:
-      - application/json
-      description: Create a new word
+      - multipart/form-data
+      description: Create a new word with optional audio files
       parameters:
-      - description: Word creation request
-        in: body
-        name: request
+      - description: Word
+        in: formData
+        name: word
         required: true
-        schema:
-          $ref: '#/definitions/models.CreateWordRequest'
+        type: string
+      - description: Phonetic clues
+        in: formData
+        name: phoneticClues
+        required: true
+        type: string
+      - description: Russian translation
+        in: formData
+        name: russianTranslation
+        required: true
+        type: string
+      - description: English translation
+        in: formData
+        name: englishTranslation
+        required: true
+        type: string
+      - description: German translation
+        in: formData
+        name: germanTranslation
+        required: true
+        type: string
+      - description: Example
+        in: formData
+        name: example
+        required: true
+        type: string
+      - description: Example Russian translation
+        in: formData
+        name: exampleRussianTranslation
+        required: true
+        type: string
+      - description: Example English translation
+        in: formData
+        name: exampleEnglishTranslation
+        required: true
+        type: string
+      - description: Example German translation
+        in: formData
+        name: exampleGermanTranslation
+        required: true
+        type: string
+      - description: Easy period
+        in: formData
+        name: easyPeriod
+        required: true
+        type: integer
+      - description: Normal period
+        in: formData
+        name: normalPeriod
+        required: true
+        type: integer
+      - description: Hard period
+        in: formData
+        name: hardPeriod
+        required: true
+        type: integer
+      - description: Extra hard period
+        in: formData
+        name: extraHardPeriod
+        required: true
+        type: integer
+      - description: Word audio file (optional)
+        in: formData
+        name: wordAudio
+        type: file
+      - description: Word example audio file (optional)
+        in: formData
+        name: wordExampleAudio
+        type: file
       produces:
       - application/json
       responses:
@@ -665,19 +686,74 @@ paths:
       - admin
     patch:
       consumes:
-      - application/json
-      description: Update word fields (partial update)
+      - multipart/form-data
+      description: Update word fields (partial update) with optional audio files
       parameters:
       - description: Word ID
         in: path
         name: id
         required: true
         type: integer
-      - description: Update request
-        in: body
-        name: request
-        schema:
-          $ref: '#/definitions/models.UpdateWordRequest'
+      - description: Word
+        in: formData
+        name: word
+        type: string
+      - description: Phonetic clues
+        in: formData
+        name: phoneticClues
+        type: string
+      - description: Russian translation
+        in: formData
+        name: russianTranslation
+        type: string
+      - description: English translation
+        in: formData
+        name: englishTranslation
+        type: string
+      - description: German translation
+        in: formData
+        name: germanTranslation
+        type: string
+      - description: Example
+        in: formData
+        name: example
+        type: string
+      - description: Example Russian translation
+        in: formData
+        name: exampleRussianTranslation
+        type: string
+      - description: Example English translation
+        in: formData
+        name: exampleEnglishTranslation
+        type: string
+      - description: Example German translation
+        in: formData
+        name: exampleGermanTranslation
+        type: string
+      - description: Easy period
+        in: formData
+        name: easyPeriod
+        type: integer
+      - description: Normal period
+        in: formData
+        name: normalPeriod
+        type: integer
+      - description: Hard period
+        in: formData
+        name: hardPeriod
+        type: integer
+      - description: Extra hard period
+        in: formData
+        name: extraHardPeriod
+        type: integer
+      - description: Word audio file (optional)
+        in: formData
+        name: wordAudio
+        type: file
+      - description: Word example audio file (optional)
+        in: formData
+        name: wordExampleAudio
+        type: file
       produces:
       - application/json
       responses:

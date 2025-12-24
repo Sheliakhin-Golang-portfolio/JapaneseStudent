@@ -2,7 +2,7 @@ package handlers
 
 import (
 	"context"
-	"encoding/json"
+	"mime/multipart"
 	"net/http"
 	"strconv"
 	"strings"
@@ -32,16 +32,20 @@ type AdminWordsService interface {
 	// Method CreateWord creates a new word using configured repository.
 	//
 	// "word" parameter is used to create a new word.
+	// "wordAudioFile" and "wordAudioFilename" are optional parameters for word audio file upload.
+	// "wordExampleAudioFile" and "wordExampleAudioFilename" are optional parameters for word example audio file upload.
 	//
 	// If some error will occur during data creation, the error will be returned together with 0 as word ID.
-	CreateWord(ctx context.Context, word *models.CreateWordRequest) (int, error)
+	CreateWord(ctx context.Context, word *models.CreateWordRequest, wordAudioFile multipart.File, wordAudioFilename string, wordExampleAudioFile multipart.File, wordExampleAudioFilename string) (int, error)
 	// Method UpdateWord updates a word using configured repository.
 	//
 	// "id" parameter is used to identify the word.
 	// "word" parameter is used to update the word.
+	// "wordAudioFile" and "wordAudioFilename" are optional parameters for word audio file upload.
+	// "wordExampleAudioFile" and "wordExampleAudioFilename" are optional parameters for word example audio file upload.
 	//
 	// If some error will occur during data update, the error will be returned.
-	UpdateWord(ctx context.Context, id int, word *models.UpdateWordRequest) error
+	UpdateWord(ctx context.Context, id int, word *models.UpdateWordRequest, wordAudioFile multipart.File, wordAudioFilename string, wordExampleAudioFile multipart.File, wordExampleAudioFilename string) error
 	// Method DeleteWord deletes a word using configured repository.
 	//
 	// "id" parameter is used to identify the word.
@@ -159,24 +163,101 @@ func (h *AdminWordsHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 
 // Create handles POST /admin/words
 // @Summary Create a word
-// @Description Create a new word
+// @Description Create a new word with optional audio files
 // @Tags admin
-// @Accept json
+// @Accept multipart/form-data
 // @Produce json
-// @Param request body models.CreateWordRequest true "Word creation request"
+// @Param word formData string true "Word"
+// @Param phoneticClues formData string true "Phonetic clues"
+// @Param russianTranslation formData string true "Russian translation"
+// @Param englishTranslation formData string true "English translation"
+// @Param germanTranslation formData string true "German translation"
+// @Param example formData string true "Example"
+// @Param exampleRussianTranslation formData string true "Example Russian translation"
+// @Param exampleEnglishTranslation formData string true "Example English translation"
+// @Param exampleGermanTranslation formData string true "Example German translation"
+// @Param easyPeriod formData int true "Easy period"
+// @Param normalPeriod formData int true "Normal period"
+// @Param hardPeriod formData int true "Hard period"
+// @Param extraHardPeriod formData int true "Extra hard period"
+// @Param wordAudio formData file false "Word audio file (optional)"
+// @Param wordExampleAudio formData file false "Word example audio file (optional)"
 // @Success 201 {object} map[string]string "Word created successfully"
 // @Failure 400 {object} map[string]string "Invalid request body or word already exists"
 // @Failure 500 {object} map[string]string "Internal server error"
 // @Router /admin/words [post]
 func (h *AdminWordsHandler) Create(w http.ResponseWriter, r *http.Request) {
-	var req models.CreateWordRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		h.Logger.Error("failed to decode request body", zap.Error(err))
-		h.RespondError(w, http.StatusBadRequest, "invalid request body")
+	// Parse multipart form (30MB max)
+	const maxMemory = 30 << 20 // 30MB
+	if err := r.ParseMultipartForm(maxMemory); err != nil {
+		h.Logger.Error("failed to parse multipart form", zap.Error(err))
+		h.RespondError(w, http.StatusBadRequest, "failed to parse multipart form")
 		return
 	}
 
-	wordId, err := h.service.CreateWord(r.Context(), &req)
+	// Extract word data from form fields
+	req := &models.CreateWordRequest{
+		Word:                      r.FormValue("word"),
+		PhoneticClues:             r.FormValue("phoneticClues"),
+		RussianTranslation:        r.FormValue("russianTranslation"),
+		EnglishTranslation:        r.FormValue("englishTranslation"),
+		GermanTranslation:         r.FormValue("germanTranslation"),
+		Example:                   r.FormValue("example"),
+		ExampleRussianTranslation: r.FormValue("exampleRussianTranslation"),
+		ExampleEnglishTranslation: r.FormValue("exampleEnglishTranslation"),
+		ExampleGermanTranslation:  r.FormValue("exampleGermanTranslation"),
+	}
+
+	if easyPeriodStr := r.FormValue("easyPeriod"); easyPeriodStr != "" {
+		if p, err := strconv.Atoi(easyPeriodStr); err == nil {
+			req.EasyPeriod = p
+		}
+	}
+	if normalPeriodStr := r.FormValue("normalPeriod"); normalPeriodStr != "" {
+		if p, err := strconv.Atoi(normalPeriodStr); err == nil {
+			req.NormalPeriod = p
+		}
+	}
+	if hardPeriodStr := r.FormValue("hardPeriod"); hardPeriodStr != "" {
+		if p, err := strconv.Atoi(hardPeriodStr); err == nil {
+			req.HardPeriod = p
+		}
+	}
+	if extraHardPeriodStr := r.FormValue("extraHardPeriod"); extraHardPeriodStr != "" {
+		if p, err := strconv.Atoi(extraHardPeriodStr); err == nil {
+			req.ExtraHardPeriod = p
+		}
+	}
+
+	// Extract word audio file (optional)
+	var wordAudioFile multipart.File
+	var wordAudioFilename string
+	wordFile, header, err := r.FormFile("wordAudio")
+	if err == nil {
+		wordAudioFile = wordFile
+		wordAudioFilename = header.Filename
+		defer wordFile.Close()
+	} else if err != http.ErrMissingFile {
+		h.Logger.Error("failed to get word audio file from form", zap.Error(err))
+		h.RespondError(w, http.StatusBadRequest, "failed to get word audio file")
+		return
+	}
+
+	// Extract word example audio file (optional)
+	var wordExampleAudioFile multipart.File
+	var wordExampleAudioFilename string
+	wordExampleFile, header, err := r.FormFile("wordExampleAudio")
+	if err == nil {
+		wordExampleAudioFile = wordExampleFile
+		wordExampleAudioFilename = header.Filename
+		defer wordExampleFile.Close()
+	} else if err != http.ErrMissingFile {
+		h.Logger.Error("failed to get word example audio file from form", zap.Error(err))
+		h.RespondError(w, http.StatusBadRequest, "failed to get word example audio file")
+		return
+	}
+
+	wordId, err := h.service.CreateWord(r.Context(), req, wordAudioFile, wordAudioFilename, wordExampleAudioFile, wordExampleAudioFilename)
 	if err != nil {
 		h.Logger.Error("failed to create word", zap.Error(err))
 		errStatus := http.StatusInternalServerError
@@ -195,12 +276,26 @@ func (h *AdminWordsHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 // Update handles PATCH /admin/words/{id}
 // @Summary Update a word
-// @Description Update word fields (partial update)
+// @Description Update word fields (partial update) with optional audio files
 // @Tags admin
-// @Accept json
+// @Accept multipart/form-data
 // @Produce json
 // @Param id path int true "Word ID"
-// @Param request body models.UpdateWordRequest false "Update request"
+// @Param word formData string false "Word"
+// @Param phoneticClues formData string false "Phonetic clues"
+// @Param russianTranslation formData string false "Russian translation"
+// @Param englishTranslation formData string false "English translation"
+// @Param germanTranslation formData string false "German translation"
+// @Param example formData string false "Example"
+// @Param exampleRussianTranslation formData string false "Example Russian translation"
+// @Param exampleEnglishTranslation formData string false "Example English translation"
+// @Param exampleGermanTranslation formData string false "Example German translation"
+// @Param easyPeriod formData int false "Easy period"
+// @Param normalPeriod formData int false "Normal period"
+// @Param hardPeriod formData int false "Hard period"
+// @Param extraHardPeriod formData int false "Extra hard period"
+// @Param wordAudio formData file false "Word audio file (optional)"
+// @Param wordExampleAudio formData file false "Word example audio file (optional)"
 // @Success 204 "No Content"
 // @Failure 400 {object} map[string]string "Invalid request"
 // @Failure 404 {object} map[string]string "Word not found"
@@ -216,14 +311,76 @@ func (h *AdminWordsHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req models.UpdateWordRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		h.Logger.Error("failed to decode request body", zap.Error(err))
-		h.RespondError(w, http.StatusBadRequest, "invalid request body")
+	// Parse multipart form (30MB max)
+	const maxMemory = 30 << 20 // 30MB
+	if err := r.ParseMultipartForm(maxMemory); err != nil {
+		h.Logger.Error("failed to parse multipart form", zap.Error(err))
+		h.RespondError(w, http.StatusBadRequest, "failed to parse multipart form")
 		return
 	}
 
-	err = h.service.UpdateWord(r.Context(), id, &req)
+	// Extract word data from form fields (all optional)
+	req := &models.UpdateWordRequest{
+		Word:                      r.FormValue("word"),
+		PhoneticClues:             r.FormValue("phoneticClues"),
+		RussianTranslation:        r.FormValue("russianTranslation"),
+		EnglishTranslation:        r.FormValue("englishTranslation"),
+		GermanTranslation:         r.FormValue("germanTranslation"),
+		Example:                   r.FormValue("example"),
+		ExampleRussianTranslation: r.FormValue("exampleRussianTranslation"),
+		ExampleEnglishTranslation: r.FormValue("exampleEnglishTranslation"),
+		ExampleGermanTranslation:  r.FormValue("exampleGermanTranslation"),
+	}
+	if easyPeriodStr := r.FormValue("easyPeriod"); easyPeriodStr != "" {
+		if p, err := strconv.Atoi(easyPeriodStr); err == nil {
+			req.EasyPeriod = &p
+		}
+	}
+	if normalPeriodStr := r.FormValue("normalPeriod"); normalPeriodStr != "" {
+		if p, err := strconv.Atoi(normalPeriodStr); err == nil {
+			req.NormalPeriod = &p
+		}
+	}
+	if hardPeriodStr := r.FormValue("hardPeriod"); hardPeriodStr != "" {
+		if p, err := strconv.Atoi(hardPeriodStr); err == nil {
+			req.HardPeriod = &p
+		}
+	}
+	if extraHardPeriodStr := r.FormValue("extraHardPeriod"); extraHardPeriodStr != "" {
+		if p, err := strconv.Atoi(extraHardPeriodStr); err == nil {
+			req.ExtraHardPeriod = &p
+		}
+	}
+
+	// Extract word audio file (optional)
+	var wordAudioFile multipart.File
+	var wordAudioFilename string
+	wordFile, header, err := r.FormFile("wordAudio")
+	if err == nil {
+		wordAudioFile = wordFile
+		wordAudioFilename = header.Filename
+		defer wordFile.Close()
+	} else if err != http.ErrMissingFile {
+		h.Logger.Error("failed to get word audio file from form", zap.Error(err))
+		h.RespondError(w, http.StatusBadRequest, "failed to get word audio file")
+		return
+	}
+
+	// Extract word example audio file (optional)
+	var wordExampleAudioFile multipart.File
+	var wordExampleAudioFilename string
+	wordExampleFile, header, err := r.FormFile("wordExampleAudio")
+	if err == nil {
+		wordExampleAudioFile = wordExampleFile
+		wordExampleAudioFilename = header.Filename
+		defer wordExampleFile.Close()
+	} else if err != http.ErrMissingFile {
+		h.Logger.Error("failed to get word example audio file from form", zap.Error(err))
+		h.RespondError(w, http.StatusBadRequest, "failed to get word example audio file")
+		return
+	}
+
+	err = h.service.UpdateWord(r.Context(), id, req, wordAudioFile, wordAudioFilename, wordExampleAudioFile, wordExampleAudioFilename)
 	if err != nil {
 		h.Logger.Error("failed to update word", zap.Error(err))
 		errStatus := http.StatusInternalServerError

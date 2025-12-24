@@ -33,9 +33,9 @@ import (
 
 const maxRequestSize = 10 * 1024 * 1024 // 10MB
 
-// @title JapaneseStudent Characters API
-// @version 1.0
-// @description API for managing hiragana and katakana characters
+// @title JapaneseStudent Learn API
+// @version 4.0
+// @description API for learning Japanese
 // @termsOfService http://swagger.io/terms/
 
 // @contact.name API Support
@@ -102,7 +102,7 @@ func main() {
 	dictionaryHistoryRepo := repositories.NewDictionaryHistoryRepository(db)
 	dictionaryService := services.NewDictionaryService(wordRepo, dictionaryHistoryRepo)
 	dictionaryHandler := handlers.NewDictionaryHandler(dictionaryService, logger.Logger)
-	adminWordService := services.NewAdminWordService(wordRepo, dictionaryHistoryRepo)
+	adminWordService := services.NewAdminWordService(wordRepo, dictionaryHistoryRepo, cfg.MediaBaseURL, cfg.APIKey)
 	adminWordHandler := handlers.NewAdminWordsHandler(adminWordService, logger.Logger)
 
 	// Setup router

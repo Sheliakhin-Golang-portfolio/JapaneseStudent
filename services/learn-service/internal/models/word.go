@@ -16,6 +16,8 @@ type Word struct {
 	NormalPeriod              int    `json:"normalPeriod"`    // Days
 	HardPeriod                int    `json:"hardPeriod"`      // Days
 	ExtraHardPeriod           int    `json:"extraHardPeriod"` // Days
+	WordAudio                 string `json:"wordAudio"`       // URL to word audio metadata on media server
+	WordExampleAudio          string `json:"wordExampleAudio"` // URL to word example audio metadata on media server
 }
 
 // WordResponse represents a word in API responses with locale-specific translations
@@ -30,6 +32,8 @@ type WordResponse struct {
 	NormalPeriod       int    `json:"normalPeriod"`
 	HardPeriod         int    `json:"hardPeriod"`
 	ExtraHardPeriod    int    `json:"extraHardPeriod"`
+	WordAudio          string `json:"wordAudio"`       // URL to word audio metadata on media server
+	WordExampleAudio   string `json:"wordExampleAudio"` // URL to word example audio metadata on media server
 }
 
 // WordResult represents a word learning result submission

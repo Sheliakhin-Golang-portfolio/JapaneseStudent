@@ -234,24 +234,13 @@ func (h *AdminCharactersHandler) Update(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// Extract character data from form fields (all optional)
-	var req models.UpdateCharacterRequest
-	if consonant := r.FormValue("consonant"); consonant != "" {
-		req.Consonant = consonant
-	}
-	if vowel := r.FormValue("vowel"); vowel != "" {
-		req.Vowel = vowel
-	}
-	if englishReading := r.FormValue("englishReading"); englishReading != "" {
-		req.EnglishReading = englishReading
-	}
-	if russianReading := r.FormValue("russianReading"); russianReading != "" {
-		req.RussianReading = russianReading
-	}
-	if katakana := r.FormValue("katakana"); katakana != "" {
-		req.Katakana = katakana
-	}
-	if hiragana := r.FormValue("hiragana"); hiragana != "" {
-		req.Hiragana = hiragana
+	req := &models.UpdateCharacterRequest{
+		Consonant:      r.FormValue("consonant"),
+		Vowel:          r.FormValue("vowel"),
+		EnglishReading: r.FormValue("englishReading"),
+		RussianReading: r.FormValue("russianReading"),
+		Katakana:       r.FormValue("katakana"),
+		Hiragana:       r.FormValue("hiragana"),
 	}
 
 	// Extract audio file (optional)
@@ -268,7 +257,7 @@ func (h *AdminCharactersHandler) Update(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	err = h.service.UpdateCharacter(r.Context(), id, &req, audioFile, audioFilename)
+	err = h.service.UpdateCharacter(r.Context(), id, req, audioFile, audioFilename)
 	if err != nil {
 		h.Logger.Error("failed to update character", zap.Error(err))
 		errStatus := http.StatusBadRequest

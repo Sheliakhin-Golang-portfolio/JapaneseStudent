@@ -11,14 +11,14 @@ import (
 
 // mockAdminWordRepository is a mock implementation of AdminWordRepository
 type mockAdminWordRepository struct {
-	words        []models.Word
-	word         *models.Word
-	existsByWord bool
+	words         []models.Word
+	word          *models.Word
+	existsByWord  bool
 	existsByClues bool
-	err          error
-	createErr    error
-	updateErr    error
-	deleteErr    error
+	err           error
+	createErr     error
+	updateErr     error
+	deleteErr     error
 }
 
 func (m *mockAdminWordRepository) GetAllForAdmin(ctx context.Context, page, count int, search string) ([]models.Word, error) {
@@ -78,7 +78,7 @@ func TestNewAdminWordService(t *testing.T) {
 	mockWordRepo := &mockAdminWordRepository{}
 	mockHistoryRepo := &mockDictionaryHistoryRepository{}
 
-	svc := NewAdminWordService(mockWordRepo, mockHistoryRepo)
+	svc := NewAdminWordService(mockWordRepo, mockHistoryRepo, "", "")
 
 	assert.NotNil(t, svc)
 	assert.Equal(t, mockWordRepo, svc.wordRepo)
@@ -161,7 +161,7 @@ func TestAdminWordService_GetAllForAdmin(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc := NewAdminWordService(tt.mockRepo, &mockDictionaryHistoryRepository{})
+			svc := NewAdminWordService(tt.mockRepo, &mockDictionaryHistoryRepository{}, "", "")
 			ctx := context.Background()
 
 			result, err := svc.GetAllForAdmin(ctx, tt.page, tt.count, tt.search)
@@ -191,9 +191,9 @@ func TestAdminWordService_GetByIDAdmin(t *testing.T) {
 			id:   1,
 			mockRepo: &mockAdminWordRepository{
 				word: &models.Word{
-					ID:                1,
-					Word:              "水",
-					PhoneticClues:     "みず",
+					ID:                 1,
+					Word:               "水",
+					PhoneticClues:      "みず",
 					EnglishTranslation: "water",
 				},
 			},
@@ -227,7 +227,7 @@ func TestAdminWordService_GetByIDAdmin(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc := NewAdminWordService(tt.mockRepo, &mockDictionaryHistoryRepository{})
+			svc := NewAdminWordService(tt.mockRepo, &mockDictionaryHistoryRepository{}, "", "")
 			ctx := context.Background()
 
 			result, err := svc.GetByIDAdmin(ctx, tt.id)
@@ -257,7 +257,7 @@ func TestAdminWordService_CreateWord(t *testing.T) {
 			name: "success",
 			request: &models.CreateWordRequest{
 				Word:               "水",
-				PhoneticClues:       "みず",
+				PhoneticClues:      "みず",
 				EnglishTranslation: "water",
 			},
 			mockRepo: &mockAdminWordRepository{
@@ -307,10 +307,10 @@ func TestAdminWordService_CreateWord(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc := NewAdminWordService(tt.mockRepo, &mockDictionaryHistoryRepository{})
+			svc := NewAdminWordService(tt.mockRepo, &mockDictionaryHistoryRepository{}, "", "")
 			ctx := context.Background()
 
-			result, err := svc.CreateWord(ctx, tt.request)
+			result, err := svc.CreateWord(ctx, tt.request, nil, "", nil, "")
 
 			if tt.expectedError {
 				assert.Error(t, err)
@@ -341,7 +341,7 @@ func TestAdminWordService_UpdateWord(t *testing.T) {
 			request: &models.UpdateWordRequest{
 				EnglishTranslation: "updated water",
 			},
-			mockRepo: &mockAdminWordRepository{},
+			mockRepo:      &mockAdminWordRepository{},
 			expectedError: false,
 		},
 		{
@@ -465,10 +465,19 @@ func TestAdminWordService_UpdateWord(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc := NewAdminWordService(tt.mockRepo, &mockDictionaryHistoryRepository{})
+			// Ensure mock returns a word for GetByIDAdmin (needed for UpdateWord)
+			if tt.mockRepo.word == nil && tt.id > 0 {
+				tt.mockRepo.word = &models.Word{
+					ID:               tt.id,
+					Word:             "existing",
+					WordAudio:        "",
+					WordExampleAudio: "",
+				}
+			}
+			svc := NewAdminWordService(tt.mockRepo, &mockDictionaryHistoryRepository{}, "", "")
 			ctx := context.Background()
 
-			err := svc.UpdateWord(ctx, tt.id, tt.request)
+			err := svc.UpdateWord(ctx, tt.id, tt.request, nil, "", nil, "")
 
 			if tt.expectedError {
 				assert.Error(t, err)
@@ -522,7 +531,16 @@ func TestAdminWordService_DeleteWord(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc := NewAdminWordService(tt.mockRepo, &mockDictionaryHistoryRepository{})
+			// Ensure mock returns a word for GetByIDAdmin (needed for DeleteWord to get audio URLs)
+			if tt.mockRepo.word == nil && tt.id > 0 {
+				tt.mockRepo.word = &models.Word{
+					ID:               tt.id,
+					Word:             "existing",
+					WordAudio:        "",
+					WordExampleAudio: "",
+				}
+			}
+			svc := NewAdminWordService(tt.mockRepo, &mockDictionaryHistoryRepository{}, "", "")
 			ctx := context.Background()
 
 			err := svc.DeleteWord(ctx, tt.id)
@@ -543,4 +561,3 @@ func TestAdminWordService_DeleteWord(t *testing.T) {
 func intPtr(i int) *int {
 	return &i
 }
-

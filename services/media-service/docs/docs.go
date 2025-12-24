@@ -296,7 +296,8 @@ const docTemplate = `{
                 "word_example",
                 "lesson_audio",
                 "lesson_video",
-                "lesson_doc"
+                "lesson_doc",
+                "avatar"
             ],
             "x-enum-varnames": [
                 "MediaTypeCharacter",
@@ -304,7 +305,8 @@ const docTemplate = `{
                 "MediaTypeWordExample",
                 "MediaTypeLessonAudio",
                 "MediaTypeLessonVideo",
-                "MediaTypeLessonDoc"
+                "MediaTypeLessonDoc",
+                "MediaTypeAvatar"
             ]
         },
         "models.Metadata": {
@@ -340,7 +342,7 @@ const docTemplate = `{
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
-	Version:          "1.0",
+	Version:          "4.0",
 	Host:             "localhost:8082",
 	BasePath:         "/api/v4",
 	Schemes:          []string{},

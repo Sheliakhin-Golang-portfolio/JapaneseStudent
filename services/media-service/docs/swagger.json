@@ -12,7 +12,7 @@
             "name": "Apache 2.0",
             "url": "http://www.apache.org/licenses/LICENSE-2.0.html"
         },
-        "version": "1.0"
+        "version": "4.0"
     },
     "host": "localhost:8082",
     "basePath": "/api/v4",
@@ -290,7 +290,8 @@
                 "word_example",
                 "lesson_audio",
                 "lesson_video",
-                "lesson_doc"
+                "lesson_doc",
+                "avatar"
             ],
             "x-enum-varnames": [
                 "MediaTypeCharacter",
@@ -298,7 +299,8 @@
                 "MediaTypeWordExample",
                 "MediaTypeLessonAudio",
                 "MediaTypeLessonVideo",
-                "MediaTypeLessonDoc"
+                "MediaTypeLessonDoc",
+                "MediaTypeAvatar"
             ]
         },
         "models.Metadata": {

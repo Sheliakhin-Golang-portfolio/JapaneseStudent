@@ -215,12 +215,14 @@ func (h *AdminHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Extract form values
-	username := r.FormValue("username")
-	email := r.FormValue("email")
-	password := r.FormValue("password")
+	req := models.CreateUserRequest{
+		Username: r.FormValue("username"),
+		Email:    r.FormValue("email"),
+		Password: r.FormValue("password"),
+	}
 	roleStr := r.FormValue("role")
 
-	if username == "" || email == "" || password == "" || roleStr == "" {
+	if req.Username == "" || req.Email == "" || req.Password == "" || roleStr == "" {
 		h.RespondError(w, http.StatusBadRequest, "username, email, password, and role are required")
 		return
 	}
@@ -231,13 +233,7 @@ func (h *AdminHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 		h.RespondError(w, http.StatusBadRequest, "invalid role")
 		return
 	}
-
-	req := models.CreateUserRequest{
-		Username: username,
-		Email:    email,
-		Password: password,
-		Role:     models.Role(role),
-	}
+	req.Role = models.Role(role)
 
 	// Extract avatar file (optional)
 	var avatarFile multipart.File
@@ -352,14 +348,9 @@ func (h *AdminHandler) UpdateUserWithSettings(w http.ResponseWriter, r *http.Req
 	}
 
 	// Extract form values
-	var req models.UpdateUserWithSettingsRequest
-
-	if username := r.FormValue("username"); username != "" {
-		req.Username = username
-	}
-
-	if email := r.FormValue("email"); email != "" {
-		req.Email = email
+	req := &models.UpdateUserWithSettingsRequest{
+		Username: r.FormValue("username"),
+		Email:    r.FormValue("email"),
 	}
 
 	if roleStr := r.FormValue("role"); roleStr != "" {
@@ -424,7 +415,7 @@ func (h *AdminHandler) UpdateUserWithSettings(w http.ResponseWriter, r *http.Req
 	}
 
 	// Update user and settings
-	err = h.adminService.UpdateUserWithSettings(r.Context(), userID, &req, avatarFile, avatarFilename)
+	err = h.adminService.UpdateUserWithSettings(r.Context(), userID, req, avatarFile, avatarFilename)
 	if err != nil {
 		h.Logger.Error("failed to update user with settings", zap.Error(err))
 		errStatus := http.StatusBadRequest
