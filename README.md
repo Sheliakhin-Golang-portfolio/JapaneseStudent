@@ -94,17 +94,34 @@ JapaneseStudent/
 │       │   │   ├── dictionary_handler.go
 │       │   │   ├── test_result_handler.go
 │       │   │   ├── admin_character_handler.go
-│       │   │   └── admin_word_handler.go
+│       │   │   ├── admin_word_handler.go
+│       │   │   ├── user_lesson_handler.go
+│       │   │   ├── tutor_lesson_handler.go
+│       │   │   └── admin_lesson_handler.go
 │       │   ├── models/           # Domain models
 │       │   │   ├── character.go
 │       │   │   ├── character_learn_history.go
 │       │   │   ├── dictionary_history.go
-│       │   │   └── word.go
+│       │   │   ├── word.go
+│       │   │   ├── course.go
+│       │   │   ├── lesson.go
+│       │   │   ├── lesson_block.go
+│       │   │   ├── lesson_user_history.go
+│       │   │   └── tutor_media.go
 │       │   ├── repositories/      # Data access layer
 │       │   │   ├── character_repository.go
 │       │   │   ├── character_learn_history_repository.go
 │       │   │   ├── dictionary_history_repository.go
 │       │   │   ├── word_repository.go
+│       │   │   ├── course_repository.go
+│       │   │   ├── course_repository_test.go
+│       │   │   ├── lesson_repository.go
+│       │   │   ├── lesson_repository_test.go
+│       │   │   ├── lesson_block_repository.go
+│       │   │   ├── lesson_block_repository_test.go
+│       │   │   ├── lesson_user_history_repository.go
+│       │   │   ├── lesson_user_history_repository_test.go
+│       │   │   ├── tutor_media_repository.go
 │       │   │   └── repository_test.go
 │       │   └── services/         # Business logic layer
 │       │       ├── character_service.go
@@ -114,7 +131,11 @@ JapaneseStudent/
 │       │       ├── admin_character_service.go
 │       │       ├── admin_character_service_test.go
 │       │       ├── admin_word_service.go
-│       │       └── admin_word_service_test.go
+│       │       ├── admin_word_service_test.go
+│       │       ├── user_lesson_service.go
+│       │       ├── user_lesson_service_test.go
+│       │       ├── tutor_lesson_service.go
+│       │       └── tutor_lesson_service_test.go
 │       ├── migrations/            # Database migrations
 │       │   ├── 000001_create_characters_table.up.sql
 │       │   ├── 000001_create_characters_table.down.sql
@@ -123,7 +144,21 @@ JapaneseStudent/
 │       │   ├── 000003_create_words_table.up.sql
 │       │   ├── 000003_create_words_table.down.sql
 │       │   ├── 000004_create_dictionary_history_table.up.sql
-│       │   └── 000004_create_dictionary_history_table.down.sql
+│       │   ├── 000004_create_dictionary_history_table.down.sql
+│       │   ├── 000005_add_audio_to_characters_table.up.sql
+│       │   ├── 000005_add_audio_to_characters_table.down.sql
+│       │   ├── 000006_add_audio_to_words_table.up.sql
+│       │   ├── 000006_add_audio_to_words_table.down.sql
+│       │   ├── 000007_create_courses_table.up.sql
+│       │   ├── 000007_create_courses_table.down.sql
+│       │   ├── 000008_create_lessons_table.up.sql
+│       │   ├── 000008_create_lessons_table.down.sql
+│       │   ├── 000009_create_lesson_blocks_table.up.sql
+│       │   ├── 000009_create_lesson_blocks_table.down.sql
+│       │   ├── 000010_create_lesson_user_history_table.up.sql
+│       │   ├── 000010_create_lesson_user_history_table.down.sql
+│       │   ├── 000011_create_tutor_media_table.up.sql
+│       │   └── 000011_create_tutor_media_table.down.sql
 │       ├── test/
 │       │   └── integration/      # Integration tests
 │       │       └── characters_test.go
@@ -246,12 +281,39 @@ CREATE DATABASE japanesestudent;
 Migrations run automatically when each service starts. Alternatively, you can run them manually using the migrate tool:
 
 ```bash
-# For auth-service (includes avatar field migration)
+# For auth-service
 migrate -path services/auth-service/migrations -database "mysql://user:password@tcp(localhost:3306)/japanesestudent" up
 
 # For learn-service
 migrate -path services/learn-service/migrations -database "mysql://user:password@tcp(localhost:3306)/japanesestudent" up
+
+# For media-service
+migrate -path services/media-service/migrations -database "mysql://user:password@tcp(localhost:3306)/japanesestudent" up
 ```
+
+#### Migration History
+
+**Auth Service Migrations:**
+1. `000001_create_users_table` - Creates users table with email, username, password_hash, and role
+2. `000002_create_user_tokens_table` - Creates user_tokens table for refresh token storage
+3. `000003_create_user_settings_table` - Creates user_settings table for user preferences
+4. `000004_add_avatar_to_users_table` - Adds avatar column to users table
+
+**Learn Service Migrations:**
+1. `000001_create_characters_table` - Creates characters table for hiragana/katakana characters
+2. `000002_create_character_learn_history_table` - Creates character_learn_history table for tracking user progress
+3. `000003_create_words_table` - Creates words table for Japanese vocabulary
+4. `000004_create_dictionary_history_table` - Creates dictionary_history table for spaced repetition
+5. `000005_add_audio_to_characters_table` - Adds audio column to characters table
+6. `000006_add_audio_to_words_table` - Adds word_audio and word_example_audio columns to words table
+7. `000007_create_courses_table` - Creates courses table for course management
+8. `000008_create_lessons_table` - Creates lessons table for lesson management
+9. `000009_create_lesson_blocks_table` - Creates lesson_blocks table for lesson content blocks
+10. `000010_create_lesson_user_history_table` - Creates lesson_user_history table for tracking lesson completion
+11. `000011_create_tutor_media_table` - Creates tutor_media table for tutor media file management
+
+**Media Service Migrations:**
+1. `000001_create_metadata_table` - Creates metadata table for file metadata storage
 
 ### 4. Run the Services
 
@@ -410,6 +472,29 @@ docker-compose down -v
   - `period`: Days until next appearance (1-30)
   - Returns: 204 No Content on success
 
+#### Courses and Lessons (Requires Authentication)
+- `GET /api/v4/courses` - Get paginated list of courses
+  - Query Parameters:
+    - `complexityLevel` (optional): Filter by complexity level (`ab`, `b`, `i`, `ui`, `a` or full name)
+    - `search` (optional): Search by course title
+    - `isMine` (optional): Filter courses by user's completion history (boolean)
+    - `page` (optional): Page number (default: 1)
+    - `count` (optional): Items per page (default: 10)
+  - Returns: List of courses with total lessons and completed lessons count
+- `GET /api/v4/courses/{slug}/lessons` - Get course details with lessons list
+  - Path Parameters:
+    - `slug`: Course slug
+  - Returns: Course details and list of lessons with completion status
+- `GET /api/v4/lessons/{slug}` - Get lesson details
+  - Path Parameters:
+    - `slug`: Lesson slug
+  - Returns: Lesson details and list of lesson blocks
+- `POST /api/v4/lessons/{slug}/complete` - Toggle lesson completion
+  - Path Parameters:
+    - `slug`: Lesson slug
+  - Returns: 204 No Content on success
+  - Note: Toggles completion status (complete if not completed, uncomplete if completed)
+
 #### Admin Endpoints (Requires Authentication & Admin Role)
 
 ##### Admin Characters
@@ -497,6 +582,84 @@ docker-compose down -v
 - `DELETE /api/v4/admin/words/{id}` - Delete a word by ID
   - Returns: 204 No Content on success
   - Note: Automatically deletes word's audio files (word audio and word example audio) from media-service if present
+
+##### Admin Courses and Lessons (Requires Authentication & Admin Role)
+- `GET /api/v4/admin/courses` - Get paginated list of courses
+  - Query Parameters:
+    - `tutorId` (optional): Filter by tutor ID
+    - `complexityLevel` (optional): Filter by complexity level (`ab`, `b`, `i`, `ui`, `a` or full name)
+    - `search` (optional): Search by course title
+    - `page` (optional): Page number (default: 1)
+    - `count` (optional): Items per page (default: 10)
+  - Returns: List of courses
+- `GET /api/v4/admin/courses/short` - Get short course info (ID and title only)
+  - Query Parameters:
+    - `tutorId` (optional): Filter by tutor ID
+  - Returns: List of courses with only ID and title
+- `POST /api/v4/admin/courses` - Create a new course
+  - Content-Type: `application/json`
+  - Body: `{ "slug": "course-slug", "authorId": 1, "title": "Course Title", "shortSummary": "Summary", "complexityLevel": "Beginner" }`
+  - Returns: Created course ID
+- `GET /api/v4/admin/courses/{id}/lessons` - Get lessons for a course
+  - Returns: Course details and list of lessons
+- `PATCH /api/v4/admin/courses/{id}` - Update a course (partial update)
+  - Content-Type: `application/json`
+  - Body: Partial course data (all fields optional)
+  - Returns: 204 No Content on success
+- `DELETE /api/v4/admin/courses/{id}` - Delete a course by ID
+  - Returns: 204 No Content on success
+  - Note: Cascades to delete all lessons and lesson blocks
+- `POST /api/v4/admin/lessons` - Create a new lesson
+  - Content-Type: `application/json`
+  - Body: `{ "slug": "lesson-slug", "courseId": 1, "title": "Lesson Title", "shortSummary": "Summary", "order": 1 }`
+  - Returns: Created lesson ID
+- `GET /api/v4/admin/lessons/short` - Get short lesson info (ID and title only)
+  - Query Parameters:
+    - `courseId` (optional): Filter by course ID
+  - Returns: List of lessons with only ID and title
+- `GET /api/v4/admin/lessons/{id}` - Get full lesson information
+  - Returns: Lesson details with all blocks
+- `PATCH /api/v4/admin/lessons/{id}` - Update a lesson (partial update)
+  - Content-Type: `application/json`
+  - Body: Partial lesson data (all fields optional)
+  - Returns: 204 No Content on success
+- `DELETE /api/v4/admin/lessons/{id}` - Delete a lesson by ID
+  - Returns: 204 No Content on success
+  - Note: Cascades to delete all lesson blocks
+- `POST /api/v4/admin/blocks` - Create a lesson block
+  - Content-Type: `application/json`
+  - Body: `{ "lessonId": 1, "blockType": "video", "blockOrder": 1, "blockData": {...} }`
+  - Block types: `video`, `audio`, `text`, `document`, `list`
+  - Returns: Created block ID
+- `PATCH /api/v4/admin/blocks/{id}` - Update a lesson block
+  - Content-Type: `application/json`
+  - Body: Partial block data (all fields optional)
+  - Returns: 204 No Content on success
+- `DELETE /api/v4/admin/blocks/{id}` - Delete a lesson block
+  - Returns: 204 No Content on success
+- `GET /api/v4/admin/media` - Get tutor media list
+  - Query Parameters:
+    - `tutorId` (optional): Filter by tutor ID
+    - `mediaType` (optional): Filter by media type (`video`, `doc`, `audio`)
+  - Returns: List of tutor media
+- `POST /api/v4/admin/media` - Create tutor media
+  - Content-Type: `multipart/form-data`
+  - Form Fields:
+    - `tutorId`: Tutor ID
+    - `slug`: Media slug
+    - `mediaType`: Media type (`video`, `doc`, `audio`)
+    - `file`: Media file
+  - Returns: Created media ID
+  - Note: File is uploaded to media-service and URL is stored in the database
+- `DELETE /api/v4/admin/media/{id}` - Delete tutor media
+  - Returns: 204 No Content on success
+  - Note: Automatically deletes media file from media-service
+
+##### Tutor Courses and Lessons (Requires Authentication & Tutor Role)
+- All admin course and lesson endpoints are available to tutors
+- Tutors can only manage courses they own (author_id matches tutor ID)
+- Tutors can manage lessons within their own courses
+- Tutor endpoints use the same paths as admin endpoints but with ownership validation
 
 ### Media Service (Port 8082)
 
@@ -661,6 +824,44 @@ go test ./services/learn-service/test/integration/... -v
 - Unique constraint on (user_id, word_id)
 - Foreign key constraint on word_id with CASCADE delete
 
+#### Courses Table
+- `id` - Primary key (auto-increment)
+- `slug` - Unique URL-friendly identifier (unique, indexed)
+- `author_id` - Tutor/author user ID (indexed)
+- `title` - Course title (indexed)
+- `short_summary` - Course summary/description
+- `complexity_level` - Complexity level enum (Absolute beginner, Beginner, Intermediate, Upper Intermediate, Advanced) (indexed)
+
+#### Lessons Table
+- `id` - Primary key (auto-increment)
+- `slug` - Unique URL-friendly identifier (unique, indexed)
+- `course_id` - Foreign key to courses.id (indexed, CASCADE delete)
+- `title` - Lesson title
+- `short_summary` - Lesson summary/description
+- `order` - Order within course (indexed with course_id)
+
+#### Lesson Blocks Table
+- `id` - Primary key (auto-increment)
+- `lesson_id` - Foreign key to lessons.id (indexed, CASCADE delete)
+- `block_type` - Block type enum (video, audio, text, document, list)
+- `block_order` - Order within lesson (indexed with lesson_id)
+- `block_data` - JSON data containing block content
+
+#### Lesson User History Table
+- `id` - Primary key (auto-increment)
+- `user_id` - User ID (from auth service) (indexed)
+- `course_id` - Foreign key to courses.id (indexed, CASCADE delete)
+- `lesson_id` - Foreign key to lessons.id (indexed, CASCADE delete)
+- Unique constraint on (user_id, course_id, lesson_id)
+- Tracks which lessons users have completed
+
+#### Tutor Media Table
+- `id` - Primary key (auto-increment)
+- `tutor_id` - Tutor user ID (indexed)
+- `slug` - Unique media identifier (unique, indexed)
+- `media_type` - Media type enum (video, doc, audio) (indexed)
+- `url` - Media file URL (VARCHAR(500)) - URL to media file stored on media-service
+
 ### Media Service Database
 
 #### Metadata Table
@@ -709,7 +910,14 @@ The application uses JWT (JSON Web Tokens) for authentication:
 - **Refresh Tokens**: Long-lived tokens (default: 7 days) stored in database, used to obtain new access tokens
 - **Token Storage**: Refresh tokens are stored as HTTP-only cookies for security
 - **Password Security**: Passwords are hashed using bcrypt before storage
-- **Role-Based Access Control**: Users have roles (default: `user`). Admin endpoints require admin role authentication.
+- **Role-Based Access Control**: Users have roles (default: `user`). Different endpoints require different role levels.
+
+### User Roles
+
+The system supports the following user roles:
+- **User** (role = 0): Default role for regular users. Can access user endpoints and complete lessons.
+- **Tutor** (role = 2): Can create and manage their own courses, lessons, and media files. Tutors can only manage content they own.
+- **Admin** (role = 1 or higher): Can manage all users, courses, lessons, characters, and words regardless of ownership.
 
 ### Password Requirements
 
@@ -723,8 +931,16 @@ The application uses JWT (JSON Web Tokens) for authentication:
 
 Admin endpoints require:
 1. Valid JWT authentication token
-2. User role must be set to admin (role value: 1 or higher, depending on implementation)
+2. User role must be set to admin (role value: 1 or higher)
 3. Admin middleware validates both authentication and role permissions
+
+### Tutor Access
+
+Tutor endpoints require:
+1. Valid JWT authentication token
+2. User role must be set to tutor (role value: 2)
+3. Tutors can only manage courses they own (where `author_id` matches their user ID)
+4. Tutor middleware validates both authentication and role permissions, plus ownership for course/lesson operations
 
 ## Logging
 

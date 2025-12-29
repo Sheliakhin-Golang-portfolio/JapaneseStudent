@@ -218,6 +218,11 @@ func (s *authService) Refresh(ctx context.Context, refreshToken string) (string,
 			userTokenChan <- nil
 			return
 		}
+		if userToken == nil {
+			errorChan <- fmt.Errorf("failed to refresh token: failed to get user token")
+			userTokenChan <- nil
+			return
+		}
 		userTokenChan <- userToken
 		errorChan <- nil // Signal success
 	}()
@@ -241,9 +246,6 @@ func (s *authService) Refresh(ctx context.Context, refreshToken string) (string,
 		}
 	}
 	userToken := <-userTokenChan
-	if userToken == nil {
-		return "", "", fmt.Errorf("failed to refresh token: failed to get user token")
-	}
 
 	// Get user to retrieve role
 	user, err := s.userRepo.GetByID(ctx, userToken.UserID)
@@ -258,9 +260,8 @@ func (s *authService) Refresh(ctx context.Context, refreshToken string) (string,
 	}
 
 	// Update refresh token in database (replaces old token with new one)
-	// Use userToken.UserID to ensure it matches the token that was retrieved from database
-	if err := s.userTokenRepo.UpdateToken(ctx, refreshToken, newRefreshToken, userToken.UserID); err != nil {
-		return "", "", err
+	if err := s.userTokenRepo.UpdateToken(ctx, userToken.Token, newRefreshToken, userToken.UserID); err != nil {
+		return "", "", fmt.Errorf("failed to update refresh token: %w", err)
 	}
 
 	return accessToken, newRefreshToken, nil

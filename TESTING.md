@@ -49,6 +49,39 @@ A comprehensive test suite has been successfully implemented for the JapaneseStu
 - **Applies to**: Reading, writing, and listening tests
 - **Benefits**: Helps users focus on characters that need more practice
 
+### Courses and Lessons System
+- **Feature**: Added comprehensive course and lesson management system
+- **Database**: Added tables for courses, lessons, lesson_blocks, lesson_user_history, and tutor_media
+- **Functionality**:
+  - **User Endpoints** (requires authentication):
+    - Get paginated list of courses with filtering (complexity level, search, isMine)
+    - Get course details with lessons list
+    - Get lesson details with blocks
+    - Toggle lesson completion status
+  - **Tutor Endpoints** (requires tutor role = 2):
+    - Full CRUD operations for courses
+    - Full CRUD operations for lessons
+    - Full CRUD operations for lesson blocks (video, audio, text, document, list)
+    - Tutor media management (upload, list, delete)
+    - Course ownership validation
+  - **Admin Endpoints** (requires admin role):
+    - Same as tutor endpoints but can manage all courses/lessons regardless of ownership
+- **Course Features**:
+  - Complexity levels: Absolute beginner, Beginner, Intermediate, Upper Intermediate, Advanced
+  - Course slug for URL-friendly identifiers
+  - Author/tutor assignment
+  - Progress tracking (total lessons, completed lessons)
+- **Lesson Features**:
+  - Lessons belong to courses
+  - Ordered lessons within courses
+  - Multiple block types: video, audio, text, document, list
+  - JSON-based block data for flexible content structure
+  - User completion tracking
+- **Tutor Media**:
+  - Media files (video, doc, audio) associated with tutors
+  - Integration with media-service for file storage
+  - Slug-based media identification
+
 ## Test Structure
 
 The project includes three types of tests:
@@ -142,7 +175,85 @@ The project includes three types of tests:
 
 **Status**: ✅ All tests passing (float64 precision issue resolved using `sqlmock.AnyArg()`, SQL regex matching fixed for dynamic queries)
 
-#### 4. auth-service Services
+#### 4. learn-service Course and Lesson Repositories
+**Files**:
+- `JapaneseStudent/services/learn-service/internal/repositories/course_repository_test.go`
+- `JapaneseStudent/services/learn-service/internal/repositories/lesson_repository_test.go`
+- `JapaneseStudent/services/learn-service/internal/repositories/lesson_block_repository_test.go`
+- `JapaneseStudent/services/learn-service/internal/repositories/lesson_user_history_repository_test.go`
+
+**CourseRepository Test Coverage**:
+- `GetBySlug`: Success, course not found, database errors, scan errors
+- `GetByID`: Success, course not found, database errors, scan errors
+- `GetAll`: Success with pagination, complexity filter, search filter, isMine filter, empty results, database errors
+- `GetByAuthorOrFull`: Success with author filter, complexity filter, search filter, pagination, empty results, database errors
+- `GetShortInfo`: Success with/without author filter, empty results, database errors
+- `Create`: Success, database errors, duplicate slug/title, LastInsertId errors
+- `Update`: Success partial update, course not found, database errors, rows affected errors
+- `Delete`: Success, course not found, database errors, rows affected errors
+- `CheckOwnership`: Success (owned/not owned), database errors, scan errors
+- `ExistsBySlug`: Success (exists/doesn't exist), database errors
+- `ExistsByTitle`: Success (exists/doesn't exist), database errors
+
+**LessonRepository Test Coverage**:
+- `GetBySlug`: Success, lesson not found, database errors, scan errors
+- `GetByID`: Success, lesson not found, database errors, scan errors
+- `GetByCourseID`: Success with multiple lessons, empty result, database errors, scan errors
+- `GetShortInfo`: Success with/without course filter, empty results, database errors
+- `Create`: Success, database errors, duplicate slug, foreign key constraints, LastInsertId errors
+- `Update`: Success partial update, lesson not found, database errors, rows affected errors
+- `Delete`: Success, lesson not found, database errors, rows affected errors
+- `CheckOwnership`: Success (owned/not owned), database errors, scan errors
+
+**LessonBlockRepository Test Coverage**:
+- `GetByLessonID`: Success with multiple blocks, empty result, database errors, scan errors, JSON parsing
+- `GetByID`: Success, block not found, database errors, scan errors, JSON parsing
+- `Create`: Success, database errors, foreign key constraints, LastInsertId errors, JSON validation
+- `Update`: Success partial update, block not found, database errors, rows affected errors, JSON validation
+- `Delete`: Success, block not found, database errors, rows affected errors
+- `DeleteByLessonID`: Success, no blocks to delete, database errors
+
+**LessonUserHistoryRepository Test Coverage**:
+- `GetByUserIDAndLessonID`: Success, not found, database errors, scan errors
+- `GetByUserIDAndCourseID`: Success with multiple lessons, empty result, database errors, scan errors
+- `Create`: Success, database errors, duplicate entry, foreign key constraints
+- `Delete`: Success, record not found, database errors, rows affected errors
+- `Exists`: Success (exists/doesn't exist), database errors
+
+**Status**: ✅ All tests passing
+
+#### 5. learn-service Course and Lesson Services
+**Files**:
+- `JapaneseStudent/services/learn-service/internal/services/user_lesson_service_test.go`
+- `JapaneseStudent/services/learn-service/internal/services/tutor_lesson_service_test.go`
+
+**UserLessonService Test Coverage**:
+- `GetCoursesList`: Success with various filters, pagination, empty results, validation errors, repository errors
+- `GetLessonsInCourse`: Success, course not found, repository errors
+- `GetLesson`: Success, lesson not found, repository errors
+- `ToggleLessonCompletion`: Success (complete/uncomplete), lesson not found, repository errors
+
+**TutorLessonService Test Coverage**:
+- `GetCourses`: Success with various filters, pagination, empty results, repository errors
+- `CreateCourse`: Success, validation errors (slug, title, complexity level), duplicate slug/title, repository errors
+- `UpdateCourse`: Success partial update, course not found, ownership validation, validation errors, repository errors
+- `DeleteCourse`: Success, course not found, ownership validation, repository errors
+- `GetCoursesShortInfo`: Success with/without tutor filter, repository errors
+- `GetLessonsForCourse`: Success, course not found, ownership validation, repository errors
+- `CreateLesson`: Success, validation errors, duplicate slug, ownership validation, repository errors
+- `UpdateLesson`: Success partial update, lesson not found, ownership validation, repository errors
+- `DeleteLesson`: Success, lesson not found, ownership validation, repository errors
+- `GetFullLessonInfo`: Success, lesson not found, ownership validation, repository errors
+- `CreateLessonBlock`: Success, validation errors, lesson not found, ownership validation, JSON validation, repository errors
+- `UpdateLessonBlock`: Success partial update, block not found, ownership validation, JSON validation, repository errors
+- `DeleteBlock`: Success, block not found, ownership validation, repository errors
+- `GetTutorMedia`: Success with various filters, repository errors
+- `CreateTutorMedia`: Success, validation errors, media upload integration, repository errors
+- `DeleteTutorMedia`: Success, media not found, ownership validation, media deletion integration, repository errors
+
+**Status**: ✅ All tests passing
+
+#### 6. auth-service Services
 **Files**:
 - `JapaneseStudent/services/auth-service/internal/services/auth_service_test.go`
 - `JapaneseStudent/services/auth-service/internal/services/user_settings_service_test.go`
@@ -168,7 +279,7 @@ The project includes three types of tests:
 
 **Status**: ✅ Tests created and ready to run (password regex issue fixed - now uses array of regex patterns instead of lookahead assertions)
 
-#### 5. learn-service Services
+#### 7. learn-service Services (Character, Word, Dictionary, Test Results)
 **Files**:
 - `JapaneseStudent/services/learn-service/internal/services/service_test.go` (TestResultService)
 - `JapaneseStudent/services/learn-service/internal/services/dictionary_service_test.go`
@@ -206,7 +317,7 @@ The project includes three types of tests:
 
 **Status**: ✅ All tests passing
 
-#### 6. media-service Repositories
+#### 8. media-service Repositories
 **File**: `JapaneseStudent/services/media-service/internal/repositories/metadata_repository_test.go`
 
 **MetadataRepository Test Coverage**:
@@ -216,7 +327,7 @@ The project includes three types of tests:
 
 **Status**: ✅ All tests passing (~90% coverage, 11+ test cases)
 
-#### 7. media-service Services
+#### 9. media-service Services
 **File**: `JapaneseStudent/services/media-service/internal/services/media_service_test.go`
 
 **MediaService Test Coverage** (30+ test cases):
@@ -232,7 +343,7 @@ The project includes three types of tests:
 
 **Status**: ✅ All tests passing (~90% coverage, 30+ test cases)
 
-#### 8. auth-service Integration Tests
+#### 10. auth-service Integration Tests
 **File**: `JapaneseStudent/services/auth-service/test/integration/auth_test.go`
 
 **Test Suites**:
@@ -246,7 +357,7 @@ The project includes three types of tests:
 
 **Status**: ✅ Integration tests created and ready to run (requires MySQL database)
 
-#### 9. learn-service Integration Tests (Updated)
+#### 11. learn-service Integration Tests (Updated)
 **File**: `JapaneseStudent/services/learn-service/test/integration/characters_test.go`
 
 **Test Suites**:
@@ -437,6 +548,44 @@ The test suite aims for comprehensive coverage across all services and layers.
 - ✅ `GetByUserId` - success, not found, errors
 - ✅ `Update` - success, settings not found, errors
 
+#### learn-service CourseRepository:
+- ✅ `GetBySlug` - success, course not found, database/scan errors
+- ✅ `GetByID` - success, course not found, database/scan errors
+- ✅ `GetAll` - success with pagination, complexity filter, search filter, isMine filter, empty results, errors
+- ✅ `GetByAuthorOrFull` - success with author filter, complexity filter, search filter, pagination, errors
+- ✅ `GetShortInfo` - success with/without author filter, empty results, errors
+- ✅ `Create` - success, database errors, duplicate slug/title, LastInsertId errors
+- ✅ `Update` - success partial update, course not found, database errors, rows affected errors
+- ✅ `Delete` - success, course not found, database errors, rows affected errors
+- ✅ `CheckOwnership` - success (owned/not owned), database errors, scan errors
+- ✅ `ExistsBySlug` - success (exists/doesn't exist), database errors
+- ✅ `ExistsByTitle` - success (exists/doesn't exist), database errors
+
+#### learn-service LessonRepository:
+- ✅ `GetBySlug` - success, lesson not found, database/scan errors
+- ✅ `GetByID` - success, lesson not found, database/scan errors
+- ✅ `GetByCourseID` - success with multiple lessons, empty result, database/scan errors
+- ✅ `GetShortInfo` - success with/without course filter, empty results, errors
+- ✅ `Create` - success, database errors, duplicate slug, foreign key constraints, LastInsertId errors
+- ✅ `Update` - success partial update, lesson not found, database errors, rows affected errors
+- ✅ `Delete` - success, lesson not found, database errors, rows affected errors
+- ✅ `CheckOwnership` - success (owned/not owned), database errors, scan errors
+
+#### learn-service LessonBlockRepository:
+- ✅ `GetByLessonID` - success with multiple blocks, empty result, database/scan errors, JSON parsing
+- ✅ `GetByID` - success, block not found, database/scan errors, JSON parsing
+- ✅ `Create` - success, database errors, foreign key constraints, LastInsertId errors, JSON validation
+- ✅ `Update` - success partial update, block not found, database errors, rows affected errors, JSON validation
+- ✅ `Delete` - success, block not found, database errors, rows affected errors
+- ✅ `DeleteByLessonID` - success, no blocks to delete, database errors
+
+#### learn-service LessonUserHistoryRepository:
+- ✅ `GetByUserIDAndLessonID` - success, not found, database/scan errors
+- ✅ `GetByUserIDAndCourseID` - success with multiple lessons, empty result, database/scan errors
+- ✅ `Create` - success, database errors, duplicate entry, foreign key constraints
+- ✅ `Delete` - success, record not found, database errors, rows affected errors
+- ✅ `Exists` - success (exists/doesn't exist), database errors
+
 #### learn-service WordRepository:
 - ✅ `GetByIDs` - success with multiple/single IDs, empty slice, database/scan errors
 - ✅ `GetExcludingIDs` - success with exclusion list, empty exclusion list, database/scan errors
@@ -523,6 +672,30 @@ The test suite aims for comprehensive coverage across all services and layers.
 - ✅ `DeleteWord` - success, invalid IDs, repository errors
   - Audio file cleanup from media-service (both word audio and word example audio)
 
+#### learn-service UserLessonService:
+- ✅ `GetCoursesList` - success with various filters, pagination, empty results, validation errors, repository errors
+- ✅ `GetLessonsInCourse` - success, course not found, repository errors
+- ✅ `GetLesson` - success, lesson not found, repository errors
+- ✅ `ToggleLessonCompletion` - success (complete/uncomplete), lesson not found, repository errors
+
+#### learn-service TutorLessonService:
+- ✅ `GetCourses` - success with various filters, pagination, empty results, repository errors
+- ✅ `CreateCourse` - success, validation errors (slug, title, complexity level), duplicate slug/title, repository errors
+- ✅ `UpdateCourse` - success partial update, course not found, ownership validation, validation errors, repository errors
+- ✅ `DeleteCourse` - success, course not found, ownership validation, repository errors
+- ✅ `GetCoursesShortInfo` - success with/without tutor filter, repository errors
+- ✅ `GetLessonsForCourse` - success, course not found, ownership validation, repository errors
+- ✅ `CreateLesson` - success, validation errors, duplicate slug, ownership validation, repository errors
+- ✅ `UpdateLesson` - success partial update, lesson not found, ownership validation, repository errors
+- ✅ `DeleteLesson` - success, lesson not found, ownership validation, repository errors
+- ✅ `GetFullLessonInfo` - success, lesson not found, ownership validation, repository errors
+- ✅ `CreateLessonBlock` - success, validation errors, lesson not found, ownership validation, JSON validation, repository errors
+- ✅ `UpdateLessonBlock` - success partial update, block not found, ownership validation, JSON validation, repository errors
+- ✅ `DeleteBlock` - success, block not found, ownership validation, repository errors
+- ✅ `GetTutorMedia` - success with various filters, repository errors
+- ✅ `CreateTutorMedia` - success, validation errors, media upload integration, repository errors
+- ✅ `DeleteTutorMedia` - success, media not found, ownership validation, media deletion integration, repository errors
+
 #### auth-service AuthService:
 - ✅ `Register` - success, invalid email formats, password validation, duplicate email/username, database errors
 - ✅ `Login` - success with email/username, wrong password, user not found, database errors
@@ -563,12 +736,30 @@ The test suite aims for comprehensive coverage across all services and layers.
   - `GET /api/v4/test-results/history` - get user learning history
   - `GET /api/v4/words` - get word list with old and new words (includes audio URLs if available)
   - `POST /api/v4/words/results` - submit word learning results
+  - `GET /api/v4/courses` - get paginated list of courses with filtering
+  - `GET /api/v4/courses/{slug}/lessons` - get course details with lessons list
+  - `GET /api/v4/lessons/{slug}` - get lesson details with blocks
+  - `POST /api/v4/lessons/{slug}/complete` - toggle lesson completion
   - `POST /api/v4/admin/characters` - create character with optional audio upload
   - `PATCH /api/v4/admin/characters/{id}` - update character with optional audio upload/delete
   - `DELETE /api/v4/admin/characters/{id}` - delete character with audio cleanup
   - `POST /api/v4/admin/words` - create word with optional audio upload (word audio and word example audio)
   - `PATCH /api/v4/admin/words/{id}` - update word with optional audio upload/delete
   - `DELETE /api/v4/admin/words/{id}` - delete word with audio cleanup
+  - `GET /api/v4/admin/courses` - get paginated list of courses (admin/tutor)
+  - `POST /api/v4/admin/courses` - create course
+  - `PATCH /api/v4/admin/courses/{id}` - update course
+  - `DELETE /api/v4/admin/courses/{id}` - delete course
+  - `GET /api/v4/admin/courses/{id}/lessons` - get lessons for course
+  - `POST /api/v4/admin/lessons` - create lesson
+  - `PATCH /api/v4/admin/lessons/{id}` - update lesson
+  - `DELETE /api/v4/admin/lessons/{id}` - delete lesson
+  - `POST /api/v4/admin/blocks` - create lesson block
+  - `PATCH /api/v4/admin/blocks/{id}` - update lesson block
+  - `DELETE /api/v4/admin/blocks/{id}` - delete lesson block
+  - `GET /api/v4/admin/media` - get tutor media list
+  - `POST /api/v4/admin/media` - create tutor media with file upload
+  - `DELETE /api/v4/admin/media/{id}` - delete tutor media
 - ✅ Repository layer with real database
 - ✅ Service layer with real database
 - ✅ Handler layer with HTTP requests
@@ -630,6 +821,11 @@ Integration tests automatically seed test data before each test and clean up aft
 ### learn-service Test Data (Additional):
 - Words with translations in multiple languages (English, Russian, German)
 - Dictionary history records for spaced repetition testing
+- Courses with various complexity levels
+- Lessons within courses with different orders
+- Lesson blocks of different types (video, audio, text, document, list)
+- Lesson user history records for completion tracking
+- Tutor media files (video, doc, audio)
 
 ## Test Patterns Used
 

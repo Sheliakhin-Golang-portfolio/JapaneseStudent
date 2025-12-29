@@ -557,7 +557,3 @@ func TestAdminWordService_DeleteWord(t *testing.T) {
 	}
 }
 
-// Helper function to create int pointer
-func intPtr(i int) *int {
-	return &i
-}

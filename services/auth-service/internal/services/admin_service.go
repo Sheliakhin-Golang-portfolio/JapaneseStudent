@@ -52,6 +52,10 @@ type AdminUserRepository interface {
 	//
 	// If some error occurs, the error will be returned.
 	Delete(ctx context.Context, userID int) error
+	// Method GetTutorsList retrieves a list of tutors (only ID and username).
+	//
+	// If some other error occurs, the error will be returned together with nil.
+	GetTutorsList(ctx context.Context) ([]models.TutorListItem, error)
 }
 
 // UserTokenRepository is the interface that wraps methods for UserToken table data access
@@ -140,7 +144,6 @@ func (s *adminService) GetUserWithSettings(ctx context.Context, userID int) (*mo
 	}
 
 	user, err := s.userRepo.GetByID(ctx, userID)
-	fmt.Println("user:", user)
 	if err != nil {
 		return nil, err
 	}
@@ -491,7 +494,6 @@ func (s *adminService) deleteAvatarFromMediaService(ctx context.Context, fileID 
 
 	// Construct the delete URL: {mediaBaseURL}/media/avatar/{fileID}
 	deleteURL := strings.TrimSuffix(s.mediaBaseURL, "/") + "/media/avatar/" + fileID
-	fmt.Println("deleteURL", deleteURL)
 
 	// Create DELETE request
 	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, deleteURL, nil)
@@ -598,4 +600,9 @@ func uploadAvatar(ctx context.Context, mediaBaseURL, apiKey string, avatarFile m
 	}
 
 	return strings.TrimSpace(string(avatarURL)), nil
+}
+
+// GetTutorsList retrieves a list of tutors (only ID and username)
+func (s *adminService) GetTutorsList(ctx context.Context) ([]models.TutorListItem, error) {
+	return s.userRepo.GetTutorsList(ctx)
 }

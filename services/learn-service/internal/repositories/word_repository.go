@@ -51,6 +51,7 @@ func (r *wordRepository) GetByIDs(ctx context.Context, wordIds []int, translatio
 	var words []models.WordResponse
 	for rows.Next() {
 		var word models.WordResponse
+		var wordAudio, wordExampleAudio sql.NullString
 		err := rows.Scan(
 			&word.ID,
 			&word.Word,
@@ -62,11 +63,17 @@ func (r *wordRepository) GetByIDs(ctx context.Context, wordIds []int, translatio
 			&word.NormalPeriod,
 			&word.HardPeriod,
 			&word.ExtraHardPeriod,
-			&word.WordAudio,
-			&word.WordExampleAudio,
+			&wordAudio,
+			&wordExampleAudio,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan word: %w", err)
+		}
+		if wordAudio.Valid {
+			word.WordAudio = wordAudio.String
+		}
+		if wordExampleAudio.Valid {
+			word.WordExampleAudio = wordExampleAudio.String
 		}
 		words = append(words, word)
 	}
@@ -123,6 +130,7 @@ func (r *wordRepository) GetExcludingIDs(ctx context.Context, userId int, exclud
 	var words []models.WordResponse
 	for rows.Next() {
 		var word models.WordResponse
+		var wordAudio, wordExampleAudio sql.NullString
 		err := rows.Scan(
 			&word.ID,
 			&word.Word,
@@ -134,11 +142,17 @@ func (r *wordRepository) GetExcludingIDs(ctx context.Context, userId int, exclud
 			&word.NormalPeriod,
 			&word.HardPeriod,
 			&word.ExtraHardPeriod,
-			&word.WordAudio,
-			&word.WordExampleAudio,
+			&wordAudio,
+			&wordExampleAudio,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan word: %w", err)
+		}
+		if wordAudio.Valid {
+			word.WordAudio = wordAudio.String
+		}
+		if wordExampleAudio.Valid {
+			word.WordExampleAudio = wordExampleAudio.String
 		}
 		words = append(words, word)
 	}
@@ -244,6 +258,7 @@ func (r *wordRepository) GetByIDAdmin(ctx context.Context, id int) (*models.Word
 	`
 
 	word := &models.Word{}
+	var wordAudio, wordExampleAudio sql.NullString
 	err := r.db.QueryRowContext(ctx, query, id).Scan(
 		&word.ID,
 		&word.Word,
@@ -259,8 +274,8 @@ func (r *wordRepository) GetByIDAdmin(ctx context.Context, id int) (*models.Word
 		&word.NormalPeriod,
 		&word.HardPeriod,
 		&word.ExtraHardPeriod,
-		&word.WordAudio,
-		&word.WordExampleAudio,
+		&wordAudio,
+		&wordExampleAudio,
 	)
 
 	if err == sql.ErrNoRows {
@@ -268,6 +283,13 @@ func (r *wordRepository) GetByIDAdmin(ctx context.Context, id int) (*models.Word
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to get word by ID: %w", err)
+	}
+
+	if wordAudio.Valid {
+		word.WordAudio = wordAudio.String
+	}
+	if wordExampleAudio.Valid {
+		word.WordExampleAudio = wordExampleAudio.String
 	}
 
 	return word, nil

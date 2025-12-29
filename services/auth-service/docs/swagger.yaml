@@ -32,6 +32,13 @@ definitions:
     - RoleUser
     - RoleTutor
     - RoleAdmin
+  models.TutorListItem:
+    properties:
+      id:
+        type: integer
+      username:
+        type: string
+    type: object
   models.UpdateUserSettingsRequest:
     properties:
       alphabetLearnCount:
@@ -117,6 +124,29 @@ info:
   title: JapaneseStudent Auth API
   version: "4.0"
 paths:
+  /admin/tutors:
+    get:
+      consumes:
+      - application/json
+      description: Get list of tutors with only ID and username (for select options)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of tutors
+          schema:
+            items:
+              $ref: '#/definitions/models.TutorListItem'
+            type: array
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get list of tutors
+      tags:
+      - admin
   /admin/users:
     get:
       consumes:

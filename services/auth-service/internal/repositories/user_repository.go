@@ -316,3 +316,34 @@ func (r *userRepository) Delete(ctx context.Context, userID int) error {
 
 	return nil
 }
+
+// GetTutorsList retrieves a list of tutors (only ID and username)
+func (r *userRepository) GetTutorsList(ctx context.Context) ([]models.TutorListItem, error) {
+	query := `
+		SELECT id, username
+		FROM users
+		WHERE role = 2
+	`
+
+	rows, err := r.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get tutors list: %w", err)
+	}
+	defer rows.Close()
+
+	var tutors []models.TutorListItem
+	for rows.Next() {
+		var tutor models.TutorListItem
+		err := rows.Scan(&tutor.ID, &tutor.Username)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan tutor: %w", err)
+		}
+		tutors = append(tutors, tutor)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating rows: %w", err)
+	}
+
+	return tutors, nil
+}

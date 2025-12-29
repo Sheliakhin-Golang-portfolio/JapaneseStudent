@@ -23,6 +23,41 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/admin/tutors": {
+            "get": {
+                "description": "Get list of tutors with only ID and username (for select options)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "Get list of tutors",
+                "responses": {
+                    "200": {
+                        "description": "List of tutors",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.TutorListItem"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/admin/users": {
             "get": {
                 "description": "Get paginated list of users with optional role and search filters",
@@ -783,6 +818,17 @@ const docTemplate = `{
                 "RoleTutor",
                 "RoleAdmin"
             ]
+        },
+        "models.TutorListItem": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "integer"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
         },
         "models.UpdateUserSettingsRequest": {
             "type": "object",

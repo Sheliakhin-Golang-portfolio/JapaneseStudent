@@ -262,7 +262,9 @@ func setupTestSchemaForMain(db *sql.DB) {
 			easy_period INT NOT NULL DEFAULT 1,
 			normal_period INT NOT NULL DEFAULT 3,
 			hard_period INT NOT NULL DEFAULT 7,
-			extra_hard_period INT NOT NULL DEFAULT 14
+			extra_hard_period INT NOT NULL DEFAULT 14,
+			word_audio VARCHAR(500) NULL,
+			word_example_audio VARCHAR(500) NULL
 		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 	`
 
