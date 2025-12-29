@@ -14,6 +14,20 @@ definitions:
           $ref: '#/definitions/models.TestResultItem'
         type: array
     type: object
+  models.BlockType:
+    enum:
+    - video
+    - audio
+    - text
+    - document
+    - list
+    type: string
+    x-enum-varnames:
+    - BlockTypeVideo
+    - BlockTypeAudio
+    - BlockTypeText
+    - BlockTypeDocument
+    - BlockTypeList
   models.Character:
     properties:
       audio:
@@ -66,6 +80,92 @@ definitions:
         description: Not always present, depends on the context
         type: string
     type: object
+  models.ComplexityLevel:
+    enum:
+    - Absolute beginner
+    - Beginner
+    - Intermediate
+    - Upper Intermediate
+    - Advanced
+    type: string
+    x-enum-varnames:
+    - ComplexityLevelAbsoluteBeginner
+    - ComplexityLevelBeginner
+    - ComplexityLevelIntermediate
+    - ComplexityLevelUpperIntermediate
+    - ComplexityLevelAdvanced
+  models.CourseDetailResponse:
+    properties:
+      completedLessons:
+        type: integer
+      complexityLevel:
+        $ref: '#/definitions/models.ComplexityLevel'
+      id:
+        type: integer
+      shortSummary:
+        type: string
+      slug:
+        type: string
+      title:
+        type: string
+      totalLessons:
+        type: integer
+    type: object
+  models.CourseListItem:
+    properties:
+      authorId:
+        type: integer
+      complexityLevel:
+        $ref: '#/definitions/models.ComplexityLevel'
+      id:
+        type: integer
+      slug:
+        type: string
+      title:
+        type: string
+    type: object
+  models.CourseShortInfo:
+    properties:
+      id:
+        type: integer
+      title:
+        type: string
+    type: object
+  models.CreateCourseRequest:
+    properties:
+      authorId:
+        type: integer
+      complexityLevel:
+        $ref: '#/definitions/models.ComplexityLevel'
+      shortSummary:
+        type: string
+      slug:
+        type: string
+      title:
+        type: string
+    type: object
+  models.CreateLessonBlockRequest:
+    type: object
+  models.CreateLessonRequest:
+    properties:
+      courseId:
+        type: integer
+      order:
+        type: integer
+      shortSummary:
+        type: string
+      slug:
+        type: string
+      title:
+        type: string
+    type: object
+  models.LessonShortInfo:
+    properties:
+      id:
+        type: integer
+      title:
+        type: string
+    type: object
   models.ListeningTestItem:
     properties:
       audioUrl:
@@ -80,6 +180,16 @@ definitions:
           type: string
         type: array
     type: object
+  models.MediaType:
+    enum:
+    - video
+    - doc
+    - audio
+    type: string
+    x-enum-varnames:
+    - MediaTypeVideo
+    - MediaTypeDoc
+    - MediaTypeAudio
   models.ReadingTestItem:
     properties:
       correctChar:
@@ -102,6 +212,45 @@ definitions:
         type: integer
       passed:
         type: boolean
+    type: object
+  models.TutorMediaResponse:
+    properties:
+      id:
+        type: integer
+      mediaType:
+        $ref: '#/definitions/models.MediaType'
+      slug:
+        type: string
+      url:
+        type: string
+    type: object
+  models.UpdateCourseRequest:
+    properties:
+      authorId:
+        type: integer
+      complexityLevel:
+        $ref: '#/definitions/models.ComplexityLevel'
+      shortSummary:
+        type: string
+      slug:
+        type: string
+      title:
+        type: string
+    type: object
+  models.UpdateLessonBlockRequest:
+    type: object
+  models.UpdateLessonRequest:
+    properties:
+      courseId:
+        type: integer
+      order:
+        type: integer
+      shortSummary:
+        type: string
+      slug:
+        type: string
+      title:
+        type: string
     type: object
   models.UserLearnHistory:
     properties:
@@ -240,6 +389,121 @@ info:
   title: JapaneseStudent Learn API
   version: "4.0"
 paths:
+  /admin/blocks:
+    post:
+      consumes:
+      - application/json
+      description: Create a new lesson block in any lesson (admin can create for any
+        lesson)
+      parameters:
+      - description: Lesson block creation request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.CreateLessonBlockRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Lesson block created successfully
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Invalid request body
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Lesson not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Create a lesson block
+      tags:
+      - admin
+  /admin/blocks/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete a lesson block (admin can delete any block)
+      parameters:
+      - description: Block ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Invalid block ID
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Block not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Delete a lesson block
+      tags:
+      - admin
+    patch:
+      consumes:
+      - application/json
+      description: Update a lesson block (partial update, admin can update any block)
+      parameters:
+      - description: Block ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Lesson block update request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.UpdateLessonBlockRequest'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Invalid request body
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Block not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Update a lesson block
+      tags:
+      - admin
   /admin/characters:
     get:
       consumes:
@@ -463,6 +727,565 @@ paths:
               type: string
             type: object
       summary: Update a character
+      tags:
+      - admin
+  /admin/courses:
+    get:
+      consumes:
+      - application/json
+      description: Get paginated list of courses with optional tutor ID, complexity
+        level and search filters
+      parameters:
+      - description: Filter by tutor ID
+        in: query
+        name: tutorId
+        type: integer
+      - description: Complexity level (ab, b, i, ui, a) or full name
+        in: query
+        name: complexityLevel
+        type: string
+      - description: Search query
+        in: query
+        name: search
+        type: string
+      - description: 'Page number (default: 1)'
+        in: query
+        name: page
+        type: integer
+      - description: 'Items per page (default: 10)'
+        in: query
+        name: count
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of courses
+          schema:
+            items:
+              $ref: '#/definitions/models.CourseListItem'
+            type: array
+        "400":
+          description: Invalid request parameters
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get list of courses
+      tags:
+      - admin
+    post:
+      consumes:
+      - application/json
+      description: Create a new course (admin can create for any tutor)
+      parameters:
+      - description: Course creation request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.CreateCourseRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Course created successfully
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Invalid request body
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Create a course
+      tags:
+      - admin
+  /admin/courses/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete a course (admin can delete any course)
+      parameters:
+      - description: Course ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Invalid course ID
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Course not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Delete a course
+      tags:
+      - admin
+    patch:
+      consumes:
+      - application/json
+      description: Update a course (partial update, admin can update any course)
+      parameters:
+      - description: Course ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Course update request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.UpdateCourseRequest'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Invalid request body
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Course not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Update a course
+      tags:
+      - admin
+  /admin/courses/{id}/lessons:
+    get:
+      consumes:
+      - application/json
+      description: Get course details and list of lessons for any course
+      parameters:
+      - description: Course ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Course with lessons
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Invalid course ID
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Course not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get lessons for a course
+      tags:
+      - admin
+  /admin/courses/short:
+    get:
+      consumes:
+      - application/json
+      description: Get list of all courses with only ID and title (for select options)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of courses short info
+          schema:
+            items:
+              $ref: '#/definitions/models.CourseShortInfo'
+            type: array
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get courses short info
+      tags:
+      - admin
+  /admin/lessons:
+    post:
+      consumes:
+      - application/json
+      description: Create a new lesson in any course (admin can create for any course)
+      parameters:
+      - description: Lesson creation request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.CreateLessonRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Lesson created successfully
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Invalid request body
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Course not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Create a lesson
+      tags:
+      - admin
+  /admin/lessons/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete a lesson (admin can delete any lesson)
+      parameters:
+      - description: Lesson ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Invalid lesson ID
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Lesson not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Delete a lesson
+      tags:
+      - admin
+    get:
+      consumes:
+      - application/json
+      description: Get lesson details and list of lesson blocks for any lesson
+      parameters:
+      - description: Lesson ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Lesson with blocks
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Invalid lesson ID
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Lesson not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get full lesson info
+      tags:
+      - admin
+    patch:
+      consumes:
+      - application/json
+      description: Update a lesson (partial update, admin can update any lesson)
+      parameters:
+      - description: Lesson ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Lesson update request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.UpdateLessonRequest'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Invalid request body
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Lesson not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Update a lesson
+      tags:
+      - admin
+  /admin/lessons/short:
+    get:
+      consumes:
+      - application/json
+      description: Get list of lessons with only ID and title for a course (optional,
+        if course ID not provided, the lessons retrieved for all courses)
+      parameters:
+      - description: Course ID
+        in: query
+        name: courseId
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of lessons short info
+          schema:
+            items:
+              $ref: '#/definitions/models.LessonShortInfo'
+            type: array
+        "400":
+          description: Invalid course ID or missing courseId parameter
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Course not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get lessons short info
+      tags:
+      - admin
+  /admin/media:
+    get:
+      consumes:
+      - application/json
+      description: Get paginated list of media files with optional tutor ID and media
+        type filters
+      parameters:
+      - description: Filter by tutor ID
+        in: query
+        name: tutorId
+        type: integer
+      - description: Media type (video, audio, doc)
+        in: query
+        name: mediaType
+        type: string
+      - description: 'Page number (default: 1)'
+        in: query
+        name: page
+        type: integer
+      - description: 'Items per page (default: 10)'
+        in: query
+        name: count
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of tutor media
+          schema:
+            items:
+              $ref: '#/definitions/models.TutorMediaResponse'
+            type: array
+        "400":
+          description: Invalid request parameters
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get tutor media
+      tags:
+      - admin
+    post:
+      consumes:
+      - multipart/form-data
+      description: Upload a new media file for a tutor (admin can create for any tutor)
+      parameters:
+      - description: Tutor ID
+        in: formData
+        name: tutorId
+        required: true
+        type: integer
+      - description: Media slug
+        in: formData
+        name: slug
+        required: true
+        type: string
+      - description: Media type (video, audio, doc)
+        in: formData
+        name: mediaType
+        required: true
+        type: string
+      - description: Media file
+        in: formData
+        name: file
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Tutor media created successfully
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Invalid request or file missing
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Create tutor media
+      tags:
+      - admin
+  /admin/media/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete a media file (admin can delete any media)
+      parameters:
+      - description: Media ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Invalid media ID
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Media not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Delete tutor media
       tags:
       - admin
   /admin/words:
@@ -902,6 +1725,206 @@ paths:
       summary: Get characters by row or column
       tags:
       - characters
+  /courses:
+    get:
+      consumes:
+      - application/json
+      description: Get a paginated list of courses with optional filtering by complexity
+        level, search, and isMine flag
+      parameters:
+      - description: Complexity level (ab, b, i, ui, a)
+        in: query
+        name: complexityLevel
+        type: string
+      - description: Search by course title
+        in: query
+        name: search
+        type: string
+      - description: Filter courses by user's completion history
+        in: query
+        name: isMine
+        type: boolean
+      - description: 'Page number (default: 1)'
+        in: query
+        name: page
+        type: integer
+      - description: 'Items per page (default: 10)'
+        in: query
+        name: count
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of courses
+          schema:
+            items:
+              $ref: '#/definitions/models.CourseDetailResponse'
+            type: array
+        "400":
+          description: Bad request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Get list of courses
+      tags:
+      - lessons
+  /courses/{slug}/lessons:
+    get:
+      consumes:
+      - application/json
+      description: Get course details with list of lessons and completion status
+      parameters:
+      - description: Course slug
+        in: path
+        name: slug
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Course with lessons
+          schema:
+            additionalProperties: {}
+            type: object
+        "400":
+          description: Bad request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Course not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Get lessons in a course
+      tags:
+      - lessons
+  /lessons/{slug}:
+    get:
+      consumes:
+      - application/json
+      description: Get full lesson details with blocks and completion status
+      parameters:
+      - description: Lesson slug
+        in: path
+        name: slug
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Lesson details
+          schema:
+            additionalProperties: {}
+            type: object
+        "400":
+          description: Bad request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Lesson not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Get lesson details
+      tags:
+      - lessons
+  /lessons/{slug}/complete:
+    post:
+      consumes:
+      - application/json
+      description: Complete or uncomplete a lesson
+      parameters:
+      - description: Lesson slug
+        in: path
+        name: slug
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Lesson not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Toggle lesson completion
+      tags:
+      - lessons
   /test-results/{type}/{testType}:
     post:
       consumes:
@@ -1159,6 +2182,775 @@ paths:
       summary: Get writing test
       tags:
       - tests
+  /tutor/blocks:
+    post:
+      consumes:
+      - application/json
+      description: Create a new lesson block in a lesson owned by the authenticated
+        tutor
+      parameters:
+      - description: Lesson block creation request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.CreateLessonBlockRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Lesson block created successfully
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Invalid request body
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden - lesson does not belong to tutor
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Lesson not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Create a lesson block
+      tags:
+      - tutor
+  /tutor/blocks/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete a lesson block in a lesson owned by the authenticated tutor
+      parameters:
+      - description: Block ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Invalid block ID
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden - not block owner or not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Delete a lesson block
+      tags:
+      - tutor
+    patch:
+      consumes:
+      - application/json
+      description: Update a lesson block in a lesson owned by the authenticated tutor
+        (partial update)
+      parameters:
+      - description: Block ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Lesson block update request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.UpdateLessonBlockRequest'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Invalid request body
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden - not block owner or not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Update a lesson block
+      tags:
+      - tutor
+  /tutor/courses:
+    get:
+      consumes:
+      - application/json
+      description: Get paginated list of courses for the authenticated tutor with
+        optional complexity level and search filters
+      parameters:
+      - description: Complexity level (ab, b, i, ui, a) or full name
+        in: query
+        name: complexityLevel
+        type: string
+      - description: Search query
+        in: query
+        name: search
+        type: string
+      - description: 'Page number (default: 1)'
+        in: query
+        name: page
+        type: integer
+      - description: 'Items per page (default: 10)'
+        in: query
+        name: count
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of courses
+          schema:
+            items:
+              $ref: '#/definitions/models.CourseListItem'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get list of courses
+      tags:
+      - tutor
+    post:
+      consumes:
+      - application/json
+      description: Create a new course for the authenticated tutor
+      parameters:
+      - description: Course creation request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.CreateCourseRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Course created successfully
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Invalid request body
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Create a course
+      tags:
+      - tutor
+  /tutor/courses/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete a course owned by the authenticated tutor
+      parameters:
+      - description: Course ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Invalid course ID
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden - not course owner or not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Delete a course
+      tags:
+      - tutor
+    patch:
+      consumes:
+      - application/json
+      description: Update a course owned by the authenticated tutor (partial update)
+      parameters:
+      - description: Course ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Course update request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.UpdateCourseRequest'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Invalid request body
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden - not course owner or not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Update a course
+      tags:
+      - tutor
+  /tutor/courses/{id}/lessons:
+    get:
+      consumes:
+      - application/json
+      description: Get course details and list of lessons for a course owned by the
+        authenticated tutor
+      parameters:
+      - description: Course ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Course with lessons
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Invalid course ID
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden - not course owner or not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get lessons for a course
+      tags:
+      - tutor
+  /tutor/courses/short:
+    get:
+      consumes:
+      - application/json
+      description: Get list of courses with only ID and title for the authenticated
+        tutor (for select options)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of courses short info
+          schema:
+            items:
+              $ref: '#/definitions/models.CourseShortInfo'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get courses short info
+      tags:
+      - tutor
+  /tutor/lessons:
+    post:
+      consumes:
+      - application/json
+      description: Create a new lesson in a course owned by the authenticated tutor
+      parameters:
+      - description: Lesson creation request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.CreateLessonRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Lesson created successfully
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Invalid request body
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden - course does not belong to tutor
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Course not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Create a lesson
+      tags:
+      - tutor
+  /tutor/lessons/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete a lesson in a course owned by the authenticated tutor
+      parameters:
+      - description: Lesson ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Invalid lesson ID
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden - not lesson owner or not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Delete a lesson
+      tags:
+      - tutor
+    get:
+      consumes:
+      - application/json
+      description: Get lesson details and list of lesson blocks for a lesson in a
+        course owned by the authenticated tutor
+      parameters:
+      - description: Lesson ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Lesson with blocks
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Invalid lesson ID
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden - not lesson owner or not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get full lesson info
+      tags:
+      - tutor
+    patch:
+      consumes:
+      - application/json
+      description: Update a lesson in a course owned by the authenticated tutor (partial
+        update)
+      parameters:
+      - description: Lesson ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Lesson update request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.UpdateLessonRequest'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Invalid request body
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden - not lesson owner or not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Update a lesson
+      tags:
+      - tutor
+  /tutor/lessons/short:
+    get:
+      consumes:
+      - application/json
+      description: Get list of lessons with only ID and title for a course owned by
+        the authenticated tutor (for select options)
+      parameters:
+      - description: Course ID
+        in: query
+        name: courseId
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of lessons short info
+          schema:
+            items:
+              $ref: '#/definitions/models.LessonShortInfo'
+            type: array
+        "400":
+          description: Invalid course ID or missing courseId parameter
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden - not course owner or not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get lessons short info
+      tags:
+      - tutor
+  /tutor/media:
+    get:
+      consumes:
+      - application/json
+      description: Get paginated list of media files for the authenticated tutor with
+        optional media type filter
+      parameters:
+      - description: Media type (video, audio, doc)
+        in: query
+        name: mediaType
+        type: string
+      - description: 'Page number (default: 1)'
+        in: query
+        name: page
+        type: integer
+      - description: 'Items per page (default: 10)'
+        in: query
+        name: count
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of tutor media
+          schema:
+            items:
+              $ref: '#/definitions/models.TutorMediaResponse'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get tutor media
+      tags:
+      - tutor
+    post:
+      consumes:
+      - multipart/form-data
+      description: Upload a new media file for the authenticated tutor
+      parameters:
+      - description: Media slug
+        in: formData
+        name: slug
+        required: true
+        type: string
+      - description: Media type (video, audio, doc)
+        in: formData
+        name: mediaType
+        required: true
+        type: string
+      - description: Media file
+        in: formData
+        name: file
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Tutor media created successfully
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Invalid request or file missing
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Create tutor media
+      tags:
+      - tutor
+  /tutor/media/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete a media file owned by the authenticated tutor
+      parameters:
+      - description: Media ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Invalid media ID
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden - not media owner or permission denied
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Delete tutor media
+      tags:
+      - tutor
   /words:
     get:
       consumes:

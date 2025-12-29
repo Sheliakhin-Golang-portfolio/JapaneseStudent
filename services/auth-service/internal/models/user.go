@@ -67,3 +67,9 @@ type UpdateUserWithSettingsRequest struct {
 	Role     *Role                      `json:"role,omitempty"`
 	Settings *UpdateUserSettingsRequest `json:"settings,omitempty"`
 }
+
+// TutorListItem represents a tutor in the list response (only ID and username)
+type TutorListItem struct {
+	ID       int    `json:"id"`
+	Username string `json:"username"`
+}

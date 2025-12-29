@@ -15,6 +15,7 @@ import (
 type mockAdminUserRepository struct {
 	user                   *models.User
 	users                  []models.User
+	tutorsList             []models.TutorListItem
 	err                    error
 	createErr              error
 	updateErr              error
@@ -62,6 +63,13 @@ func (m *mockAdminUserRepository) Delete(ctx context.Context, userID int) error 
 		return m.deleteErr
 	}
 	return m.err
+}
+
+func (m *mockAdminUserRepository) GetTutorsList(ctx context.Context) ([]models.TutorListItem, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	return m.tutorsList, nil
 }
 
 // Implement UserSharedRepository interface methods
@@ -650,6 +658,73 @@ func TestAdminService_DeleteUser(t *testing.T) {
 				}
 			} else {
 				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestAdminService_GetTutorsList(t *testing.T) {
+	tests := []struct {
+		name           string
+		mockUserRepo   *mockAdminUserRepository
+		expectedError  bool
+		expectedCount  int
+		expectedTutors []models.TutorListItem
+	}{
+		{
+			name: "success with tutors",
+			mockUserRepo: &mockAdminUserRepository{
+				tutorsList: []models.TutorListItem{
+					{ID: 1, Username: "tutor1"},
+					{ID: 2, Username: "tutor2"},
+					{ID: 3, Username: "tutor3"},
+				},
+			},
+			expectedError: false,
+			expectedCount: 3,
+			expectedTutors: []models.TutorListItem{
+				{ID: 1, Username: "tutor1"},
+				{ID: 2, Username: "tutor2"},
+				{ID: 3, Username: "tutor3"},
+			},
+		},
+		{
+			name: "success with empty list",
+			mockUserRepo: &mockAdminUserRepository{
+				tutorsList: []models.TutorListItem{},
+			},
+			expectedError: false,
+			expectedCount: 0,
+			expectedTutors: []models.TutorListItem{},
+		},
+		{
+			name: "repository error",
+			mockUserRepo: &mockAdminUserRepository{
+				err: errors.New("database error"),
+			},
+			expectedError: true,
+			expectedCount: 0,
+			expectedTutors: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tokenGen := service.NewTokenGenerator("test-secret", 3600, 604800)
+			logger := zaptest.NewLogger(t)
+			svc := NewAdminService(tt.mockUserRepo, &mockAdminUserTokenRepository{}, &mockUserSettingsRepository{}, tokenGen, logger, "", "")
+			ctx := context.Background()
+
+			result, err := svc.GetTutorsList(ctx)
+
+			if tt.expectedError {
+				assert.Error(t, err)
+				assert.Nil(t, result)
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, result)
+				assert.Len(t, result, tt.expectedCount)
+				assert.Equal(t, tt.expectedTutors, result)
 			}
 		})
 	}

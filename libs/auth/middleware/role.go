@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"net/http"
 	"strings"
 
@@ -41,7 +42,7 @@ func RoleMiddleware(tokenGenerator *service.TokenGenerator, requiredRole int) fu
 			}
 
 			// Validate token and extract userID and role
-			_, role, err := tokenGenerator.ValidateAccessToken(token)
+			userID, role, err := tokenGenerator.ValidateAccessToken(token)
 			if err != nil {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusUnauthorized)
@@ -58,8 +59,8 @@ func RoleMiddleware(tokenGenerator *service.TokenGenerator, requiredRole int) fu
 			}
 
 			// Role is sufficient, proceed to next handler
-			next.ServeHTTP(w, r)
+			ctx := context.WithValue(r.Context(), userIDKey, userID)
+			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
 }
-

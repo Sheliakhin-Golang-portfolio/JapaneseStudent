@@ -105,6 +105,36 @@ func main() {
 	adminWordService := services.NewAdminWordService(wordRepo, dictionaryHistoryRepo, cfg.MediaBaseURL, cfg.APIKey)
 	adminWordHandler := handlers.NewAdminWordsHandler(adminWordService, logger.Logger)
 
+	// Initialize lesson layers
+	courseRepo := repositories.NewCourseRepository(db)
+	lessonRepo := repositories.NewLessonRepository(db)
+	lessonBlockRepo := repositories.NewLessonBlockRepository(db)
+	lessonUserHistoryRepo := repositories.NewLessonUserHistoryRepository(db)
+	tutorMediaRepo := repositories.NewTutorMediaRepository(db)
+
+	// Initialize user lesson service and handler
+	userLessonService := services.NewUserLessonService(
+		courseRepo,
+		lessonRepo,
+		lessonBlockRepo,
+		lessonUserHistoryRepo,
+	)
+	userLessonHandler := handlers.NewUserLessonHandler(userLessonService, logger.Logger)
+
+	// Initialize tutor lesson service and handler
+	tutorLessonService := services.NewTutorLessonService(
+		courseRepo,
+		lessonRepo,
+		lessonBlockRepo,
+		tutorMediaRepo,
+		cfg.MediaBaseURL,
+		cfg.APIKey,
+	)
+	tutorLessonHandler := handlers.NewTutorLessonHandler(tutorLessonService, logger.Logger)
+
+	// Initialize admin lesson service and handler
+	adminLessonHandler := handlers.NewAdminLessonHandler(tutorLessonService, logger.Logger)
+
 	// Setup router
 	r := chi.NewRouter()
 
@@ -133,12 +163,23 @@ func main() {
 		// Register dictionary routes with auth middleware
 		dictionaryHandler.RegisterRoutes(r, authMw)
 
-		// Register admin routes with role middleware
+		// Register user lesson routes with auth middleware
+		userLessonHandler.RegisterRoutes(r, authMw)
+
+		// Register tutor routes with role middleware (role = 2)
+		tutorMw := authMiddleware.RoleMiddleware(tokenGenerator, 2) // Tutor role = 2
+		r.Group(func(r chi.Router) {
+			r.Use(tutorMw)
+			tutorLessonHandler.RegisterRoutes(r)
+		})
+
+		// Register admin routes with role middleware (role = 3)
 		adminMw := authMiddleware.RoleMiddleware(tokenGenerator, 3) // Admin role = 3
 		r.Group(func(r chi.Router) {
 			r.Use(adminMw)
 			adminCharHandler.RegisterRoutes(r)
 			adminWordHandler.RegisterRoutes(r)
+			adminLessonHandler.RegisterRoutes(r)
 		})
 	})
 

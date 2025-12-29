@@ -61,6 +61,10 @@ type AdminService interface {
 	//
 	// If some other error occurs, the error will be returned.
 	DeleteUser(ctx context.Context, userID int) error
+	// Method GetTutorsList gets a list of tutors (only ID and username).
+	//
+	// If some other error occurs, the error will be returned together with nil.
+	GetTutorsList(ctx context.Context) ([]models.TutorListItem, error)
 }
 
 // AdminHandler handles admin-related HTTP requests
@@ -96,6 +100,7 @@ func (h *AdminHandler) RegisterRoutes(r chi.Router) {
 		r.Post("/users/{id}/settings", h.CreateUserSettings)
 		r.Patch("/users/{id}", h.UpdateUserWithSettings)
 		r.Delete("/users/{id}", h.DeleteUser)
+		r.Get("/tutors", h.GetTutorsList)
 	})
 }
 
@@ -307,7 +312,12 @@ func (h *AdminHandler) CreateUserSettings(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	h.RespondJSON(w, http.StatusCreated, map[string]string{"message": message})
+	// Return 200 if settings already exist, 201 if created
+	statusCode := http.StatusCreated
+	if message == "Settings already exist" {
+		statusCode = http.StatusOK
+	}
+	h.RespondJSON(w, statusCode, map[string]string{"message": message})
 }
 
 // UpdateUserWithSettings handles PATCH /admin/users/{id}
@@ -472,4 +482,25 @@ func (h *AdminHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// GetTutorsList handles GET /admin/tutors
+// @Summary Get list of tutors
+// @Description Get list of tutors with only ID and username (for select options)
+// @Tags admin
+// @Accept json
+// @Produce json
+// @Success 200 {array} models.TutorListItem "List of tutors"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Router /admin/tutors [get]
+func (h *AdminHandler) GetTutorsList(w http.ResponseWriter, r *http.Request) {
+	// Get tutors list
+	tutors, err := h.adminService.GetTutorsList(r.Context())
+	if err != nil {
+		h.Logger.Error("failed to get tutors list", zap.Error(err))
+		h.RespondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	h.RespondJSON(w, http.StatusOK, tutors)
 }

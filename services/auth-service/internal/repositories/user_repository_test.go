@@ -914,3 +914,104 @@ func TestUserRepository_Delete(t *testing.T) {
 		})
 	}
 }
+
+func TestUserRepository_GetTutorsList(t *testing.T) {
+	tests := []struct {
+		name           string
+		setupMock      func(sqlmock.Sqlmock)
+		expectedError  bool
+		expectedCount  int
+		expectedTutors []models.TutorListItem
+	}{
+		{
+			name: "success with tutors",
+			setupMock: func(mock sqlmock.Sqlmock) {
+				rows := sqlmock.NewRows([]string{"id", "username"}).
+					AddRow(1, "tutor1").
+					AddRow(2, "tutor2").
+					AddRow(3, "tutor3")
+				mock.ExpectQuery(`SELECT id, username FROM users WHERE role = 2`).
+					WillReturnRows(rows)
+			},
+			expectedError: false,
+			expectedCount: 3,
+			expectedTutors: []models.TutorListItem{
+				{ID: 1, Username: "tutor1"},
+				{ID: 2, Username: "tutor2"},
+				{ID: 3, Username: "tutor3"},
+			},
+		},
+		{
+			name: "success with empty list",
+			setupMock: func(mock sqlmock.Sqlmock) {
+				rows := sqlmock.NewRows([]string{"id", "username"})
+				mock.ExpectQuery(`SELECT id, username FROM users WHERE role = 2`).
+					WillReturnRows(rows)
+			},
+			expectedError: false,
+			expectedCount: 0,
+			expectedTutors: nil, // nil slice is equivalent to empty slice in Go
+		},
+		{
+			name: "database error",
+			setupMock: func(mock sqlmock.Sqlmock) {
+				mock.ExpectQuery(`SELECT id, username FROM users WHERE role = 2`).
+					WillReturnError(errors.New("database error"))
+			},
+			expectedError: true,
+			expectedCount: 0,
+			expectedTutors: nil,
+		},
+		{
+			name: "scan error",
+			setupMock: func(mock sqlmock.Sqlmock) {
+				rows := sqlmock.NewRows([]string{"id", "username"}).
+					AddRow("invalid", "tutor1") // Invalid type for id
+				mock.ExpectQuery(`SELECT id, username FROM users WHERE role = 2`).
+					WillReturnRows(rows)
+			},
+			expectedError: true,
+			expectedCount: 0,
+			expectedTutors: nil,
+		},
+		{
+			name: "rows error",
+			setupMock: func(mock sqlmock.Sqlmock) {
+				rows := sqlmock.NewRows([]string{"id", "username"}).
+					AddRow(1, "tutor1").
+					RowError(0, errors.New("row error"))
+				mock.ExpectQuery(`SELECT id, username FROM users WHERE role = 2`).
+					WillReturnRows(rows)
+			},
+			expectedError: true,
+			expectedCount: 0,
+			expectedTutors: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo, mock, cleanup := setupUserTestRepository(t)
+			defer cleanup()
+
+			tt.setupMock(mock)
+
+			result, err := repo.GetTutorsList(context.Background())
+
+			if tt.expectedError {
+				assert.Error(t, err)
+				assert.Nil(t, result)
+			} else {
+				assert.NoError(t, err)
+				assert.Len(t, result, tt.expectedCount)
+				if tt.expectedTutors != nil {
+					assert.NotNil(t, result)
+					assert.Equal(t, tt.expectedTutors, result)
+				}
+				// For empty list (expectedTutors == nil), assert.Len already validates length
+			}
+
+			assert.NoError(t, mock.ExpectationsWereMet())
+		})
+	}
+}

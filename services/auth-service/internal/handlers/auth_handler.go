@@ -105,11 +105,13 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 
 	// Extract avatar file (optional)
 	var avatarFile multipart.File
+	var avatarFilename string
 	file, fileHeader, err := r.FormFile("avatar")
-	if err == nil && file != nil {
+	if err == nil && file != nil && fileHeader != nil {
 		// Validate file is actually provided (not just empty field)
 		if fileHeader.Size > 0 {
 			avatarFile = file
+			avatarFilename = fileHeader.Filename
 			defer file.Close()
 		}
 	} else if err != http.ErrMissingFile {
@@ -120,7 +122,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Register user
-	accessToken, refreshToken, err := h.authService.Register(r.Context(), req, avatarFile, fileHeader.Filename)
+	accessToken, refreshToken, err := h.authService.Register(r.Context(), req, avatarFile, avatarFilename)
 	if err != nil {
 		h.Logger.Error("failed to register user", zap.Error(err))
 		errStatus := http.StatusInternalServerError
