@@ -91,7 +91,7 @@ func NewAdminHandler(
 }
 
 // RegisterRoutes registers all admin handler routes
-// Note: This assumes the router is already scoped to /api/v3
+// Note: This assumes the router is already scoped to /api/v6
 func (h *AdminHandler) RegisterRoutes(r chi.Router) {
 	r.Route("/admin", func(r chi.Router) {
 		r.Get("/users", h.GetUsersList)

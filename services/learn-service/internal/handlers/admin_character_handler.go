@@ -62,7 +62,7 @@ func NewAdminCharactersHandler(svc AdminCharactersService, logger *zap.Logger) *
 }
 
 // RegisterRoutes registers all admin character handler routes
-// Note: This assumes the router is already scoped to /api/v4
+// Note: This assumes the router is already scoped to /api/v6
 func (h *AdminCharactersHandler) RegisterRoutes(r chi.Router) {
 	r.Route("/admin/characters", func(r chi.Router) {
 		r.Get("/", h.GetAll)

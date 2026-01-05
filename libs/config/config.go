@@ -14,10 +14,12 @@ import (
 // Config holds all configuration for the application
 type Config struct {
 	Database      DatabaseConfig
+	Redis         RedisConfig
 	Server        ServerConfig
 	Logging       LoggingConfig
 	CORS          CORSConfig
 	JWT           JWTConfig
+	SMTP          SMTPConfig
 	APIKey        string
 	MediaBasePath string
 	MediaBaseURL  string
@@ -30,6 +32,14 @@ type DatabaseConfig struct {
 	User     string
 	Password string
 	DBName   string
+}
+
+// RedisConfig holds Redis connection settings
+type RedisConfig struct {
+	Host     string
+	Port     int
+	Password string
+	DB       int
 }
 
 // ServerConfig holds server settings
@@ -52,6 +62,15 @@ type JWTConfig struct {
 	Secret             string
 	AccessTokenExpiry  time.Duration
 	RefreshTokenExpiry time.Duration
+}
+
+// SMTPConfig holds SMTP server configuration
+type SMTPConfig struct {
+	Host     string
+	Port     int
+	Username string
+	Password string
+	From     string
 }
 
 // Load reads configuration from environment variables
@@ -172,6 +191,61 @@ func Load() (*Config, error) {
 
 	// Media base URL configuration (optional, for media service)
 	cfg.MediaBaseURL = os.Getenv("MEDIA_BASE_URL")
+
+	// Redis configuration (optional, for task service)
+	redisHost := os.Getenv("REDIS_HOST")
+	if redisHost == "" {
+		redisHost = "localhost" // default
+	}
+	cfg.Redis.Host = redisHost
+
+	redisPortStr := os.Getenv("REDIS_PORT")
+	if redisPortStr == "" {
+		redisPortStr = "6379" // default
+	}
+	redisPort, err := strconv.Atoi(redisPortStr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid REDIS_PORT: %w", err)
+	}
+	cfg.Redis.Port = redisPort
+
+	cfg.Redis.Password = os.Getenv("REDIS_PASSWORD") // optional
+
+	redisDBStr := os.Getenv("REDIS_DB")
+	if redisDBStr == "" {
+		redisDBStr = "0" // default
+	}
+	redisDB, err := strconv.Atoi(redisDBStr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid REDIS_DB: %w", err)
+	}
+	cfg.Redis.DB = redisDB
+
+	// SMTP configuration (optional, for task service)
+	smtpHost := os.Getenv("SMTP_HOST")
+	if smtpHost == "" {
+		smtpHost = "localhost" // default
+	}
+	cfg.SMTP.Host = smtpHost
+
+	smtpPortStr := os.Getenv("SMTP_PORT")
+	if smtpPortStr == "" {
+		smtpPortStr = "587" // default
+	}
+	smtpPort, err := strconv.Atoi(smtpPortStr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid SMTP_PORT: %w", err)
+	}
+	cfg.SMTP.Port = smtpPort
+
+	cfg.SMTP.Username = os.Getenv("SMTP_USERNAME") // optional
+	cfg.SMTP.Password = os.Getenv("SMTP_PASSWORD") // optional
+
+	smtpFrom := os.Getenv("SMTP_FROM")
+	if smtpFrom == "" {
+		smtpFrom = "noreply@japanesestudent.com" // default
+	}
+	cfg.SMTP.From = smtpFrom
 
 	return cfg, nil
 }

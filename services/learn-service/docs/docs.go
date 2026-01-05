@@ -4546,7 +4546,7 @@ const docTemplate = `{
 var SwaggerInfo = &swag.Spec{
 	Version:          "4.0",
 	Host:             "localhost:8080",
-	BasePath:         "/api/v4",
+	BasePath:         "/api/v6",
 	Schemes:          []string{},
 	Title:            "JapaneseStudent Learn API",
 	Description:      "API for learning Japanese",

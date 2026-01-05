@@ -26,8 +26,8 @@ services:
       dockerfile: ./services/learn-service/Dockerfile
     container_name: japanesestudent-learn-service
     environment:
-      DB_HOST: mariadb
-      DB_PORT: 3306
+      DB_HOST: ${DB_HOST:-mariadb}
+      DB_PORT: ${DB_PORT:-3306}
       DB_USER: ${DB_USER:-appuser}
       DB_PASSWORD: ${DB_PASSWORD:-password}
       DB_NAME: ${DB_NAME:-japanesestudent}
@@ -56,8 +56,8 @@ services:
       dockerfile: ./services/auth-service/Dockerfile
     container_name: japanesestudent-auth-service
     environment:
-      DB_HOST: mariadb
-      DB_PORT: 3306
+      DB_HOST: ${DB_HOST:-mariadb}
+      DB_PORT: ${DB_PORT:-3306}
       DB_USER: ${DB_USER:-appuser}
       DB_PASSWORD: ${DB_PASSWORD:-password}
       DB_NAME: ${DB_NAME:-japanesestudent}
@@ -86,8 +86,8 @@ services:
       dockerfile: ./services/media-service/Dockerfile
     container_name: japanesestudent-media-service
     environment:
-      DB_HOST: mariadb
-      DB_PORT: 3306
+      DB_HOST: ${DB_HOST:-mariadb}
+      DB_PORT: ${DB_PORT:-3306}
       DB_USER: ${DB_USER:-appuser}
       DB_PASSWORD: ${DB_PASSWORD:-password}
       DB_NAME: ${DB_NAME:-japanesestudent}
@@ -112,9 +112,133 @@ services:
       - japanesestudent-network
     restart: unless-stopped
 
+  redis:
+    image: redis:7-alpine
+    container_name: japanesestudent-redis
+    command: redis-server --appendonly yes --appendfsync everysec --auto-aof-rewrite-percentage 100 --auto-aof-rewrite-min-size 64mb
+    volumes:
+      - redis_data:/data
+    networks:
+      - japanesestudent-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  task-scheduler:
+    build:
+      context: .
+      dockerfile: ./services/task-service/Dockerfile
+    container_name: japanesestudent-task-scheduler
+    command: ["./task-scheduler"]
+    environment:
+      DB_HOST: ${DB_HOST:-mariadb}
+      DB_PORT: ${DB_PORT:-3306}
+      DB_USER: ${DB_USER:-appuser}
+      DB_PASSWORD: ${DB_PASSWORD:-password}
+      DB_NAME: ${DB_NAME:-japanesestudent}
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      REDIS_DB: ${REDIS_DB:-0}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_ACCESS_TOKEN_EXPIRY: ${JWT_ACCESS_TOKEN_EXPIRY:-1h}
+      JWT_REFRESH_TOKEN_EXPIRY: ${JWT_REFRESH_TOKEN_EXPIRY:-168h}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    depends_on:
+      mariadb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./services/task-service/migrations:/app/migrations:ro
+    networks:
+      - japanesestudent-network
+    restart: unless-stopped
+
+  task-worker:
+    build:
+      context: .
+      dockerfile: ./services/task-service/Dockerfile
+    container_name: japanesestudent-task-worker
+    command: ["./task-worker"]
+    environment:
+      DB_HOST: ${DB_HOST:-mariadb}
+      DB_PORT: ${DB_PORT:-3306}
+      DB_USER: ${DB_USER:-appuser}
+      DB_PASSWORD: ${DB_PASSWORD:-password}
+      DB_NAME: ${DB_NAME:-japanesestudent}
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      REDIS_DB: ${REDIS_DB:-0}
+      SMTP_HOST: ${SMTP_HOST:-localhost}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-noreply@japanesestudent.com}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_ACCESS_TOKEN_EXPIRY: ${JWT_ACCESS_TOKEN_EXPIRY:-1h}
+      JWT_REFRESH_TOKEN_EXPIRY: ${JWT_REFRESH_TOKEN_EXPIRY:-168h}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    depends_on:
+      mariadb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./services/task-service/migrations:/app/migrations:ro
+    networks:
+      - japanesestudent-network
+    restart: unless-stopped
+
+  task-api:
+    build:
+      context: .
+      dockerfile: ./services/task-service/Dockerfile
+    container_name: japanesestudent-task-api
+    command: ["./task-api"]
+    environment:
+      DB_HOST: ${DB_HOST:-mariadb}
+      DB_PORT: ${DB_PORT:-3306}
+      DB_USER: ${DB_USER:-appuser}
+      DB_PASSWORD: ${DB_PASSWORD:-password}
+      DB_NAME: ${DB_NAME:-japanesestudent}
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      REDIS_DB: ${REDIS_DB:-0}
+      SMTP_HOST: ${SMTP_HOST:-localhost}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-noreply@japanesestudent.com}
+      SERVER_PORT: ${TASK_SERVICE_PORT:-8083}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-*}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_ACCESS_TOKEN_EXPIRY: ${JWT_ACCESS_TOKEN_EXPIRY:-1h}
+      JWT_REFRESH_TOKEN_EXPIRY: ${JWT_REFRESH_TOKEN_EXPIRY:-168h}
+      API_KEY: ${API_KEY}
+    ports:
+      - "${TASK_SERVICE_PORT:-8083}:8083"
+    depends_on:
+      mariadb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./services/task-service/migrations:/app/migrations:ro
+    networks:
+      - japanesestudent-network
+    restart: unless-stopped
+
 volumes:
   mariadb_data:
   media_data:
+  redis_data:
 
 networks:
   japanesestudent-network:

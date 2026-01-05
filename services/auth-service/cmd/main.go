@@ -43,7 +43,7 @@ import (
 // @license.url http://www.apache.org/licenses/LICENSE-2.0.html
 
 // @host localhost:8081
-// @BasePath /api/v4
+// @BasePath /api/v6
 // @securityDefinitions.apikey ApiKeyAuth
 // @in header
 // @name Authorization
@@ -118,8 +118,8 @@ func main() {
 		httpSwagger.URL(fmt.Sprintf("http://localhost:%d/swagger/doc.json", cfg.Server.Port)),
 	))
 
-	// Scope router to /api/v4
-	r.Route("/api/v4", func(r chi.Router) {
+	// Scope router to /api/v6
+	r.Route("/api/v6", func(r chi.Router) {
 		// Register auth routes
 		authHandler.RegisterRoutes(r)
 		// Register user settings routes
