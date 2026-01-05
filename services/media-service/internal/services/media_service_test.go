@@ -15,8 +15,8 @@ import (
 
 // mockMetadataRepository is a mock implementation of MetadataRepository
 type mockMetadataRepository struct {
-	metadata *models.Metadata
-	err      error
+	metadata  *models.Metadata
+	err       error
 	deleteErr error
 }
 
@@ -50,7 +50,7 @@ type mockStorage struct {
 	writeCloser  io.WriteCloser
 	readCloser   io.ReadCloser
 	file         *os.File
-	deleteCalled  bool
+	deleteCalled bool
 	deleteParams []string // [id, mediaType]
 }
 
@@ -136,7 +136,7 @@ func TestMediaService_GetMetadataByID(t *testing.T) {
 					ID:          "test-id-123",
 					ContentType: "image/jpeg",
 					Size:        1024,
-					URL:         "http://example.com/api/v4/media/character/test-id-123",
+					URL:         "http://example.com/api/v6/media/character/test-id-123",
 					Type:        models.MediaTypeCharacter,
 				},
 			},
@@ -145,7 +145,7 @@ func TestMediaService_GetMetadataByID(t *testing.T) {
 				ID:          "test-id-123",
 				ContentType: "image/jpeg",
 				Size:        1024,
-				URL:         "http://example.com/api/v4/media/character/test-id-123",
+				URL:         "http://example.com/api/v6/media/character/test-id-123",
 				Type:        models.MediaTypeCharacter,
 			},
 		},
@@ -208,14 +208,14 @@ func TestMediaService_UploadFile(t *testing.T) {
 		errorContains string
 	}{
 		{
-			name:        "success",
-			contentType: "image/jpeg",
-			mediaType:   "character",
-			baseURL:     "http://example.com",
-			extension:   ".jpg",
-			reader:      strings.NewReader("test file content"),
-			repo:        &mockMetadataRepository{},
-			storage:     &mockStorage{},
+			name:          "success",
+			contentType:   "image/jpeg",
+			mediaType:     "character",
+			baseURL:       "http://example.com",
+			extension:     ".jpg",
+			reader:        strings.NewReader("test file content"),
+			repo:          &mockMetadataRepository{},
+			storage:       &mockStorage{},
 			expectedError: false,
 		},
 		{
@@ -258,7 +258,7 @@ func TestMediaService_UploadFile(t *testing.T) {
 			repo: &mockMetadataRepository{
 				err: errors.New("metadata error"),
 			},
-			storage: &mockStorage{},
+			storage:       &mockStorage{},
 			expectedError: true,
 			errorContains: "failed to create metadata",
 		},
@@ -317,11 +317,11 @@ func TestMediaService_DeleteFile(t *testing.T) {
 		errorContains string
 	}{
 		{
-			name:      "success",
-			filename:  "test-id-123",
-			mediaType: "character",
-			repo:      &mockMetadataRepository{},
-			storage:   &mockStorage{},
+			name:          "success",
+			filename:      "test-id-123",
+			mediaType:     "character",
+			repo:          &mockMetadataRepository{},
+			storage:       &mockStorage{},
 			expectedError: false,
 		},
 		{
@@ -353,7 +353,7 @@ func TestMediaService_DeleteFile(t *testing.T) {
 			repo: &mockMetadataRepository{
 				deleteErr: errors.New("metadata error"),
 			},
-			storage: &mockStorage{},
+			storage:       &mockStorage{},
 			expectedError: true,
 			errorContains: "failed to delete metadata",
 		},
@@ -386,10 +386,10 @@ func TestMediaService_GetFileReader(t *testing.T) {
 		expectedError bool
 	}{
 		{
-			name:      "success",
-			filename:  "test-id-123",
-			mediaType: "character",
-			storage:   &mockStorage{},
+			name:          "success",
+			filename:      "test-id-123",
+			mediaType:     "character",
+			storage:       &mockStorage{},
 			expectedError: false,
 		},
 		{
@@ -431,10 +431,10 @@ func TestMediaService_GetFile(t *testing.T) {
 		expectedError bool
 	}{
 		{
-			name:      "success",
-			filename:  "test-id-123",
-			mediaType: "character",
-			storage:   &mockStorage{},
+			name:          "success",
+			filename:      "test-id-123",
+			mediaType:     "character",
+			storage:       &mockStorage{},
 			expectedError: false,
 		},
 		{
@@ -475,9 +475,9 @@ func TestMediaService_InferExtensionFromContentType(t *testing.T) {
 	svc := NewMediaService(repo, storage)
 
 	tests := []struct {
-		name         string
-		contentType  string
-		expectedExt  string
+		name        string
+		contentType string
+		expectedExt string
 	}{
 		{
 			name:        "image/jpeg",
@@ -545,48 +545,48 @@ func TestMediaService_IsValidMediaType(t *testing.T) {
 	svc := NewMediaService(repo, storage)
 
 	tests := []struct {
-		name        string
-		mediaType   string
+		name          string
+		mediaType     string
 		expectedValid bool
 	}{
 		{
-			name:        "valid character",
-			mediaType:   "character",
+			name:          "valid character",
+			mediaType:     "character",
 			expectedValid: true,
 		},
 		{
-			name:        "valid word",
-			mediaType:   "word",
+			name:          "valid word",
+			mediaType:     "word",
 			expectedValid: true,
 		},
 		{
-			name:        "valid word_example",
-			mediaType:   "word_example",
+			name:          "valid word_example",
+			mediaType:     "word_example",
 			expectedValid: true,
 		},
 		{
-			name:        "valid lesson_audio",
-			mediaType:   "lesson_audio",
+			name:          "valid lesson_audio",
+			mediaType:     "lesson_audio",
 			expectedValid: true,
 		},
 		{
-			name:        "valid lesson_video",
-			mediaType:   "lesson_video",
+			name:          "valid lesson_video",
+			mediaType:     "lesson_video",
 			expectedValid: true,
 		},
 		{
-			name:        "valid lesson_doc",
-			mediaType:   "lesson_doc",
+			name:          "valid lesson_doc",
+			mediaType:     "lesson_doc",
 			expectedValid: true,
 		},
 		{
-			name:        "invalid media type",
-			mediaType:   "invalid",
+			name:          "invalid media type",
+			mediaType:     "invalid",
 			expectedValid: false,
 		},
 		{
-			name:        "empty media type",
-			mediaType:   "",
+			name:          "empty media type",
+			mediaType:     "",
 			expectedValid: false,
 		},
 	}
@@ -614,4 +614,3 @@ func TestMediaService_UploadFile_CleanupOnError(t *testing.T) {
 	require.Error(t, err)
 	assert.True(t, storage.deleteCalled, "Storage.Delete should be called when metadata creation fails")
 }
-

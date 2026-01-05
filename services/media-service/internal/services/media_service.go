@@ -81,7 +81,7 @@ func (s *MediaService) UploadFile(ctx context.Context, reader io.Reader, content
 	}
 
 	// Build download URL
-	downloadURL := fmt.Sprintf("%s/api/v4/media/%s/%s", baseURL, mediaType, filename)
+	downloadURL := fmt.Sprintf("%s/api/v6/media/%s/%s", baseURL, mediaType, filename)
 
 	// Create metadata record
 	metadata := &models.Metadata{
@@ -99,7 +99,7 @@ func (s *MediaService) UploadFile(ctx context.Context, reader io.Reader, content
 	}
 
 	// Return the metadata URL
-	metadataURL := fmt.Sprintf("%s/api/v4/media/%s", baseURL, filename)
+	metadataURL := fmt.Sprintf("%s/api/v6/media/%s", baseURL, filename)
 	return metadataURL, nil
 }
 

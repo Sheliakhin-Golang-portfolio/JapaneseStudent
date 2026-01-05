@@ -344,7 +344,7 @@ const docTemplate = `{
 var SwaggerInfo = &swag.Spec{
 	Version:          "4.0",
 	Host:             "localhost:8082",
-	BasePath:         "/api/v4",
+	BasePath:         "/api/v6",
 	Schemes:          []string{},
 	Title:            "JapaneseStudent Media API",
 	Description:      "API for managing media files",

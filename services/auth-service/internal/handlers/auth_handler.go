@@ -55,7 +55,7 @@ func NewAuthHandler(
 }
 
 // RegisterRoutes registers all auth handler routes
-// Note: This assumes the router is already scoped to /api/v3
+// Note: This assumes the router is already scoped to /api/v6
 func (h *AuthHandler) RegisterRoutes(r chi.Router) {
 	r.Route("/auth", func(r chi.Router) {
 		r.Post("/register", h.Register)

@@ -70,7 +70,7 @@ func NewCharactersHandler(svc CharactersService, logger *zap.Logger) *Characters
 }
 
 // RegisterRoutes registers all character handler routes
-// Note: This assumes the router is already scoped to /api/v4
+// Note: This assumes the router is already scoped to /api/v6
 func (h *CharactersHandler) RegisterRoutes(r chi.Router, authMiddleware func(http.Handler) http.Handler) {
 	r.Route("/characters", func(r chi.Router) {
 		r.Get("/", h.GetAll)

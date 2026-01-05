@@ -1,4 +1,4 @@
-basePath: /api/v4
+basePath: /api/v6
 definitions:
   handlers.RefreshRequest:
     properties:

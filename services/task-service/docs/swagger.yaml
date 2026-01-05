@@ -1,0 +1,1061 @@
+basePath: /api/v6
+definitions:
+  models.AdminCreateImmediateTaskRequest:
+    properties:
+      content:
+        type: string
+      template_id:
+        type: integer
+      user_id:
+        type: integer
+    type: object
+  models.AdminCreateScheduledTaskRequest:
+    properties:
+      content:
+        type: string
+      cron:
+        type: string
+      template_id:
+        type: integer
+      url:
+        type: string
+      user_id:
+        type: integer
+    type: object
+  models.CreateImmediateTaskRequest:
+    properties:
+      content:
+        type: string
+      email_slug:
+        type: string
+      user_id:
+        type: integer
+    type: object
+  models.CreateScheduledTaskRequest:
+    properties:
+      content:
+        type: string
+      cron:
+        type: string
+      email_slug:
+        description: empty means no template
+        type: string
+      url:
+        description: empty means no URL
+        type: string
+      user_id:
+        type: integer
+    type: object
+  models.CreateUpdateEmailTemplateRequest:
+    properties:
+      body_template:
+        type: string
+      slug:
+        type: string
+      subject_template:
+        type: string
+    type: object
+  models.EmailTemplate:
+    properties:
+      body_template:
+        type: string
+      created_at:
+        type: string
+      id:
+        type: integer
+      slug:
+        type: string
+      subject_template:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  models.EmailTemplateListItem:
+    properties:
+      id:
+        type: integer
+      slug:
+        type: string
+    type: object
+  models.ImmediateTask:
+    properties:
+      content:
+        type: string
+      created_at:
+        type: string
+      error:
+        type: string
+      id:
+        type: integer
+      status:
+        $ref: '#/definitions/models.ImmediateTaskStatus'
+      template_id:
+        type: integer
+      user_id:
+        type: integer
+    type: object
+  models.ImmediateTaskListItem:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: integer
+      status:
+        $ref: '#/definitions/models.ImmediateTaskStatus'
+      template_id:
+        type: integer
+      user_id:
+        type: integer
+    type: object
+  models.ImmediateTaskStatus:
+    enum:
+    - Enqueued
+    - Completed
+    - Failed
+    type: string
+    x-enum-varnames:
+    - ImmediateTaskStatusEnqueued
+    - ImmediateTaskStatusCompleted
+    - ImmediateTaskStatusFailed
+  models.ScheduledTask:
+    properties:
+      active:
+        type: boolean
+      content:
+        type: string
+      created_at:
+        type: string
+      cron:
+        type: string
+      id:
+        type: integer
+      next_run:
+        type: string
+      previous_run:
+        type: string
+      template_id:
+        type: integer
+      url:
+        type: string
+      user_id:
+        type: integer
+    type: object
+  models.ScheduledTaskListItem:
+    properties:
+      active:
+        type: boolean
+      created_at:
+        type: string
+      id:
+        type: integer
+      next_run:
+        type: string
+      template_id:
+        type: integer
+      url:
+        type: string
+      user_id:
+        type: integer
+    type: object
+  models.ScheduledTaskLog:
+    properties:
+      created_at:
+        type: string
+      error:
+        type: string
+      http_status:
+        type: integer
+      id:
+        type: integer
+      job_id:
+        type: string
+      status:
+        $ref: '#/definitions/models.ScheduledTaskLogStatus'
+      task_id:
+        type: integer
+    type: object
+  models.ScheduledTaskLogListItem:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: integer
+      job_id:
+        type: string
+      status:
+        $ref: '#/definitions/models.ScheduledTaskLogStatus'
+      task_id:
+        type: integer
+    type: object
+  models.ScheduledTaskLogStatus:
+    enum:
+    - Completed
+    - Failed
+    type: string
+    x-enum-varnames:
+    - ScheduledTaskLogStatusCompleted
+    - ScheduledTaskLogStatusFailed
+  models.UpdateImmediateTaskRequest:
+    properties:
+      content:
+        type: string
+      error:
+        type: string
+      status:
+        $ref: '#/definitions/models.ImmediateTaskStatus'
+      template_id:
+        type: integer
+      user_id:
+        type: integer
+    type: object
+  models.UpdateScheduledTaskRequest:
+    properties:
+      active:
+        type: boolean
+      content:
+        type: string
+      cron:
+        type: string
+      next_run:
+        type: string
+      template_id:
+        type: integer
+      url:
+        type: string
+      user_id:
+        type: integer
+    type: object
+host: localhost:8083
+info:
+  contact:
+    email: shelyahin.mihail@gmail.com
+    name: API Support
+  description: API for managing immediate and scheduled tasks
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  termsOfService: http://swagger.io/terms/
+  title: JapaneseStudent Task API
+  version: "6.0"
+paths:
+  /admin/email-templates:
+    get:
+      consumes:
+      - application/json
+      description: Get paginated list of email templates with optional search filter.
+        Requires admin role (JWT authentication).
+      parameters:
+      - description: 'Page number (default: 1)'
+        in: query
+        name: page
+        type: integer
+      - description: 'Items per page (default: 20)'
+        in: query
+        name: count
+        type: integer
+      - description: Search in template slug
+        in: query
+        name: search
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of email templates
+          schema:
+            items:
+              $ref: '#/definitions/models.EmailTemplateListItem'
+            type: array
+        "400":
+          description: Invalid request parameters
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get list of email templates
+      tags:
+      - admin
+    post:
+      consumes:
+      - application/json
+      description: Create a new email template. Requires admin role (JWT authentication).
+      parameters:
+      - description: Email template creation request
+        in: body
+        name: template
+        required: true
+        schema:
+          $ref: '#/definitions/models.CreateUpdateEmailTemplateRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Email template created successfully
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad request - invalid request body or template creation failed
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Create email template
+      tags:
+      - admin
+  /admin/email-templates/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete an email template by ID. Requires admin role (JWT authentication).
+      parameters:
+      - description: Email template ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Invalid template ID
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Email template not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Delete email template
+      tags:
+      - admin
+    get:
+      consumes:
+      - application/json
+      description: Get full email template information by ID. Requires admin role
+        (JWT authentication).
+      parameters:
+      - description: Email template ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Email template details
+          schema:
+            $ref: '#/definitions/models.EmailTemplate'
+        "400":
+          description: Invalid template ID
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Email template not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get email template by ID
+      tags:
+      - admin
+    patch:
+      consumes:
+      - application/json
+      description: Update an email template (partial update). Requires admin role
+        (JWT authentication).
+      parameters:
+      - description: Email template ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Email template update request
+        in: body
+        name: template
+        required: true
+        schema:
+          $ref: '#/definitions/models.CreateUpdateEmailTemplateRequest'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad request - invalid template ID or request body
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Email template not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Update email template
+      tags:
+      - admin
+  /admin/immediate-tasks:
+    get:
+      consumes:
+      - application/json
+      description: Get paginated list of immediate tasks with optional filters (user
+        ID, template ID, status). Requires admin role (JWT authentication).
+      parameters:
+      - description: 'Page number (default: 1)'
+        in: query
+        name: page
+        type: integer
+      - description: 'Items per page (default: 20)'
+        in: query
+        name: count
+        type: integer
+      - description: Filter by user ID
+        in: query
+        name: user_id
+        type: integer
+      - description: Filter by template ID
+        in: query
+        name: template_id
+        type: integer
+      - description: Filter by status (Enqueued, Completed, Failed)
+        in: query
+        name: status
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of immediate tasks
+          schema:
+            items:
+              $ref: '#/definitions/models.ImmediateTaskListItem'
+            type: array
+        "400":
+          description: Invalid request parameters
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get list of immediate tasks
+      tags:
+      - admin
+    post:
+      consumes:
+      - application/json
+      description: Create a new immediate task and enqueue it for processing. Requires
+        admin role (JWT authentication).
+      parameters:
+      - description: Immediate task creation request
+        in: body
+        name: task
+        required: true
+        schema:
+          $ref: '#/definitions/models.AdminCreateImmediateTaskRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Immediate task created successfully
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad request - invalid request body or task creation failed
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Create immediate task
+      tags:
+      - admin
+  /admin/immediate-tasks/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete an immediate task by ID. Requires admin role (JWT authentication).
+      parameters:
+      - description: Immediate task ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Invalid task ID
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Immediate task not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Delete immediate task
+      tags:
+      - admin
+    get:
+      consumes:
+      - application/json
+      description: Get full immediate task information by ID. Requires admin role
+        (JWT authentication).
+      parameters:
+      - description: Immediate task ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Immediate task details
+          schema:
+            $ref: '#/definitions/models.ImmediateTask'
+        "400":
+          description: Invalid task ID
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Immediate task not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get immediate task by ID
+      tags:
+      - admin
+    patch:
+      consumes:
+      - application/json
+      description: Update an immediate task (partial update). Requires admin role
+        (JWT authentication).
+      parameters:
+      - description: Immediate task ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Immediate task update request
+        in: body
+        name: task
+        required: true
+        schema:
+          $ref: '#/definitions/models.UpdateImmediateTaskRequest'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad request - invalid task ID or request body
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Immediate task not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Update immediate task
+      tags:
+      - admin
+  /admin/scheduled-task-logs:
+    get:
+      consumes:
+      - application/json
+      description: Get paginated list of scheduled task logs with optional filters
+        (task ID, job ID, status). Requires admin role (JWT authentication).
+      parameters:
+      - description: 'Page number (default: 1)'
+        in: query
+        name: page
+        type: integer
+      - description: 'Items per page (default: 20)'
+        in: query
+        name: count
+        type: integer
+      - description: Filter by task ID
+        in: query
+        name: task_id
+        type: integer
+      - description: Filter by job ID
+        in: query
+        name: job_id
+        type: string
+      - description: Filter by status (Completed, Failed)
+        in: query
+        name: status
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of scheduled task logs
+          schema:
+            items:
+              $ref: '#/definitions/models.ScheduledTaskLogListItem'
+            type: array
+        "400":
+          description: Invalid request parameters
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get list of scheduled task logs
+      tags:
+      - admin
+  /admin/scheduled-task-logs/{id}:
+    get:
+      consumes:
+      - application/json
+      description: Get full scheduled task log information by ID. Requires admin role
+        (JWT authentication).
+      parameters:
+      - description: Scheduled task log ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Scheduled task log details
+          schema:
+            $ref: '#/definitions/models.ScheduledTaskLog'
+        "400":
+          description: Invalid log ID
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Scheduled task log not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get scheduled task log by ID
+      tags:
+      - admin
+  /admin/scheduled-tasks:
+    get:
+      consumes:
+      - application/json
+      description: Get paginated list of scheduled tasks with optional filters (user
+        ID, template ID, active status). Requires admin role (JWT authentication).
+      parameters:
+      - description: 'Page number (default: 1)'
+        in: query
+        name: page
+        type: integer
+      - description: 'Items per page (default: 20)'
+        in: query
+        name: count
+        type: integer
+      - description: Filter by user ID
+        in: query
+        name: user_id
+        type: integer
+      - description: Filter by template ID
+        in: query
+        name: template_id
+        type: integer
+      - description: Filter by active status
+        in: query
+        name: active
+        type: boolean
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of scheduled tasks
+          schema:
+            items:
+              $ref: '#/definitions/models.ScheduledTaskListItem'
+            type: array
+        "400":
+          description: Invalid request parameters
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get list of scheduled tasks
+      tags:
+      - admin
+    post:
+      consumes:
+      - application/json
+      description: Create a new scheduled task with cron expression. Requires admin
+        role (JWT authentication).
+      parameters:
+      - description: Scheduled task creation request
+        in: body
+        name: task
+        required: true
+        schema:
+          $ref: '#/definitions/models.AdminCreateScheduledTaskRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Scheduled task created successfully
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad request - invalid request body or task creation failed
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Create scheduled task
+      tags:
+      - admin
+  /admin/scheduled-tasks/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete a scheduled task by ID from database and Redis ZSET. Requires
+        admin role (JWT authentication).
+      parameters:
+      - description: Scheduled task ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Invalid task ID
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Scheduled task not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Delete scheduled task
+      tags:
+      - admin
+    get:
+      consumes:
+      - application/json
+      description: Get full scheduled task information by ID. Requires admin role
+        (JWT authentication).
+      parameters:
+      - description: Scheduled task ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Scheduled task details
+          schema:
+            $ref: '#/definitions/models.ScheduledTask'
+        "400":
+          description: Invalid task ID
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Scheduled task not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get scheduled task by ID
+      tags:
+      - admin
+    patch:
+      consumes:
+      - application/json
+      description: Update a scheduled task (partial update). Requires admin role (JWT
+        authentication).
+      parameters:
+      - description: Scheduled task ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Scheduled task update request
+        in: body
+        name: task
+        required: true
+        schema:
+          $ref: '#/definitions/models.UpdateScheduledTaskRequest'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad request - invalid task ID or request body
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Scheduled task not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Update scheduled task
+      tags:
+      - admin
+  /tasks/immediate:
+    post:
+      consumes:
+      - application/json
+      description: Create a new immediate task and enqueue it for processing. Requires
+        API key authentication.
+      parameters:
+      - description: Immediate task creation request
+        in: body
+        name: task
+        required: true
+        schema:
+          $ref: '#/definitions/models.CreateImmediateTaskRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Task created successfully
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad request - invalid request body or task creation failed
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Create immediate task
+      tags:
+      - tasks
+  /tasks/scheduled:
+    post:
+      consumes:
+      - application/json
+      description: Create a new scheduled task with cron expression. Requires API
+        key authentication.
+      parameters:
+      - description: Scheduled task creation request
+        in: body
+        name: task
+        required: true
+        schema:
+          $ref: '#/definitions/models.CreateScheduledTaskRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Task created successfully
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad request - invalid request body or task creation failed
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Create scheduled task
+      tags:
+      - tasks
+securityDefinitions:
+  ApiKeyAuth:
+    description: API key for service-to-service authentication
+    in: header
+    name: X-API-Key
+    type: apiKey
+  BearerAuth:
+    description: Type "Bearer" followed by a space and JWT token. Required for admin
+      endpoints.
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

@@ -69,7 +69,7 @@ func NewAdminWordsHandler(svc AdminWordsService, logger *zap.Logger) *AdminWords
 }
 
 // RegisterRoutes registers all admin word handler routes
-// Note: This assumes the router is already scoped to /api/v3
+// Note: This assumes the router is already scoped to /api/v6
 func (h *AdminWordsHandler) RegisterRoutes(r chi.Router) {
 	r.Route("/admin/words", func(r chi.Router) {
 		r.Get("/", h.GetAll)

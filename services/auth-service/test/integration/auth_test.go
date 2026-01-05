@@ -107,8 +107,8 @@ func setupTestRouter(db *sql.DB, logger *zap.Logger) chi.Router {
 	adminHandler := handlers.NewAdminHandler(adminSvc, logger, "", "")
 
 	r := chi.NewRouter()
-	// Scope router to /api/v4 to match main.go setup
-	r.Route("/api/v4", func(r chi.Router) {
+	// Scope router to /api/v6 to match main.go setup
+	r.Route("/api/v6", func(r chi.Router) {
 		authHandler.RegisterRoutes(r)
 		// Mock auth middleware that extracts userID from context
 		authMiddleware := func(h http.Handler) http.Handler {
@@ -360,7 +360,7 @@ func TestIntegration_Register(t *testing.T) {
 			}
 			writer.Close()
 
-			req := httptest.NewRequest(http.MethodPost, "/api/v4/auth/register", &body)
+			req := httptest.NewRequest(http.MethodPost, "/api/v6/auth/register", &body)
 			req.Header.Set("Content-Type", writer.FormDataContentType())
 			w := httptest.NewRecorder()
 
@@ -493,7 +493,7 @@ func TestIntegration_Login(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			body, _ := json.Marshal(tt.requestBody)
-			req := httptest.NewRequest(http.MethodPost, "/api/v4/auth/login", bytes.NewBuffer(body))
+			req := httptest.NewRequest(http.MethodPost, "/api/v6/auth/login", bytes.NewBuffer(body))
 			req.Header.Set("Content-Type", "application/json")
 			w := httptest.NewRecorder()
 
@@ -694,7 +694,7 @@ func TestIntegration_UserSettings(t *testing.T) {
 			name:           "success get user settings",
 			userID:         1,
 			method:         http.MethodGet,
-			url:            "/api/v4/settings",
+			url:            "/api/v6/settings",
 			requestBody:    nil,
 			expectedStatus: http.StatusOK,
 			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
@@ -711,7 +711,7 @@ func TestIntegration_UserSettings(t *testing.T) {
 			name:           "success update user settings - partial",
 			userID:         1,
 			method:         http.MethodPatch,
-			url:            "/api/v4/settings",
+			url:            "/api/v6/settings",
 			requestBody:    map[string]any{"newWordCount": 25},
 			expectedStatus: http.StatusNoContent,
 			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
@@ -726,7 +726,7 @@ func TestIntegration_UserSettings(t *testing.T) {
 			name:           "success update user settings - all fields",
 			userID:         1,
 			method:         http.MethodPatch,
-			url:            "/api/v4/settings",
+			url:            "/api/v6/settings",
 			requestBody:    map[string]any{"newWordCount": 30, "oldWordCount": 35, "alphabetLearnCount": 12, "language": "ru"},
 			expectedStatus: http.StatusNoContent,
 			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
@@ -745,7 +745,7 @@ func TestIntegration_UserSettings(t *testing.T) {
 			name:           "invalid newWordCount - too low",
 			userID:         1,
 			method:         http.MethodPatch,
-			url:            "/api/v4/settings",
+			url:            "/api/v6/settings",
 			requestBody:    map[string]any{"newWordCount": 5},
 			expectedStatus: http.StatusBadRequest,
 			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
@@ -759,7 +759,7 @@ func TestIntegration_UserSettings(t *testing.T) {
 			name:           "invalid newWordCount - too high",
 			userID:         1,
 			method:         http.MethodPatch,
-			url:            "/api/v4/settings",
+			url:            "/api/v6/settings",
 			requestBody:    map[string]any{"newWordCount": 50},
 			expectedStatus: http.StatusBadRequest,
 			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
@@ -773,7 +773,7 @@ func TestIntegration_UserSettings(t *testing.T) {
 			name:           "invalid language",
 			userID:         1,
 			method:         http.MethodPatch,
-			url:            "/api/v4/settings",
+			url:            "/api/v6/settings",
 			requestBody:    map[string]any{"language": "fr"},
 			expectedStatus: http.StatusBadRequest,
 			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
@@ -787,7 +787,7 @@ func TestIntegration_UserSettings(t *testing.T) {
 			name:           "empty request body",
 			userID:         1,
 			method:         http.MethodPatch,
-			url:            "/api/v4/settings",
+			url:            "/api/v6/settings",
 			requestBody:    map[string]any{},
 			expectedStatus: http.StatusBadRequest,
 			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
@@ -801,7 +801,7 @@ func TestIntegration_UserSettings(t *testing.T) {
 			name:           "user settings not found",
 			userID:         999,
 			method:         http.MethodGet,
-			url:            "/api/v4/settings",
+			url:            "/api/v6/settings",
 			requestBody:    nil,
 			expectedStatus: http.StatusInternalServerError,
 			validateFunc:   nil,
@@ -918,7 +918,7 @@ func TestIntegration_GetTutorsList(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodGet, "/api/v4/admin/tutors", nil)
+			req := httptest.NewRequest(http.MethodGet, "/api/v6/admin/tutors", nil)
 			w := httptest.NewRecorder()
 
 			testRouter.ServeHTTP(w, req)
@@ -1021,7 +1021,7 @@ func TestIntegration_AdminGetUsersList(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodGet, "/api/v4/admin/users"+tt.queryParams, nil)
+			req := httptest.NewRequest(http.MethodGet, "/api/v6/admin/users"+tt.queryParams, nil)
 			w := httptest.NewRecorder()
 
 			testRouter.ServeHTTP(w, req)
@@ -1105,7 +1105,7 @@ func TestIntegration_AdminGetUserWithSettings(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodGet, "/api/v4/admin/users/"+tt.userID, nil)
+			req := httptest.NewRequest(http.MethodGet, "/api/v6/admin/users/"+tt.userID, nil)
 			w := httptest.NewRecorder()
 
 			testRouter.ServeHTTP(w, req)
@@ -1216,7 +1216,7 @@ func TestIntegration_AdminCreateUser(t *testing.T) {
 			}
 			writer.Close()
 
-			req := httptest.NewRequest(http.MethodPost, "/api/v4/admin/users", &body)
+			req := httptest.NewRequest(http.MethodPost, "/api/v6/admin/users", &body)
 			req.Header.Set("Content-Type", writer.FormDataContentType())
 			w := httptest.NewRecorder()
 
@@ -1302,7 +1302,7 @@ func TestIntegration_AdminCreateUserSettings(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodPost, "/api/v4/admin/users/"+tt.userID+"/settings", nil)
+			req := httptest.NewRequest(http.MethodPost, "/api/v6/admin/users/"+tt.userID+"/settings", nil)
 			w := httptest.NewRecorder()
 
 			testRouter.ServeHTTP(w, req)
@@ -1424,7 +1424,7 @@ func TestIntegration_AdminUpdateUserWithSettings(t *testing.T) {
 			}
 			writer.Close()
 
-			req := httptest.NewRequest(http.MethodPatch, "/api/v4/admin/users/"+tt.userID, &body)
+			req := httptest.NewRequest(http.MethodPatch, "/api/v6/admin/users/"+tt.userID, &body)
 			req.Header.Set("Content-Type", writer.FormDataContentType())
 			w := httptest.NewRecorder()
 
@@ -1508,7 +1508,7 @@ func TestIntegration_AdminDeleteUser(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodDelete, "/api/v4/admin/users/"+tt.userID, nil)
+			req := httptest.NewRequest(http.MethodDelete, "/api/v6/admin/users/"+tt.userID, nil)
 			w := httptest.NewRecorder()
 
 			testRouter.ServeHTTP(w, req)

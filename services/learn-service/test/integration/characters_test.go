@@ -134,7 +134,7 @@ func setupTestRouter(db *sql.DB, logger *zap.Logger) chi.Router {
 	dictionaryHandler := handlers.NewDictionaryHandler(dictionarySvc, logger)
 
 	r := chi.NewRouter()
-	r.Route("/api/v3", func(r chi.Router) {
+	r.Route("/api/v6", func(r chi.Router) {
 		// Register character routes (excluding /tests which we'll register together)
 		r.Route("/characters", func(r chi.Router) {
 			r.Get("/", charHandler.GetAll)
@@ -359,7 +359,7 @@ func TestIntegration_GetAllCharacters(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodGet, "/api/v3/characters"+tt.queryParams, nil)
+			req := httptest.NewRequest(http.MethodGet, "/api/v6/characters"+tt.queryParams, nil)
 			w := httptest.NewRecorder()
 
 			testRouter.ServeHTTP(w, req)
@@ -435,7 +435,7 @@ func TestIntegration_GetByRowColumn(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodGet, "/api/v3/characters/row-column"+tt.queryParams, nil)
+			req := httptest.NewRequest(http.MethodGet, "/api/v6/characters/row-column"+tt.queryParams, nil)
 			w := httptest.NewRecorder()
 
 			testRouter.ServeHTTP(w, req)
@@ -518,7 +518,7 @@ func TestIntegration_GetByID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodGet, "/api/v3/characters/"+tt.id+tt.queryParams, nil)
+			req := httptest.NewRequest(http.MethodGet, "/api/v6/characters/"+tt.id+tt.queryParams, nil)
 			w := httptest.NewRecorder()
 
 			testRouter.ServeHTTP(w, req)
@@ -606,7 +606,7 @@ func TestIntegration_GetReadingTest(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodGet, "/api/v3/tests/"+tt.alphabetType+"/reading"+tt.queryParams, nil)
+			req := httptest.NewRequest(http.MethodGet, "/api/v6/tests/"+tt.alphabetType+"/reading"+tt.queryParams, nil)
 			req = req.WithContext(middleware.SetUserID(req.Context(), 1))
 			w := httptest.NewRecorder()
 
@@ -690,7 +690,7 @@ func TestIntegration_GetWritingTest(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodGet, "/api/v3/tests/"+tt.alphabetType+"/writing"+tt.queryParams, nil)
+			req := httptest.NewRequest(http.MethodGet, "/api/v6/tests/"+tt.alphabetType+"/writing"+tt.queryParams, nil)
 			req = req.WithContext(middleware.SetUserID(req.Context(), 1))
 			w := httptest.NewRecorder()
 
@@ -937,7 +937,7 @@ func TestIntegration_SubmitTestResults(t *testing.T) {
 				body, _ := json.Marshal(map[string]any{
 					"results": []map[string]any{{"characterId": 1, "passed": false}},
 				})
-				req := httptest.NewRequest(http.MethodPost, "/api/v3/tests/hiragana/reading", bytes.NewBuffer(body))
+				req := httptest.NewRequest(http.MethodPost, "/api/v6/tests/hiragana/reading", bytes.NewBuffer(body))
 				req.Header.Set("Content-Type", "application/json")
 				req = req.WithContext(middleware.SetUserID(req.Context(), 4))
 				w2 := httptest.NewRecorder()
@@ -978,7 +978,7 @@ func TestIntegration_SubmitTestResults(t *testing.T) {
 			body, _ := json.Marshal(map[string]any{
 				"results": tt.results,
 			})
-			url := fmt.Sprintf("/api/v3/tests/%s/%s", tt.alphabetType, tt.testType)
+			url := fmt.Sprintf("/api/v6/tests/%s/%s", tt.alphabetType, tt.testType)
 			req := httptest.NewRequest(http.MethodPost, url, bytes.NewBuffer(body))
 			req.Header.Set("Content-Type", "application/json")
 			req = req.WithContext(middleware.SetUserID(req.Context(), tt.userID))
@@ -1051,7 +1051,7 @@ func TestIntegration_GetUserHistory(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodGet, "/api/v3/tests/history", nil)
+			req := httptest.NewRequest(http.MethodGet, "/api/v6/tests/history", nil)
 			req = req.WithContext(middleware.SetUserID(req.Context(), tt.userID))
 			w := httptest.NewRecorder()
 
@@ -1162,7 +1162,7 @@ func BenchmarkIntegration_GetAll(b *testing.B) {
 	seedTestData(&testing.T{}, testDB)
 	defer cleanupTestData(&testing.T{}, testDB)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v3/characters?type=hr&locale=en", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v6/characters?type=hr&locale=en", nil)
 
 	for b.Loop() {
 		w := httptest.NewRecorder()
@@ -1205,7 +1205,7 @@ func TestIntegration_Dictionary(t *testing.T) {
 			name:           "success get word list with defaults",
 			userID:         1,
 			method:         http.MethodGet,
-			url:            "/api/v3/words",
+			url:            "/api/v6/words",
 			requestBody:    nil,
 			expectedStatus: http.StatusOK,
 			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
@@ -1219,7 +1219,7 @@ func TestIntegration_Dictionary(t *testing.T) {
 			name:           "success get word list with parameters",
 			userID:         1,
 			method:         http.MethodGet,
-			url:            "/api/v3/words?newCount=10&oldCount=10&locale=en",
+			url:            "/api/v6/words?newCount=10&oldCount=10&locale=en",
 			requestBody:    nil,
 			expectedStatus: http.StatusOK,
 			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
@@ -1233,7 +1233,7 @@ func TestIntegration_Dictionary(t *testing.T) {
 			name:           "success get word list with russian locale",
 			userID:         1,
 			method:         http.MethodGet,
-			url:            "/api/v3/words?newCount=10&oldCount=10&locale=ru",
+			url:            "/api/v6/words?newCount=10&oldCount=10&locale=ru",
 			requestBody:    nil,
 			expectedStatus: http.StatusOK,
 			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
@@ -1250,7 +1250,7 @@ func TestIntegration_Dictionary(t *testing.T) {
 			name:           "invalid newCount - too low",
 			userID:         1,
 			method:         http.MethodGet,
-			url:            "/api/v3/words?newCount=5&oldCount=20&locale=en",
+			url:            "/api/v6/words?newCount=5&oldCount=20&locale=en",
 			requestBody:    nil,
 			expectedStatus: http.StatusBadRequest,
 			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
@@ -1264,7 +1264,7 @@ func TestIntegration_Dictionary(t *testing.T) {
 			name:           "invalid locale",
 			userID:         1,
 			method:         http.MethodGet,
-			url:            "/api/v3/words?newCount=20&oldCount=20&locale=fr",
+			url:            "/api/v6/words?newCount=20&oldCount=20&locale=fr",
 			requestBody:    nil,
 			expectedStatus: http.StatusBadRequest,
 			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
@@ -1278,7 +1278,7 @@ func TestIntegration_Dictionary(t *testing.T) {
 			name:   "success submit word results",
 			userID: 1,
 			method: http.MethodPost,
-			url:    "/api/v3/words/results",
+			url:    "/api/v6/words/results",
 			requestBody: map[string]any{
 				"results": []map[string]any{
 					{"wordId": 1, "period": 3},
@@ -1298,7 +1298,7 @@ func TestIntegration_Dictionary(t *testing.T) {
 			name:   "invalid period - too low",
 			userID: 1,
 			method: http.MethodPost,
-			url:    "/api/v3/words/results",
+			url:    "/api/v6/words/results",
 			requestBody: map[string]any{
 				"results": []map[string]any{
 					{"wordId": 1, "period": 0},
@@ -1316,7 +1316,7 @@ func TestIntegration_Dictionary(t *testing.T) {
 			name:   "invalid word ID - does not exist",
 			userID: 1,
 			method: http.MethodPost,
-			url:    "/api/v3/words/results",
+			url:    "/api/v6/words/results",
 			requestBody: map[string]any{
 				"results": []map[string]any{
 					{"wordId": 999, "period": 3},
@@ -1334,7 +1334,7 @@ func TestIntegration_Dictionary(t *testing.T) {
 			name:   "empty results array",
 			userID: 1,
 			method: http.MethodPost,
-			url:    "/api/v3/words/results",
+			url:    "/api/v6/words/results",
 			requestBody: map[string]any{
 				"results": []map[string]any{},
 			},

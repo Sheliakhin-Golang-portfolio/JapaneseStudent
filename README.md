@@ -7,6 +7,7 @@ JapaneseStudent is a Go microservices-based application to help people learn hir
 - **Backend**: Go 1.22+
 - **Router**: go-chi/chi
 - **Database**: MariaDB
+- **Task Queue**: Redis + Asynq (for task-service)
 - **Logging**: zap (uber-go/zap)
 - **API Documentation**: Swagger/OpenAPI
 - **Authentication**: JWT (JSON Web Tokens)
@@ -19,8 +20,9 @@ The project follows a **microservices architecture** with the following services
 1. **auth-service** - User authentication and authorization (Port: 8081)
 2. **learn-service** - Character learning, word dictionary, and test management (Port: 8080)
 3. **media-service** - Media file management (upload, download, metadata) (Port: 8082)
+4. **task-service** - Task queue and scheduler for immediate and scheduled tasks (Port: 8083)
 
-Both services share common libraries in the `libs/` directory for:
+All services share common libraries in the `libs/` directory for:
 - Authentication middleware and JWT token generation
 - Configuration management
 - Logging
@@ -188,6 +190,52 @@ JapaneseStudent/
 │       ├── Dockerfile
 │       ├── go.mod
 │       └── go.sum
+│   └── task-service/             # Task queue and scheduler microservice
+│       ├── cmd/
+│       │   ├── api/
+│       │   │   └── main.go        # API service entry point
+│       │   ├── scheduler/
+│       │   │   └── main.go        # Scheduler service entry point
+│       │   └── worker/
+│       │       └── main.go        # Worker service entry point
+│       ├── internal/
+│       │   ├── handlers/          # HTTP handlers
+│       │   │   ├── task_handler.go
+│       │   │   └── admin_handler.go
+│       │   ├── models/           # Domain models
+│       │   │   ├── email_template.go
+│       │   │   ├── immediate_task.go
+│       │   │   ├── scheduled_task.go
+│       │   │   └── scheduled_task_log.go
+│       │   ├── repositories/      # Data access layer
+│       │   │   ├── email_template_repository.go
+│       │   │   ├── email_template_repository_test.go
+│       │   │   ├── immediate_task_repository.go
+│       │   │   ├── immediate_task_repository_test.go
+│       │   │   ├── scheduled_task_repository.go
+│       │   │   ├── scheduled_task_repository_test.go
+│       │   │   ├── scheduled_task_log_repository.go
+│       │   │   └── scheduled_task_log_repository_test.go
+│       │   └── services/         # Business logic layer
+│       │       ├── email_template_service.go
+│       │       ├── immediate_task_service.go
+│       │       ├── scheduled_task_service.go
+│       │       └── task_log_service.go
+│       ├── migrations/            # Database migrations
+│       │   ├── 000001_create_email_templates_table.up.sql
+│       │   ├── 000001_create_email_templates_table.down.sql
+│       │   ├── 000002_create_immediate_tasks_table.up.sql
+│       │   ├── 000002_create_immediate_tasks_table.down.sql
+│       │   ├── 000003_create_scheduled_tasks_table.up.sql
+│       │   ├── 000003_create_scheduled_tasks_table.down.sql
+│       │   ├── 000004_create_scheduled_task_logs_table.up.sql
+│       │   └── 000004_create_scheduled_task_logs_table.down.sql
+│       ├── test/
+│       │   └── integration/      # Integration tests
+│       │       └── task_service_test.go
+│       ├── Dockerfile
+│       ├── go.mod
+│       └── go.sum
 ├── docker-compose.yml             # Docker Compose configuration
 ├── TESTING.md                     # Comprehensive testing guide
 └── README.md                      # This file
@@ -197,13 +245,14 @@ JapaneseStudent/
 
 - Go 1.24 or higher
 - MariaDB 10.11 or higher
+- Redis 6.0 or higher (required for task-service)
 - Docker and Docker Compose (for containerized deployment)
 
 ## Environment Variables
 
 All services can use one `.env` file, create one for each other or configure environment variables in docker containers. Create `.env` files based on the following template:
 
-### Common Configuration (both services)
+### Common Configuration (all services)
 
 ```env
 # Database Configuration
@@ -214,7 +263,7 @@ DB_PASSWORD=password
 DB_NAME=japanesestudent
 
 # Server Configuration
-SERVER_PORT=8081                  # For auth-service default is 8081, for learn-service - 8080, for media-service - 8082
+SERVER_PORT=8081                  # For auth-service default is 8081, for learn-service - 8080, for media-service - 8082, for task-service - 8083
 
 # Logging
 LOG_LEVEL=info
@@ -241,6 +290,13 @@ API_KEY=your-api-key-here
 BASE_URL=http://localhost:8082
 # Media service base URL (required for auth-service avatar upload/delete functionality)
 MEDIA_BASE_URL=http://localhost:8082
+
+# Task Service Configuration (required for task-service)
+# Redis Configuration
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_PASSWORD=                    # Optional, leave empty if no password
+REDIS_DB=0                         # Redis database number (default: 0)
 ```
 
 ## Local Development
@@ -252,6 +308,8 @@ For each service:
 ```bash
 cd services/auth-service && go mod download
 cd ../learn-service && go mod download
+cd ../media-service && go mod download
+cd ../task-service && go mod download
 ```
 
 ### 2. Set Up Database
@@ -270,10 +328,16 @@ Create the required databases:
 CREATE DATABASE japanesestudent_auth;
 CREATE DATABASE japanesestudent_learn;
 CREATE DATABASE japanesestudent_media;
+CREATE DATABASE japanesestudent_task;
 ```
 or one database for all services:
 ```sql
 CREATE DATABASE japanesestudent;
+```
+
+**Note**: task-service also requires Redis to be running. Start Redis using Docker Compose:
+```bash
+docker-compose up -d redis
 ```
 
 ### 3. Run Migrations
@@ -289,6 +353,9 @@ migrate -path services/learn-service/migrations -database "mysql://user:password
 
 # For media-service
 migrate -path services/media-service/migrations -database "mysql://user:password@tcp(localhost:3306)/japanesestudent" up
+
+# For task-service
+migrate -path services/task-service/migrations -database "mysql://user:password@tcp(localhost:3306)/japanesestudent" up
 ```
 
 #### Migration History
@@ -314,6 +381,12 @@ migrate -path services/media-service/migrations -database "mysql://user:password
 
 **Media Service Migrations:**
 1. `000001_create_metadata_table` - Creates metadata table for file metadata storage
+
+**Task Service Migrations:**
+1. `000001_create_email_templates_table` - Creates email_templates table for email template storage
+2. `000002_create_immediate_tasks_table` - Creates immediate_tasks table for immediate task queue
+3. `000003_create_scheduled_tasks_table` - Creates scheduled_tasks table for scheduled task management
+4. `000004_create_scheduled_task_logs_table` - Creates scheduled_task_logs table for task execution logs
 
 ### 4. Run the Services
 
@@ -344,9 +417,34 @@ go run cmd/main.go
 
 The media API will be available at `http://localhost:8082`
 
+#### Run task-service:
+
+The task-service consists of three sub-services that need to be run separately:
+
+**API Service:**
+```bash
+cd services/task-service
+go run cmd/api/main.go
+```
+
+**Scheduler Service:**
+```bash
+cd services/task-service
+go run cmd/scheduler/main.go
+```
+
+**Worker Service:**
+```bash
+cd services/task-service
+go run cmd/worker/main.go
+```
+
+The task API will be available at `http://localhost:8083`
+
 **Note**: 
 - media-service requires `MEDIA_BASE_PATH` environment variable to be set for file storage.
 - auth-service requires `MEDIA_BASE_URL` and `API_KEY` environment variables to be set for avatar upload/delete functionality.
+- task-service requires Redis to be running and configured via `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD`, and `REDIS_DB` environment variables.
 
 ## Docker Deployment
 
@@ -360,6 +458,9 @@ docker-compose up -d
 docker-compose logs -f auth-service
 docker-compose logs -f learn-service
 docker-compose logs -f media-service
+docker-compose logs -f task-service-api
+docker-compose logs -f task-service-scheduler
+docker-compose logs -f task-service-worker
 
 # Stop services
 docker-compose down
@@ -370,43 +471,45 @@ docker-compose down -v
 
 ## API Endpoints
 
+**Note**: All services now use API version v6 in their URL paths (e.g., `/api/v6/...`).
+
 ### Authentication Service (Port 8081)
 
 #### Authentication
-- `POST /api/v4/auth/register` - Register a new user
+- `POST /api/v6/auth/register` - Register a new user
   - Body: `{ "email": "user@example.com", "username": "username", "password": "Password123!" }`
   - Returns: Access and refresh tokens as HTTP-only cookies
-- `POST /api/v4/auth/login` - Login with email/username and password
+- `POST /api/v6/auth/login` - Login with email/username and password
   - Body: `{ "login": "user@example.com", "password": "Password123!" }`
   - Returns: Access and refresh tokens as HTTP-only cookies
-- `POST /api/v4/auth/refresh` - Refresh access token using refresh token
+- `POST /api/v6/auth/refresh` - Refresh access token using refresh token
   - Body: `{ "refreshToken": "token" }` (or cookie)
   - Returns: New access and refresh tokens
 
 #### User Settings (Requires Authentication)
-- `GET /api/v4/settings` - Get user settings for the authenticated user
+- `GET /api/v6/settings` - Get user settings for the authenticated user
   - Returns: User settings including word counts, alphabet learn count, and language preference
-- `PATCH /api/v4/settings` - Update user settings
+- `PATCH /api/v6/settings` - Update user settings
   - Body: `{ "newWordCount": 20, "oldWordCount": 20, "alphabetLearnCount": 10, "language": "en" }`
   - At least one field must be provided
   - Returns: 204 No Content on success
 
 #### Admin Endpoints (Requires Authentication & Admin Role)
-- `GET /api/v4/admin/users` - Get paginated list of users
+- `GET /api/v6/admin/users` - Get paginated list of users
   - Query Parameters:
     - `page` (optional): Page number (default: 1)
     - `count` (optional): Items per page (default: 20)
     - `role` (optional): Filter by role (integer)
     - `search` (optional): Search in email or username
   - Returns: List of users with pagination
-- `GET /api/v4/admin/users/{id}` - Get user with settings by ID
+- `GET /api/v6/admin/users/{id}` - Get user with settings by ID
   - Returns: Full user information including settings
-- `POST /api/v4/admin/users` - Create a new user with settings
+- `POST /api/v6/admin/users` - Create a new user with settings
   - Body: `{ "email": "user@example.com", "username": "username", "password": "Password123!", "role": 0 }`
   - Returns: Created user ID
-- `POST /api/v4/admin/users/{id}/settings` - Create user settings for a user
+- `POST /api/v6/admin/users/{id}/settings` - Create user settings for a user
   - Returns: Success message or "Settings already exist"
-- `PATCH /api/v4/admin/users/{id}` - Update user and/or settings
+- `PATCH /api/v6/admin/users/{id}` - Update user and/or settings
   - Content-Type: `multipart/form-data`
   - Form Fields:
     - `username` (optional): New username
@@ -419,32 +522,32 @@ docker-compose down -v
     - `avatar` (optional): Avatar image file
   - Returns: 204 No Content on success
   - Note: Avatar upload integrates with media-service. Old avatar is automatically deleted when uploading a new one.
-- `DELETE /api/v4/admin/users/{id}` - Delete a user by ID
+- `DELETE /api/v6/admin/users/{id}` - Delete a user by ID
   - Returns: 204 No Content on success (or 200 with message if avatar deletion fails)
   - Note: Automatically deletes user's avatar from media-service if present
 
 ### Learning Service (Port 8080)
 
 #### Characters
-- `GET /api/v4/characters?type={hr|kt}&locale={en|ru}` - Get all characters
-- `GET /api/v4/characters/row-column?type={hr|kt}&locale={en|ru}&character={char}` - Get characters by row/column
-- `GET /api/v4/characters/{id}?locale={en|ru}` - Get character by ID
+- `GET /api/v6/characters?type={hr|kt}&locale={en|ru}` - Get all characters
+- `GET /api/v6/characters/row-column?type={hr|kt}&locale={en|ru}&character={char}` - Get characters by row/column
+- `GET /api/v6/characters/{id}?locale={en|ru}` - Get character by ID
   - Returns: Character information including audio URL (if available)
 
 #### Tests (Requires Authentication)
-- `GET /api/v4/tests/{hiragana|katakana}/reading?locale={en|ru}&count={number}` - Get reading test
+- `GET /api/v6/tests/{hiragana|katakana}/reading?locale={en|ru}&count={number}` - Get reading test
   - Query Parameters:
     - `locale` (optional): Locale for reading - `en` or `ru` (default: `en`)
     - `count` (optional): Number of characters to return (default: 10)
   - Returns: List of characters with multiple choice options
   - **Smart Filtering**: When authenticated, prioritizes characters with no learning history, then characters with lowest reading test results
-- `GET /api/v4/tests/{hiragana|katakana}/writing?locale={en|ru}&count={number}` - Get writing test
+- `GET /api/v6/tests/{hiragana|katakana}/writing?locale={en|ru}&count={number}` - Get writing test
   - Query Parameters:
     - `locale` (optional): Locale for reading - `en` or `ru` (default: `en`)
     - `count` (optional): Number of characters to return (default: 10)
   - Returns: List of characters for writing practice
   - **Smart Filtering**: When authenticated, prioritizes characters with no learning history, then characters with lowest writing test results
-- `GET /api/v4/tests/{hiragana|katakana}/listening?locale={en|ru}&count={number}` - Get listening test
+- `GET /api/v6/tests/{hiragana|katakana}/listening?locale={en|ru}&count={number}` - Get listening test
   - Query Parameters:
     - `locale` (optional): Locale for reading - `en` or `ru` (default: `en`)
     - `count` (optional): Number of characters to return (default: 10)
@@ -453,27 +556,27 @@ docker-compose down -v
   - **Note**: Only returns characters that have audio files uploaded
 
 #### Test Results (Requires Authentication)
-- `POST /api/v4/test-results/{hiragana|katakana}/{reading|writing|listening}` - Submit test results
+- `POST /api/v6/test-results/{hiragana|katakana}/{reading|writing|listening}` - Submit test results
   - Body: `{ "results": [{ "characterId": 1, "passed": true }, ...] }`
   - Test types: `reading`, `writing`, or `listening`
-- `GET /api/v4/test-results/history` - Get user's learning history
+- `GET /api/v6/test-results/history` - Get user's learning history
   - Returns: All learning history records for the authenticated user
 
 #### Dictionary / Words (Requires Authentication)
-- `GET /api/v4/words?newCount={10-40}&oldCount={10-40}&locale={en|ru|de}` - Get word list
+- `GET /api/v6/words?newCount={10-40}&oldCount={10-40}&locale={en|ru|de}` - Get word list
   - Query Parameters:
     - `newCount` (optional): Number of new words to return (10-40, default: 20)
     - `oldWordCount` (optional): Number of old words to return (10-40, default: 20)
     - `locale` (optional): Translation locale - `en`, `ru`, or `de` (default: `en`)
   - Returns: Mixed list of new and old words with locale-specific translations
   - Note: Includes audio URLs (`wordAudio` and `wordExampleAudio`) if available
-- `POST /api/v4/words/results` - Submit word learning results
+- `POST /api/v6/words/results` - Submit word learning results
   - Body: `{ "results": [{ "wordId": 1, "period": 7 }, ...] }`
   - `period`: Days until next appearance (1-30)
   - Returns: 204 No Content on success
 
 #### Courses and Lessons (Requires Authentication)
-- `GET /api/v4/courses` - Get paginated list of courses
+- `GET /api/v6/courses` - Get paginated list of courses
   - Query Parameters:
     - `complexityLevel` (optional): Filter by complexity level (`ab`, `b`, `i`, `ui`, `a` or full name)
     - `search` (optional): Search by course title
@@ -481,15 +584,15 @@ docker-compose down -v
     - `page` (optional): Page number (default: 1)
     - `count` (optional): Items per page (default: 10)
   - Returns: List of courses with total lessons and completed lessons count
-- `GET /api/v4/courses/{slug}/lessons` - Get course details with lessons list
+- `GET /api/v6/courses/{slug}/lessons` - Get course details with lessons list
   - Path Parameters:
     - `slug`: Course slug
   - Returns: Course details and list of lessons with completion status
-- `GET /api/v4/lessons/{slug}` - Get lesson details
+- `GET /api/v6/lessons/{slug}` - Get lesson details
   - Path Parameters:
     - `slug`: Lesson slug
   - Returns: Lesson details and list of lesson blocks
-- `POST /api/v4/lessons/{slug}/complete` - Toggle lesson completion
+- `POST /api/v6/lessons/{slug}/complete` - Toggle lesson completion
   - Path Parameters:
     - `slug`: Lesson slug
   - Returns: 204 No Content on success
@@ -498,11 +601,11 @@ docker-compose down -v
 #### Admin Endpoints (Requires Authentication & Admin Role)
 
 ##### Admin Characters
-- `GET /api/v4/admin/characters` - Get full list of characters ordered by ID
+- `GET /api/v6/admin/characters` - Get full list of characters ordered by ID
   - Returns: List of all characters with full information including audio URLs
-- `GET /api/v4/admin/characters/{id}` - Get character by ID
+- `GET /api/v6/admin/characters/{id}` - Get character by ID
   - Returns: Full character information including audio URL (if available)
-- `POST /api/v4/admin/characters` - Create a new character
+- `POST /api/v6/admin/characters` - Create a new character
   - Content-Type: `multipart/form-data`
   - Form Fields:
     - `consonant`: Consonant character
@@ -514,7 +617,7 @@ docker-compose down -v
     - `audio` (optional): Audio file (MP3, WAV, etc.)
   - Returns: Created character ID
   - Note: Audio file is uploaded to media-service and URL is stored in the database
-- `PATCH /api/v4/admin/characters/{id}` - Update a character (partial update)
+- `PATCH /api/v6/admin/characters/{id}` - Update a character (partial update)
   - Content-Type: `multipart/form-data`
   - Form Fields:
     - `consonant` (optional): Consonant character
@@ -526,20 +629,20 @@ docker-compose down -v
     - `audio` (optional): New audio file (replaces existing audio if provided)
   - Returns: 204 No Content on success
   - Note: If new audio is provided, old audio file is automatically deleted from media-service
-- `DELETE /api/v4/admin/characters/{id}` - Delete a character by ID
+- `DELETE /api/v6/admin/characters/{id}` - Delete a character by ID
   - Returns: 204 No Content on success
   - Note: Automatically deletes character's audio file from media-service if present
 
 ##### Admin Words
-- `GET /api/v4/admin/words` - Get paginated list of words with optional search
+- `GET /api/v6/admin/words` - Get paginated list of words with optional search
   - Query Parameters:
     - `page` (optional): Page number (default: 1)
     - `count` (optional): Items per page (default: 20)
     - `search` (optional): Search in word, phonetic clues, or translations
   - Returns: List of words with pagination
-- `GET /api/v4/admin/words/{id}` - Get word by ID
+- `GET /api/v6/admin/words/{id}` - Get word by ID
   - Returns: Full word information including all translations, examples, and audio URLs
-- `POST /api/v4/admin/words` - Create a new word
+- `POST /api/v6/admin/words` - Create a new word
   - Content-Type: `multipart/form-data`
   - Form Fields:
     - `word`: Japanese word (Kanji)
@@ -559,7 +662,7 @@ docker-compose down -v
     - `wordExampleAudio` (optional): Word example audio file (MP3, WAV, etc.)
   - Returns: Created word ID
   - Note: Audio files are uploaded to media-service and URLs are stored in the database
-- `PATCH /api/v4/admin/words/{id}` - Update a word (partial update)
+- `PATCH /api/v6/admin/words/{id}` - Update a word (partial update)
   - Content-Type: `multipart/form-data`
   - Form Fields (all optional):
     - `word`: Japanese word (Kanji)
@@ -579,12 +682,12 @@ docker-compose down -v
     - `wordExampleAudio` (optional): New word example audio file (replaces existing audio if provided)
   - Returns: 204 No Content on success
   - Note: If new audio files are provided, old audio files are automatically deleted from media-service
-- `DELETE /api/v4/admin/words/{id}` - Delete a word by ID
+- `DELETE /api/v6/admin/words/{id}` - Delete a word by ID
   - Returns: 204 No Content on success
   - Note: Automatically deletes word's audio files (word audio and word example audio) from media-service if present
 
 ##### Admin Courses and Lessons (Requires Authentication & Admin Role)
-- `GET /api/v4/admin/courses` - Get paginated list of courses
+- `GET /api/v6/admin/courses` - Get paginated list of courses
   - Query Parameters:
     - `tutorId` (optional): Filter by tutor ID
     - `complexityLevel` (optional): Filter by complexity level (`ab`, `b`, `i`, `ui`, `a` or full name)
@@ -592,57 +695,57 @@ docker-compose down -v
     - `page` (optional): Page number (default: 1)
     - `count` (optional): Items per page (default: 10)
   - Returns: List of courses
-- `GET /api/v4/admin/courses/short` - Get short course info (ID and title only)
+- `GET /api/v6/admin/courses/short` - Get short course info (ID and title only)
   - Query Parameters:
     - `tutorId` (optional): Filter by tutor ID
   - Returns: List of courses with only ID and title
-- `POST /api/v4/admin/courses` - Create a new course
+- `POST /api/v6/admin/courses` - Create a new course
   - Content-Type: `application/json`
   - Body: `{ "slug": "course-slug", "authorId": 1, "title": "Course Title", "shortSummary": "Summary", "complexityLevel": "Beginner" }`
   - Returns: Created course ID
-- `GET /api/v4/admin/courses/{id}/lessons` - Get lessons for a course
+- `GET /api/v6/admin/courses/{id}/lessons` - Get lessons for a course
   - Returns: Course details and list of lessons
-- `PATCH /api/v4/admin/courses/{id}` - Update a course (partial update)
+- `PATCH /api/v6/admin/courses/{id}` - Update a course (partial update)
   - Content-Type: `application/json`
   - Body: Partial course data (all fields optional)
   - Returns: 204 No Content on success
-- `DELETE /api/v4/admin/courses/{id}` - Delete a course by ID
+- `DELETE /api/v6/admin/courses/{id}` - Delete a course by ID
   - Returns: 204 No Content on success
   - Note: Cascades to delete all lessons and lesson blocks
-- `POST /api/v4/admin/lessons` - Create a new lesson
+- `POST /api/v6/admin/lessons` - Create a new lesson
   - Content-Type: `application/json`
   - Body: `{ "slug": "lesson-slug", "courseId": 1, "title": "Lesson Title", "shortSummary": "Summary", "order": 1 }`
   - Returns: Created lesson ID
-- `GET /api/v4/admin/lessons/short` - Get short lesson info (ID and title only)
+- `GET /api/v6/admin/lessons/short` - Get short lesson info (ID and title only)
   - Query Parameters:
     - `courseId` (optional): Filter by course ID
   - Returns: List of lessons with only ID and title
-- `GET /api/v4/admin/lessons/{id}` - Get full lesson information
+- `GET /api/v6/admin/lessons/{id}` - Get full lesson information
   - Returns: Lesson details with all blocks
-- `PATCH /api/v4/admin/lessons/{id}` - Update a lesson (partial update)
+- `PATCH /api/v6/admin/lessons/{id}` - Update a lesson (partial update)
   - Content-Type: `application/json`
   - Body: Partial lesson data (all fields optional)
   - Returns: 204 No Content on success
-- `DELETE /api/v4/admin/lessons/{id}` - Delete a lesson by ID
+- `DELETE /api/v6/admin/lessons/{id}` - Delete a lesson by ID
   - Returns: 204 No Content on success
   - Note: Cascades to delete all lesson blocks
-- `POST /api/v4/admin/blocks` - Create a lesson block
+- `POST /api/v6/admin/blocks` - Create a lesson block
   - Content-Type: `application/json`
   - Body: `{ "lessonId": 1, "blockType": "video", "blockOrder": 1, "blockData": {...} }`
   - Block types: `video`, `audio`, `text`, `document`, `list`
   - Returns: Created block ID
-- `PATCH /api/v4/admin/blocks/{id}` - Update a lesson block
+- `PATCH /api/v6/admin/blocks/{id}` - Update a lesson block
   - Content-Type: `application/json`
   - Body: Partial block data (all fields optional)
   - Returns: 204 No Content on success
-- `DELETE /api/v4/admin/blocks/{id}` - Delete a lesson block
+- `DELETE /api/v6/admin/blocks/{id}` - Delete a lesson block
   - Returns: 204 No Content on success
-- `GET /api/v4/admin/media` - Get tutor media list
+- `GET /api/v6/admin/media` - Get tutor media list
   - Query Parameters:
     - `tutorId` (optional): Filter by tutor ID
     - `mediaType` (optional): Filter by media type (`video`, `doc`, `audio`)
   - Returns: List of tutor media
-- `POST /api/v4/admin/media` - Create tutor media
+- `POST /api/v6/admin/media` - Create tutor media
   - Content-Type: `multipart/form-data`
   - Form Fields:
     - `tutorId`: Tutor ID
@@ -651,7 +754,7 @@ docker-compose down -v
     - `file`: Media file
   - Returns: Created media ID
   - Note: File is uploaded to media-service and URL is stored in the database
-- `DELETE /api/v4/admin/media/{id}` - Delete tutor media
+- `DELETE /api/v6/admin/media/{id}` - Delete tutor media
   - Returns: 204 No Content on success
   - Note: Automatically deletes media file from media-service
 
@@ -664,10 +767,10 @@ docker-compose down -v
 ### Media Service (Port 8082)
 
 #### Media Management (Requires API Key for Upload/Delete)
-- `GET /api/v4/media/{id}` - Get file metadata by ID
+- `GET /api/v6/media/{id}` - Get file metadata by ID
   - Returns: Metadata information (content type, size, URL, type)
   - Public endpoint (no authentication required)
-- `GET /api/v4/media/{mediaType}/{filename}` - Download media file
+- `GET /api/v6/media/{mediaType}/{filename}` - Download media file
   - Path Parameters:
     - `mediaType`: Type of media (`character`, `word`, `word_example`, `lesson_audio`, `lesson_video`, `lesson_doc`)
     - `filename`: Name of the file to download
@@ -676,7 +779,7 @@ docker-compose down -v
   - Returns: File content
   - Character files are public; other types require JWT authentication
   - Audio/video files support HTTP range requests (206 Partial Content)
-- `POST /api/v4/media/{mediaType}` - Upload media file
+- `POST /api/v6/media/{mediaType}` - Upload media file
   - Headers:
     - `X-API-Key`: API key for service-to-service authentication (required)
   - Body: `multipart/form-data` with `file` field
@@ -684,7 +787,7 @@ docker-compose down -v
     - `mediaType`: Type of media (see above)
   - Returns: Download URL as plain text
   - Maximum file size: 50MB
-- `DELETE /api/v4/media/{mediaType}/{filename}` - Delete media file
+- `DELETE /api/v6/media/{mediaType}/{filename}` - Delete media file
   - Headers:
     - `X-API-Key`: API key for service-to-service authentication (required)
   - Path Parameters:
@@ -701,6 +804,102 @@ docker-compose down -v
 - `lesson_doc` - Lesson documents (requires authentication)
 - `avatar` - User avatar images (used by auth-service for user profile pictures)
 
+### Task Service (Port 8083)
+
+The task-service consists of three sub-services:
+- **API Service**: HTTP API for creating and managing tasks
+- **Scheduler Service**: Manages scheduled tasks in Redis ZSET and enqueues due tasks
+- **Worker Service**: Processes tasks from Asynq queues (immediate and scheduled tasks)
+
+#### Task Management (Requires API Key)
+- `POST /api/v6/tasks/immediate` - Create an immediate task
+  - Headers:
+    - `X-API-Key`: API key for service-to-service authentication (required)
+  - Body: `{ "userId": 1, "emailSlug": "welcome-email", "content": "user@example.com;John Doe" }`
+  - Returns: Task ID and success message
+  - Note: Content field uses semicolon (`;`) as separator - first value is recipient email, rest are template variables
+- `POST /api/v6/tasks/scheduled` - Create a scheduled task
+  - Headers:
+    - `X-API-Key`: API key for service-to-service authentication (required)
+  - Body: `{ "userId": 1, "emailSlug": "reminder-email", "url": "http://example.com/webhook", "content": "data", "cron": "0 9 * * *" }`
+  - Returns: Task ID and success message
+  - Note: At least one of `emailSlug` or `url` must be provided. Cron expression follows standard cron format.
+
+#### Admin Endpoints (Requires Authentication & Admin Role)
+
+##### Email Templates
+- `GET /api/v6/admin/email-templates` - Get paginated list of email templates
+  - Query Parameters:
+    - `page` (optional): Page number (default: 1)
+    - `count` (optional): Items per page (default: 20)
+    - `search` (optional): Search in template slug
+  - Returns: List of email templates with pagination
+- `GET /api/v6/admin/email-templates/{id}` - Get email template by ID
+  - Returns: Full email template information
+- `POST /api/v6/admin/email-templates` - Create a new email template
+  - Body: `{ "slug": "welcome-email", "subjectTemplate": "Welcome {{.Name}}!", "bodyTemplate": "Hello {{.Name}}, welcome to our platform!" }`
+  - Returns: Created template ID
+- `PATCH /api/v6/admin/email-templates/{id}` - Update an email template (partial update)
+  - Body: Partial template data (all fields optional)
+  - Returns: 204 No Content on success
+- `DELETE /api/v6/admin/email-templates/{id}` - Delete an email template by ID
+  - Returns: 204 No Content on success
+
+##### Immediate Tasks
+- `GET /api/v6/admin/immediate-tasks` - Get paginated list of immediate tasks
+  - Query Parameters:
+    - `page` (optional): Page number (default: 1)
+    - `count` (optional): Items per page (default: 20)
+    - `user_id` (optional): Filter by user ID
+    - `template_id` (optional): Filter by template ID
+    - `status` (optional): Filter by status (`Enqueued`, `Completed`, `Failed`)
+  - Returns: List of immediate tasks with pagination
+- `GET /api/v6/admin/immediate-tasks/{id}` - Get immediate task by ID
+  - Returns: Full immediate task information
+- `POST /api/v6/admin/immediate-tasks` - Create a new immediate task
+  - Body: `{ "userId": 1, "templateId": 1, "content": "user@example.com;John Doe" }`
+  - Returns: Created task ID
+- `PATCH /api/v6/admin/immediate-tasks/{id}` - Update an immediate task (partial update)
+  - Body: Partial task data (all fields optional)
+  - Returns: 204 No Content on success
+- `DELETE /api/v6/admin/immediate-tasks/{id}` - Delete an immediate task by ID
+  - Returns: 204 No Content on success
+
+##### Scheduled Tasks
+- `GET /api/v6/admin/scheduled-tasks` - Get paginated list of scheduled tasks
+  - Query Parameters:
+    - `page` (optional): Page number (default: 1)
+    - `count` (optional): Items per page (default: 20)
+    - `user_id` (optional): Filter by user ID
+    - `template_id` (optional): Filter by template ID
+    - `active` (optional): Filter by active status (boolean)
+  - Returns: List of scheduled tasks with pagination
+- `GET /api/v6/admin/scheduled-tasks/{id}` - Get scheduled task by ID
+  - Returns: Full scheduled task information
+- `POST /api/v6/admin/scheduled-tasks` - Create a new scheduled task
+  - Body: `{ "userId": 1, "templateId": 1, "url": "http://example.com/webhook", "content": "data", "cron": "0 9 * * *" }`
+  - Returns: Created task ID
+  - Note: At least one of `templateId` or `url` must be provided
+- `PATCH /api/v6/admin/scheduled-tasks/{id}` - Update a scheduled task (partial update)
+  - Body: Partial task data (all fields optional)
+  - Returns: 204 No Content on success
+  - Note: If `active` is set to false, task is removed from Redis ZSET. If `active` is set to true or `nextRun` is updated, task is added/updated in Redis ZSET.
+- `DELETE /api/v6/admin/scheduled-tasks/{id}` - Delete a scheduled task by ID
+  - Returns: 204 No Content on success
+  - Note: Automatically removes task from Redis ZSET
+
+##### Scheduled Task Logs
+- `GET /api/v6/admin/scheduled-task-logs` - Get paginated list of scheduled task logs
+  - Query Parameters:
+    - `page` (optional): Page number (default: 1)
+    - `count` (optional): Items per page (default: 20)
+    - `task_id` (optional): Filter by task ID
+    - `job_id` (optional): Filter by job ID
+    - `status` (optional): Filter by status (`Completed`, `Failed`)
+  - Returns: List of task logs with pagination
+- `GET /api/v6/admin/scheduled-task-logs/{id}` - Get scheduled task log by ID
+  - Returns: Full task log information
+
 ### API Documentation
 
 #### Auth Service
@@ -714,6 +913,10 @@ docker-compose down -v
 #### Media Service
 - Swagger UI: `http://localhost:8082/swagger/index.html`
 - Swagger JSON: `http://localhost:8082/swagger/doc.json`
+
+#### Task Service
+- Swagger UI: `http://localhost:8083/swagger/index.html`
+- Swagger JSON: `http://localhost:8083/swagger/doc.json`
 
 ## Testing
 
@@ -742,6 +945,7 @@ go test ./services/.../test/integration/... -v
 # Run specific service integration tests
 go test ./services/auth-service/test/integration/... -v
 go test ./services/learn-service/test/integration/... -v
+go test ./services/task-service/test/integration/... -v
 # Note: media-service integration tests are not yet implemented
 ```
 
@@ -871,9 +1075,49 @@ go test ./services/learn-service/test/integration/... -v
 - `url` - Download URL for the file
 - `type` - Media type (`character`, `word`, `word_example`, `lesson_audio`, `lesson_video`, `lesson_doc`)
 
+### Task Service Database
+
+#### Email Templates Table
+- `id` - Primary key (auto-increment)
+- `slug` - Unique template identifier (unique, indexed)
+- `subject_template` - Email subject template (TEXT)
+- `body_template` - Email body template (TEXT)
+- `created_at` - Timestamp
+- `updated_at` - Timestamp
+
+#### Immediate Tasks Table
+- `id` - Primary key (auto-increment)
+- `user_id` - User ID (not a foreign key, indexed)
+- `template_id` - Foreign key to email_templates.id (nullable, indexed, ON DELETE SET NULL)
+- `content` - Task content (TEXT) - uses semicolon (`;`) as separator
+- `created_at` - Timestamp (indexed)
+- `status` - Task status (`Enqueued`, `Completed`, `Failed`, indexed)
+- `error` - Error message if task failed (TEXT)
+
+#### Scheduled Tasks Table
+- `id` - Primary key (auto-increment)
+- `user_id` - User ID (nullable, not a foreign key, indexed)
+- `template_id` - Foreign key to email_templates.id (nullable, indexed, ON DELETE SET NULL)
+- `url` - Webhook URL (VARCHAR(500), nullable)
+- `content` - Task content (TEXT)
+- `created_at` - Timestamp
+- `next_run` - Next execution time (DATETIME, indexed)
+- `previous_run` - Last execution time (DATETIME, nullable)
+- `active` - Whether task is active (BOOLEAN, default: TRUE, indexed)
+- `cron` - Cron expression for scheduling (VARCHAR(100))
+
+#### Scheduled Task Logs Table
+- `id` - Primary key (auto-increment)
+- `task_id` - Foreign key to scheduled_tasks.id (indexed)
+- `job_id` - Asynq job ID (VARCHAR(255))
+- `status` - Execution status (`Completed`, `Failed`)
+- `http_status` - HTTP status code from webhook (INTEGER)
+- `error` - Error message if execution failed (TEXT)
+- `created_at` - Timestamp
+
 ## Middleware
 
-Both services include the following middleware (in order of execution):
+All services include the following middleware (in order of execution):
 
 1. **Request ID** (`libs/middlewares/request_id.go`): Generates unique UUID for each request and adds it to the context
 2. **Recovery** (`libs/middlewares/recovery.go`): Panic recovery and error handling with proper logging

@@ -15,7 +15,7 @@
         "version": "4.0"
     },
     "host": "localhost:8081",
-    "basePath": "/api/v4",
+    "basePath": "/api/v6",
     "paths": {
         "/admin/tutors": {
             "get": {

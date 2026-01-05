@@ -46,7 +46,7 @@ const maxRequestSize = 50 * 1024 * 1024 // 50MB for file uploads
 // @license.url http://www.apache.org/licenses/LICENSE-2.0.html
 
 // @host localhost:8082
-// @BasePath /api/v4
+// @BasePath /api/v6
 // @securityDefinitions.apikey ApiKeyAuth
 // @in header
 // @name X-API-Key
@@ -129,8 +129,8 @@ func main() {
 		httpSwagger.URL(fmt.Sprintf("http://localhost:%d/swagger/doc.json", cfg.Server.Port)),
 	))
 
-	// Scope router to /api/v4
-	r.Route("/api/v4", func(r chi.Router) {
+	// Scope router to /api/v6
+	r.Route("/api/v6", func(r chi.Router) {
 		// Public metadata endpoint
 		r.Get("/media/{id}", mediaHandler.GetMetadata)
 

@@ -49,12 +49,12 @@ func TestMetadataRepository_Create(t *testing.T) {
 				ID:          "test-id-123",
 				ContentType: "image/jpeg",
 				Size:        1024,
-				URL:         "http://example.com/api/v4/media/character/test-id-123",
+				URL:         "http://example.com/api/v6/media/character/test-id-123",
 				Type:        models.MediaTypeCharacter,
 			},
 			setupMock: func(mock sqlmock.Sqlmock) {
 				mock.ExpectExec(`INSERT INTO metadata`).
-					WithArgs("test-id-123", "image/jpeg", int64(1024), "http://example.com/api/v4/media/character/test-id-123", models.MediaTypeCharacter).
+					WithArgs("test-id-123", "image/jpeg", int64(1024), "http://example.com/api/v6/media/character/test-id-123", models.MediaTypeCharacter).
 					WillReturnResult(sqlmock.NewResult(0, 1))
 			},
 			expectedError: false,
@@ -65,12 +65,12 @@ func TestMetadataRepository_Create(t *testing.T) {
 				ID:          "test-id-123",
 				ContentType: "image/jpeg",
 				Size:        1024,
-				URL:         "http://example.com/api/v4/media/character/test-id-123",
+				URL:         "http://example.com/api/v6/media/character/test-id-123",
 				Type:        models.MediaTypeCharacter,
 			},
 			setupMock: func(mock sqlmock.Sqlmock) {
 				mock.ExpectExec(`INSERT INTO metadata`).
-					WithArgs("test-id-123", "image/jpeg", int64(1024), "http://example.com/api/v4/media/character/test-id-123", models.MediaTypeCharacter).
+					WithArgs("test-id-123", "image/jpeg", int64(1024), "http://example.com/api/v6/media/character/test-id-123", models.MediaTypeCharacter).
 					WillReturnError(errors.New("database error"))
 			},
 			expectedError: true,
@@ -81,12 +81,12 @@ func TestMetadataRepository_Create(t *testing.T) {
 				ID:          "duplicate-id",
 				ContentType: "image/png",
 				Size:        2048,
-				URL:         "http://example.com/api/v4/media/word/duplicate-id",
+				URL:         "http://example.com/api/v6/media/word/duplicate-id",
 				Type:        models.MediaTypeWord,
 			},
 			setupMock: func(mock sqlmock.Sqlmock) {
 				mock.ExpectExec(`INSERT INTO metadata`).
-					WithArgs("duplicate-id", "image/png", int64(2048), "http://example.com/api/v4/media/word/duplicate-id", models.MediaTypeWord).
+					WithArgs("duplicate-id", "image/png", int64(2048), "http://example.com/api/v6/media/word/duplicate-id", models.MediaTypeWord).
 					WillReturnError(errors.New("Error 1062: Duplicate entry 'duplicate-id' for key 'PRIMARY'"))
 			},
 			expectedError: true,
@@ -126,7 +126,7 @@ func TestMetadataRepository_GetByID(t *testing.T) {
 			id:   "test-id-123",
 			setupMock: func(mock sqlmock.Sqlmock) {
 				rows := sqlmock.NewRows([]string{"content_type", "size", "url", "type"}).
-					AddRow("image/jpeg", int64(1024), "http://example.com/api/v4/media/character/test-id-123", models.MediaTypeCharacter)
+					AddRow("image/jpeg", int64(1024), "http://example.com/api/v6/media/character/test-id-123", models.MediaTypeCharacter)
 				mock.ExpectQuery(`SELECT content_type, size, url, type FROM metadata WHERE id = \? LIMIT 1`).
 					WithArgs("test-id-123").
 					WillReturnRows(rows)
@@ -136,7 +136,7 @@ func TestMetadataRepository_GetByID(t *testing.T) {
 				ID:          "test-id-123",
 				ContentType: "image/jpeg",
 				Size:        1024,
-				URL:         "http://example.com/api/v4/media/character/test-id-123",
+				URL:         "http://example.com/api/v6/media/character/test-id-123",
 				Type:        models.MediaTypeCharacter,
 			},
 		},
@@ -167,7 +167,7 @@ func TestMetadataRepository_GetByID(t *testing.T) {
 			id:   "test-id-123",
 			setupMock: func(mock sqlmock.Sqlmock) {
 				rows := sqlmock.NewRows([]string{"content_type", "size", "url", "type"}).
-					AddRow("image/jpeg", "invalid", "http://example.com/api/v4/media/character/test-id-123", models.MediaTypeCharacter)
+					AddRow("image/jpeg", "invalid", "http://example.com/api/v6/media/character/test-id-123", models.MediaTypeCharacter)
 				mock.ExpectQuery(`SELECT content_type, size, url, type FROM metadata WHERE id = \? LIMIT 1`).
 					WithArgs("test-id-123").
 					WillReturnRows(rows)
@@ -274,4 +274,3 @@ func TestMetadataRepository_DeleteByID(t *testing.T) {
 		})
 	}
 }
-
