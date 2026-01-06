@@ -56,6 +56,13 @@ type AdminUserRepository interface {
 	//
 	// If some other error occurs, the error will be returned together with nil.
 	GetTutorsList(ctx context.Context) ([]models.TutorListItem, error)
+	// Method UpdateActive updates the active status of a user.
+	//
+	// "userID" parameter is used to identify the user to update.
+	// "active" parameter is the new active status.
+	//
+	// If some error occurs, the error will be returned.
+	UpdateActive(ctx context.Context, userID int, active bool) error
 }
 
 // UserTokenRepository is the interface that wraps methods for UserToken table data access
@@ -204,6 +211,7 @@ func (s *adminService) CreateUser(ctx context.Context, user *models.CreateUserRe
 		PasswordHash: string(passwordHash),
 		Role:         user.Role,
 		Avatar:       avatarURL,
+		Active:       true,
 	}
 
 	if err := s.userRepo.Create(ctx, userModel); err != nil {
@@ -278,7 +286,7 @@ func (s *adminService) UpdateUserWithSettings(ctx context.Context, userID int, u
 	}
 
 	// Update user and settings if any data provided
-	hasUserUpdate := normalizedUsername != "" || normalizedEmail != "" || userData.Role != nil || newAvatarURL != ""
+	hasUserUpdate := normalizedUsername != "" || normalizedEmail != "" || userData.Role != nil || newAvatarURL != "" || userData.Active != nil
 	hasSettingsUpdate := userData.Settings != nil &&
 		(userData.Settings.Language != nil || userData.Settings.NewWordCount != nil ||
 			userData.Settings.OldWordCount != nil || userData.Settings.AlphabetLearnCount != nil)
@@ -319,7 +327,13 @@ func (s *adminService) UpdateUserWithSettings(ctx context.Context, userID int, u
 			}
 		}
 
-		return s.userRepo.Update(ctx, userID, userDataModel, settingsData)
+		if err := s.userRepo.Update(ctx, userID, userDataModel, settingsData); err != nil {
+			return err
+		}
+
+		if userData.Active != nil {
+			return s.userRepo.UpdateActive(ctx, userID, *userData.Active)
+		}
 	}
 
 	return nil

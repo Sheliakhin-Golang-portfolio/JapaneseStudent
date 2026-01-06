@@ -75,6 +75,10 @@ func (m *mockUserRepository) Delete(ctx context.Context, userID int) error {
 	return m.err
 }
 
+func (m *mockUserRepository) UpdateActive(ctx context.Context, userID int, active bool) error {
+	return m.err
+}
+
 // mockUserTokenRepository is a mock implementation of UserTokenRepository
 type mockUserTokenRepository struct {
 	token          *models.UserToken
@@ -128,7 +132,7 @@ func TestNewAuthService(t *testing.T) {
 	userSettingsRepo := &mockUserSettingsRepositoryForAuth{}
 	tokenGen := service.NewTokenGenerator("secret", 0, 0)
 
-	svc := NewAuthService(userRepo, tokenRepo, userSettingsRepo, tokenGen, logger, "", "")
+	svc := NewAuthService(userRepo, tokenRepo, userSettingsRepo, tokenGen, logger, "", "", "", "")
 
 	assert.NotNil(t, svc)
 	assert.Equal(t, userRepo, svc.userRepo)
@@ -403,9 +407,9 @@ func TestAuthService_Register(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			userSettingsRepo := &mockUserSettingsRepositoryForAuth{}
-			svc := NewAuthService(tt.userRepo, tt.tokenRepo, userSettingsRepo, tokenGen, logger, "", "")
+			svc := NewAuthService(tt.userRepo, tt.tokenRepo, userSettingsRepo, tokenGen, logger, "", "", "", "")
 
-			accessToken, refreshToken, err := svc.Register(context.Background(), &models.RegisterRequest{
+			err := svc.Register(context.Background(), &models.RegisterRequest{
 				Email:    tt.email,
 				Username: tt.username,
 				Password: tt.password,
@@ -416,12 +420,8 @@ func TestAuthService_Register(t *testing.T) {
 				if tt.errorContains != "" {
 					assert.Contains(t, err.Error(), tt.errorContains)
 				}
-				assert.Empty(t, accessToken)
-				assert.Empty(t, refreshToken)
 			} else {
 				assert.NoError(t, err)
-				assert.NotEmpty(t, accessToken)
-				assert.NotEmpty(t, refreshToken)
 			}
 		})
 	}
@@ -595,7 +595,7 @@ func TestAuthService_Login(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			userSettingsRepo := &mockUserSettingsRepositoryForAuth{}
-			svc := NewAuthService(tt.userRepo, tt.tokenRepo, userSettingsRepo, tokenGen, logger, "", "")
+			svc := NewAuthService(tt.userRepo, tt.tokenRepo, userSettingsRepo, tokenGen, logger, "", "", "", "")
 
 			accessToken, refreshToken, err := svc.Login(context.Background(), &models.LoginRequest{
 				Login:    tt.login,
@@ -717,7 +717,7 @@ func TestAuthService_Refresh(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			userSettingsRepo := &mockUserSettingsRepositoryForAuth{}
-			svc := NewAuthService(tt.userRepo, tt.tokenRepo, userSettingsRepo, tokenGen, logger, "", "")
+			svc := NewAuthService(tt.userRepo, tt.tokenRepo, userSettingsRepo, tokenGen, logger, "", "", "", "")
 
 			// Add small delay for success case to ensure different token timestamps
 			if !tt.expectedError && tt.name == "success" {

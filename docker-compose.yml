@@ -38,7 +38,7 @@ services:
       JWT_ACCESS_TOKEN_EXPIRY: ${JWT_ACCESS_TOKEN_EXPIRY:-1h}
       JWT_REFRESH_TOKEN_EXPIRY: ${JWT_REFRESH_TOKEN_EXPIRY:-168h}
       API_KEY: ${API_KEY}
-      MEDIA_BASE_URL: ${MEDIA_BASE_URL:-http://localhost:8082}
+      MEDIA_BASE_URL: ${MEDIA_BASE_URL:-http://media-service:8082}
     ports:
       - "${LEARN_SERVICE_PORT:-8080}:8080"
     depends_on:
@@ -68,7 +68,9 @@ services:
       JWT_ACCESS_TOKEN_EXPIRY: ${JWT_ACCESS_TOKEN_EXPIRY:-1h}
       JWT_REFRESH_TOKEN_EXPIRY: ${JWT_REFRESH_TOKEN_EXPIRY:-168h}
       API_KEY: ${API_KEY}
-      MEDIA_BASE_URL: ${MEDIA_BASE_URL:-http://localhost:8082}
+      MEDIA_BASE_URL: ${MEDIA_BASE_URL:-http://media-service:8082}
+      VERIFICATION_URL: ${VERIFICATION_URL:-http://localhost:8081/api/v6/auth/verify-email}
+      TASK_BASE_URL: ${TASK_BASE_URL:-http://task-api:8083/api/v6/tasks/immediate}
     ports:
       - "${AUTH_SERVICE_PORT:-8081}:8081"
     depends_on:
@@ -99,7 +101,7 @@ services:
       JWT_REFRESH_TOKEN_EXPIRY: ${JWT_REFRESH_TOKEN_EXPIRY:-168h}
       API_KEY: ${API_KEY}
       MEDIA_BASE_PATH: ${MEDIA_BASE_PATH:-/app/media}
-      BASE_URL: ${BASE_URL:-http://localhost:8082}
+      BASE_URL: ${BASE_URL:-http://media-service:8082}
     ports:
       - "${MEDIA_SERVICE_PORT:-8082}:8082"
     depends_on:

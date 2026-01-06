@@ -9,22 +9,22 @@ import (
 	"time"
 
 	"github.com/go-redis/redis/v8"
-	"github.com/hibiken/asynq"
 	_ "github.com/go-sql-driver/mysql"
+	"github.com/hibiken/asynq"
+	"github.com/japanesestudent/libs/config"
 	"github.com/japanesestudent/task-service/internal/models"
 	"github.com/japanesestudent/task-service/internal/repositories"
 	"github.com/japanesestudent/task-service/internal/services"
-	"github.com/japanesestudent/libs/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
 
 var (
-	testDB       *sql.DB
-	testRedis    *redis.Client
-	testAsynq    *asynq.Client
-	testLogger   *zap.Logger
+	testDB     *sql.DB
+	testRedis  *redis.Client
+	testAsynq  *asynq.Client
+	testLogger *zap.Logger
 )
 
 // cleanupTestData removes all test data
@@ -85,11 +85,29 @@ func TestMain(m *testing.M) {
 		os.Exit(0)
 	}
 
-	// Setup Redis
+	// Setup Redis using config from LoadTestConfig, with fallback defaults
+	redisHost := "localhost"
+	redisPort := 6379
+	redisPassword := ""
+	redisDB := 1
+	if cfg != nil {
+		if cfg.Redis.Host != "" {
+			redisHost = cfg.Redis.Host
+		}
+		if cfg.Redis.Port != 0 {
+			redisPort = cfg.Redis.Port
+		}
+		if cfg.Redis.Password != "" {
+			redisPassword = cfg.Redis.Password
+		}
+		// Use DB 1 for tests (override config DB to avoid conflicts)
+		redisDB = 1
+	}
+
 	testRedis = redis.NewClient(&redis.Options{
-		Addr:     "localhost:6379",
-		Password: "",
-		DB:       1, // Use DB 1 for tests
+		Addr:     fmt.Sprintf("%s:%d", redisHost, redisPort),
+		Password: redisPassword,
+		DB:       redisDB,
 	})
 	ctx := context.Background()
 	if err = testRedis.Ping(ctx).Err(); err != nil {
@@ -100,9 +118,9 @@ func TestMain(m *testing.M) {
 	// Setup Asynq
 	if testRedis != nil {
 		testAsynq = asynq.NewClient(asynq.RedisClientOpt{
-			Addr:     "localhost:6379",
-			Password: "",
-			DB:       1,
+			Addr:     fmt.Sprintf("%s:%d", redisHost, redisPort),
+			Password: redisPassword,
+			DB:       redisDB,
 		})
 	}
 

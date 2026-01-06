@@ -87,11 +87,60 @@ func LoadTestConfig() (*Config, error) {
 	}
 	cfg.JWT.RefreshTokenExpiry = refreshExpiry
 
-	// API Key configuration (optional, for service-to-service authentication)
-	cfg.APIKey = os.Getenv("TEST_API_KEY")
+	// Redis configuration (optional, for task service)
+	redisHost := os.Getenv("TEST_REDIS_HOST")
+	if redisHost == "" {
+		redisHost = "localhost" // default
+	}
+	cfg.Redis.Host = redisHost
 
-	// Media base path configuration (optional, for media service)
-	cfg.MediaBasePath = os.Getenv("TEST_MEDIA_BASE_PATH")
+	redisPortStr := os.Getenv("TEST_REDIS_PORT")
+	if redisPortStr == "" {
+		redisPortStr = "6379" // default
+	}
+	redisPort, err := strconv.Atoi(redisPortStr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid REDIS_PORT: %w", err)
+	}
+	cfg.Redis.Port = redisPort
+
+	cfg.Redis.Password = os.Getenv("TEST_REDIS_PASSWORD") // optional
+
+	redisDBStr := os.Getenv("TEST_REDIS_DB")
+	if redisDBStr == "" {
+		redisDBStr = "0" // default
+	}
+	redisDB, err := strconv.Atoi(redisDBStr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid REDIS_DB: %w", err)
+	}
+	cfg.Redis.DB = redisDB
+
+	// SMTP configuration (optional, for task service)
+	smtpHost := os.Getenv("TEST_SMTP_HOST")
+	if smtpHost == "" {
+		smtpHost = "localhost" // default
+	}
+	cfg.SMTP.Host = smtpHost
+
+	smtpPortStr := os.Getenv("TEST_SMTP_PORT")
+	if smtpPortStr == "" {
+		smtpPortStr = "587" // default
+	}
+	smtpPort, err := strconv.Atoi(smtpPortStr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid SMTP_PORT: %w", err)
+	}
+	cfg.SMTP.Port = smtpPort
+
+	cfg.SMTP.Username = os.Getenv("TEST_SMTP_USERNAME") // optional
+	cfg.SMTP.Password = os.Getenv("TEST_SMTP_PASSWORD") // optional
+
+	smtpFrom := os.Getenv("TEST_SMTP_FROM")
+	if smtpFrom == "" {
+		smtpFrom = "noreply@japanesestudent.com" // default
+	}
+	cfg.SMTP.From = smtpFrom
 
 	return cfg, nil
 }
