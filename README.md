@@ -284,12 +284,18 @@ JWT_REFRESH_TOKEN_EXPIRY=168h
 # Media Service Configuration
 # Base path for storing media files (required for media-service)
 MEDIA_BASE_PATH=/path/to/media/storage
-# API key for service-to-service authentication (required for media-service upload/delete endpoints)
+# API key for service-to-service authentication (required for media-service upload/delete endpoints and auth-service avatar operations)
 API_KEY=your-api-key-here
 # Base URL for generating download URLs (optional, defaults to http://localhost:{PORT})
 BASE_URL=http://localhost:8082
 # Media service base URL (required for auth-service avatar upload/delete functionality)
 MEDIA_BASE_URL=http://localhost:8082
+
+# Auth Service Configuration (required for auth-service email verification)
+# Verification URL for email verification links (required for registration flow)
+VERIFICATION_URL=http://localhost:8081/api/v6/auth/verify-email
+# Task service base URL for creating immediate tasks (required for sending verification emails)
+TASK_BASE_URL=http://localhost:8083/api/v6/tasks/immediate
 
 # Task Service Configuration (required for task-service)
 # Redis Configuration
@@ -365,6 +371,7 @@ migrate -path services/task-service/migrations -database "mysql://user:password@
 2. `000002_create_user_tokens_table` - Creates user_tokens table for refresh token storage
 3. `000003_create_user_settings_table` - Creates user_settings table for user preferences
 4. `000004_add_avatar_to_users_table` - Adds avatar column to users table
+5. `000005_add_active_to_users_table` - Adds active column to users table (default: FALSE)
 
 **Learn Service Migrations:**
 1. `000001_create_characters_table` - Creates characters table for hiragana/katakana characters
@@ -477,14 +484,59 @@ docker-compose down -v
 
 #### Authentication
 - `POST /api/v6/auth/register` - Register a new user
-  - Body: `{ "email": "user@example.com", "username": "username", "password": "Password123!" }`
+  - Content-Type: `multipart/form-data`
+  - Form Fields:
+    - `email` (required): User email address
+    - `username` (required): Username
+    - `password` (required): User password (must meet password requirements)
+    - `avatar` (optional): Avatar image file
+  - Behavior:
+    - Creates user account with `active=false` (requires email verification)
+    - Creates default user settings asynchronously
+    - Uploads avatar to media-service if provided
+    - Sends verification email via task-service using `register_template`
+    - Returns 201 Created with success message
+    - **Note**: User cannot login until email is verified. Tokens are only issued after email verification.
+  - Returns: Success message (tokens are only issued after email verification via verify-email endpoint)
+  - Errors:
+    - 400 Bad Request: Invalid credentials, user already exists, or validation failed
+    - 202 Accepted: User created but verification email could not be sent (temporary issue)
+- `GET /api/v6/auth/verify-email` - Verify user email address
+  - Query Parameters:
+    - `validToken` (required): Verification token from the email link
+  - Behavior:
+    - Activates user account (`active=true`)
+    - Issues access and refresh tokens
   - Returns: Access and refresh tokens as HTTP-only cookies
+  - Errors:
+    - 400 Bad Request: Invalid or expired token
+    - 409 Conflict: Email already verified
+- `POST /api/v6/auth/resend-verification` - Resend verification email
+  - Body: `{ "email": "user@example.com" }`
+  - Behavior:
+    - Resends verification email to unverified users
+  - Returns: Success message
+  - Errors:
+    - 400 Bad Request: Invalid request
+    - 404 Not Found: User not found
+    - 409 Conflict: Email already verified
 - `POST /api/v6/auth/login` - Login with email/username and password
   - Body: `{ "login": "user@example.com", "password": "Password123!" }`
+  - Behavior:
+    - Validates credentials
+    - Checks if user account is active (email verified)
+    - Returns tokens only if account is verified
   - Returns: Access and refresh tokens as HTTP-only cookies
+  - Errors:
+    - 400 Bad Request: Invalid credentials or email not verified
 - `POST /api/v6/auth/refresh` - Refresh access token using refresh token
   - Body: `{ "refreshToken": "token" }` (or cookie)
-  - Returns: New access and refresh tokens
+  - Behavior:
+    - Validates refresh token
+    - Checks if user account is active
+  - Returns: New access and refresh tokens as HTTP-only cookies
+  - Errors:
+    - 400 Bad Request: Invalid token or email not verified
 
 #### User Settings (Requires Authentication)
 - `GET /api/v6/settings` - Get user settings for the authenticated user
@@ -936,7 +988,12 @@ go test ./services/.../internal/... -cover
 
 #### Run Integration Tests
 
-**Prerequisites:** Test databases must be configured. See TESTING.md for detailed setup instructions.
+**Prerequisites:** 
+- Test databases must be configured (MySQL/MariaDB)
+- Redis server running (required for task-service integration tests)
+- Asynq client/server (required for task-service integration tests)
+
+See TESTING.md for detailed setup instructions.
 
 ```bash
 # Run all integration tests
@@ -947,7 +1004,18 @@ go test ./services/auth-service/test/integration/... -v
 go test ./services/learn-service/test/integration/... -v
 go test ./services/task-service/test/integration/... -v
 # Note: media-service integration tests are not yet implemented
+
+# Run integration tests with coverage
+go test ./services/.../test/integration/... -v -cover
 ```
+
+**Integration Test Coverage:**
+- ✅ **auth-service**: Full end-to-end API tests, repository layer tests, service layer tests (40+ test cases)
+- ✅ **learn-service**: Character tests, dictionary tests, course/lesson tests, repository and service layer tests (60+ test cases)
+- ✅ **task-service**: Repository and service layer tests with Redis and Asynq integration (10+ test cases)
+- ⚠️ **media-service**: Integration tests not yet implemented
+
+All integration tests automatically set up test data, run tests in isolation, and clean up afterward.
 
 ## Database Schema
 
@@ -960,6 +1028,7 @@ go test ./services/task-service/test/integration/... -v
 - `password_hash` - Bcrypt hashed password
 - `role` - User role (default: 'user')
 - `avatar` - Avatar image URL (optional, VARCHAR(500))
+- `active` - Account active status (BOOLEAN, default: FALSE)
 
 #### User Tokens Table
 - `id` - Primary key (auto-increment)
@@ -1154,6 +1223,7 @@ The application uses JWT (JSON Web Tokens) for authentication:
 - **Refresh Tokens**: Long-lived tokens (default: 7 days) stored in database, used to obtain new access tokens
 - **Token Storage**: Refresh tokens are stored as HTTP-only cookies for security
 - **Password Security**: Passwords are hashed using bcrypt before storage
+- **Email Verification**: Users must verify their email address before they can login. New users are created with `active=false` and must verify via the email link to activate their account.
 - **Role-Based Access Control**: Users have roles (default: `user`). Different endpoints require different role levels.
 
 ### User Roles

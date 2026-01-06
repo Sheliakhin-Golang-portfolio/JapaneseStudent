@@ -56,7 +56,7 @@ func TestUserRepository_Create(t *testing.T) {
 			},
 			setupMock: func(mock sqlmock.Sqlmock) {
 				mock.ExpectExec(`INSERT INTO users`).
-					WithArgs("testuser", "test@example.com", "hashedpassword", models.RoleUser, "").
+					WithArgs("testuser", "test@example.com", "hashedpassword", models.RoleUser, "", false).
 					WillReturnResult(sqlmock.NewResult(1, 1))
 			},
 			expectedError: false,
@@ -72,7 +72,7 @@ func TestUserRepository_Create(t *testing.T) {
 			},
 			setupMock: func(mock sqlmock.Sqlmock) {
 				mock.ExpectExec(`INSERT INTO users`).
-					WithArgs("testuser", "test@example.com", "hashedpassword", models.RoleUser, "").
+					WithArgs("testuser", "test@example.com", "hashedpassword", models.RoleUser, "", false).
 					WillReturnError(errors.New("database error"))
 			},
 			expectedError: true,
@@ -88,7 +88,7 @@ func TestUserRepository_Create(t *testing.T) {
 			},
 			setupMock: func(mock sqlmock.Sqlmock) {
 				mock.ExpectExec(`INSERT INTO users`).
-					WithArgs("testuser", "test@example.com", "hashedpassword", models.RoleUser, "").
+					WithArgs("testuser", "test@example.com", "hashedpassword", models.RoleUser, "", false).
 					WillReturnResult(sqlmock.NewErrorResult(errors.New("last insert id error")))
 			},
 			expectedError: true,
@@ -104,7 +104,7 @@ func TestUserRepository_Create(t *testing.T) {
 			},
 			setupMock: func(mock sqlmock.Sqlmock) {
 				mock.ExpectExec(`INSERT INTO users`).
-					WithArgs("testuser", "duplicate@example.com", "hashedpassword", models.RoleUser, "").
+					WithArgs("testuser", "duplicate@example.com", "hashedpassword", models.RoleUser, "", false).
 					WillReturnError(errors.New("Error 1062: Duplicate entry 'duplicate@example.com' for key 'email'"))
 			},
 			expectedError: true,
@@ -120,7 +120,7 @@ func TestUserRepository_Create(t *testing.T) {
 			},
 			setupMock: func(mock sqlmock.Sqlmock) {
 				mock.ExpectExec(`INSERT INTO users`).
-					WithArgs("duplicateuser", "test@example.com", "hashedpassword", models.RoleUser, "").
+					WithArgs("duplicateuser", "test@example.com", "hashedpassword", models.RoleUser, "", false).
 					WillReturnError(errors.New("Error 1062: Duplicate entry 'duplicateuser' for key 'username'"))
 			},
 			expectedError: true,
@@ -161,9 +161,9 @@ func TestUserRepository_GetByEmailOrUsername(t *testing.T) {
 			name:  "success find by email",
 			login: "test@example.com",
 			setupMock: func(mock sqlmock.Sqlmock) {
-				rows := sqlmock.NewRows([]string{"id", "username", "email", "password_hash", "role", "avatar"}).
-					AddRow(1, "testuser", "test@example.com", "hashedpassword", models.RoleUser, "")
-				mock.ExpectQuery(`SELECT id, username, email, password_hash, role, avatar FROM users WHERE email = \? OR username = \? LIMIT 1`).
+				rows := sqlmock.NewRows([]string{"id", "username", "email", "password_hash", "role", "avatar", "active"}).
+					AddRow(1, "testuser", "test@example.com", "hashedpassword", models.RoleUser, "", false)
+				mock.ExpectQuery(`SELECT id, username, email, password_hash, role, avatar, active FROM users WHERE email = \? OR username = \? LIMIT 1`).
 					WithArgs("test@example.com", "test@example.com").
 					WillReturnRows(rows)
 			},
@@ -175,15 +175,16 @@ func TestUserRepository_GetByEmailOrUsername(t *testing.T) {
 				PasswordHash: "hashedpassword",
 				Role:         models.RoleUser,
 				Avatar:       "",
+				Active:       false,
 			},
 		},
 		{
 			name:  "success find by username",
 			login: "testuser",
 			setupMock: func(mock sqlmock.Sqlmock) {
-				rows := sqlmock.NewRows([]string{"id", "username", "email", "password_hash", "role", "avatar"}).
-					AddRow(2, "testuser", "test@example.com", "hashedpassword", models.RoleUser, "")
-				mock.ExpectQuery(`SELECT id, username, email, password_hash, role, avatar FROM users WHERE email = \? OR username = \? LIMIT 1`).
+				rows := sqlmock.NewRows([]string{"id", "username", "email", "password_hash", "role", "avatar", "active"}).
+					AddRow(2, "testuser", "test@example.com", "hashedpassword", models.RoleUser, "", false)
+				mock.ExpectQuery(`SELECT id, username, email, password_hash, role, avatar, active FROM users WHERE email = \? OR username = \? LIMIT 1`).
 					WithArgs("testuser", "testuser").
 					WillReturnRows(rows)
 			},
@@ -195,13 +196,14 @@ func TestUserRepository_GetByEmailOrUsername(t *testing.T) {
 				PasswordHash: "hashedpassword",
 				Role:         models.RoleUser,
 				Avatar:       "",
+				Active:       false,
 			},
 		},
 		{
 			name:  "not found",
 			login: "nonexistent@example.com",
 			setupMock: func(mock sqlmock.Sqlmock) {
-				mock.ExpectQuery(`SELECT id, username, email, password_hash, role, avatar FROM users WHERE email = \? OR username = \? LIMIT 1`).
+				mock.ExpectQuery(`SELECT id, username, email, password_hash, role, avatar, active FROM users WHERE email = \? OR username = \? LIMIT 1`).
 					WithArgs("nonexistent@example.com", "nonexistent@example.com").
 					WillReturnError(sql.ErrNoRows)
 			},
@@ -212,7 +214,7 @@ func TestUserRepository_GetByEmailOrUsername(t *testing.T) {
 			name:  "database error",
 			login: "test@example.com",
 			setupMock: func(mock sqlmock.Sqlmock) {
-				mock.ExpectQuery(`SELECT id, username, email, password_hash, role, avatar FROM users WHERE email = \? OR username = \? LIMIT 1`).
+				mock.ExpectQuery(`SELECT id, username, email, password_hash, role, avatar, active FROM users WHERE email = \? OR username = \? LIMIT 1`).
 					WithArgs("test@example.com", "test@example.com").
 					WillReturnError(errors.New("database error"))
 			},
@@ -223,9 +225,9 @@ func TestUserRepository_GetByEmailOrUsername(t *testing.T) {
 			name:  "scan error - invalid data types",
 			login: "test@example.com",
 			setupMock: func(mock sqlmock.Sqlmock) {
-				rows := sqlmock.NewRows([]string{"id", "username", "email", "password_hash", "role", "avatar"}).
-					AddRow("invalid", "testuser", "test@example.com", "hashedpassword", models.RoleUser, "")
-				mock.ExpectQuery(`SELECT id, username, email, password_hash, role, avatar FROM users WHERE email = \? OR username = \? LIMIT 1`).
+				rows := sqlmock.NewRows([]string{"id", "username", "email", "password_hash", "role", "avatar", "active"}).
+					AddRow("invalid", "testuser", "test@example.com", "hashedpassword", models.RoleUser, "", false)
+				mock.ExpectQuery(`SELECT id, username, email, password_hash, role, avatar, active FROM users WHERE email = \? OR username = \? LIMIT 1`).
 					WithArgs("test@example.com", "test@example.com").
 					WillReturnRows(rows)
 			},
@@ -420,9 +422,9 @@ func TestUserRepository_GetByID(t *testing.T) {
 			name:   "success",
 			userID: 1,
 			setupMock: func(mock sqlmock.Sqlmock) {
-				rows := sqlmock.NewRows([]string{"username", "email", "password_hash", "role", "avatar"}).
-					AddRow("testuser", "test@example.com", "hashedpassword", models.RoleUser, "")
-				mock.ExpectQuery(`SELECT username, email, password_hash, role, avatar FROM users WHERE id = \? LIMIT 1`).
+				rows := sqlmock.NewRows([]string{"username", "email", "password_hash", "role", "avatar", "active"}).
+					AddRow("testuser", "test@example.com", "hashedpassword", models.RoleUser, "", false)
+				mock.ExpectQuery(`SELECT username, email, password_hash, role, avatar, active FROM users WHERE id = \? LIMIT 1`).
 					WithArgs(1).
 					WillReturnRows(rows)
 			},
@@ -434,13 +436,14 @@ func TestUserRepository_GetByID(t *testing.T) {
 				PasswordHash: "hashedpassword",
 				Role:         models.RoleUser,
 				Avatar:       "",
+				Active:       false,
 			},
 		},
 		{
 			name:   "not found",
 			userID: 999,
 			setupMock: func(mock sqlmock.Sqlmock) {
-				mock.ExpectQuery(`SELECT username, email, password_hash, role, avatar FROM users WHERE id = \? LIMIT 1`).
+				mock.ExpectQuery(`SELECT username, email, password_hash, role, avatar, active FROM users WHERE id = \? LIMIT 1`).
 					WithArgs(999).
 					WillReturnError(sql.ErrNoRows)
 			},
@@ -451,7 +454,7 @@ func TestUserRepository_GetByID(t *testing.T) {
 			name:   "database error",
 			userID: 1,
 			setupMock: func(mock sqlmock.Sqlmock) {
-				mock.ExpectQuery(`SELECT username, email, password_hash, role, avatar FROM users WHERE id = \? LIMIT 1`).
+				mock.ExpectQuery(`SELECT username, email, password_hash, role, avatar, active FROM users WHERE id = \? LIMIT 1`).
 					WithArgs(1).
 					WillReturnError(errors.New("database error"))
 			},
@@ -463,9 +466,9 @@ func TestUserRepository_GetByID(t *testing.T) {
 			userID: 1,
 			setupMock: func(mock sqlmock.Sqlmock) {
 				// Provide invalid data: string "invalid" for role field which expects an int
-				rows := sqlmock.NewRows([]string{"username", "email", "password_hash", "role", "avatar"}).
-					AddRow("testuser", "test@example.com", "hashedpassword", "invalid", "")
-				mock.ExpectQuery(`SELECT username, email, password_hash, role, avatar FROM users WHERE id = \? LIMIT 1`).
+				rows := sqlmock.NewRows([]string{"username", "email", "password_hash", "role", "avatar", "active"}).
+					AddRow("testuser", "test@example.com", "hashedpassword", "invalid", "", false)
+				mock.ExpectQuery(`SELECT username, email, password_hash, role, avatar, active FROM users WHERE id = \? LIMIT 1`).
 					WithArgs(1).
 					WillReturnRows(rows)
 			},

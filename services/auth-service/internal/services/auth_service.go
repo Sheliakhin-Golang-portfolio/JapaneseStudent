@@ -1,9 +1,12 @@
 package services
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"mime/multipart"
+	"net/http"
 	"regexp"
 	"strings"
 
@@ -49,6 +52,13 @@ type UserRepository interface {
 	//
 	// If user with such ID does not exist, the error will be returned together with "nil" value.
 	GetByID(ctx context.Context, userID int) (*models.User, error)
+	// Method UpdateActive updates the active status of a user.
+	//
+	// "userID" parameter is used to identify the user.
+	// "active" parameter is the new active status.
+	//
+	// If some error occurs, the error will be returned.
+	UpdateActive(ctx context.Context, userID int, active bool) error
 }
 
 // UserTokenRepository is the interface that wraps methods for UserToken table data access
@@ -90,6 +100,8 @@ type authService struct {
 	logger           *zap.Logger
 	mediaBaseURL     string
 	apiKey           string
+	taskBaseURL      string
+	verificationURL  string
 }
 
 // NewAuthService creates a new auth service
@@ -101,6 +113,8 @@ func NewAuthService(
 	logger *zap.Logger,
 	mediaBaseURL string,
 	apiKey string,
+	taskBaseURL string,
+	verificationURL string,
 ) *authService {
 	return &authService{
 		userRepo:         userRepo,
@@ -110,6 +124,8 @@ func NewAuthService(
 		logger:           logger,
 		mediaBaseURL:     mediaBaseURL,
 		apiKey:           apiKey,
+		taskBaseURL:      taskBaseURL,
+		verificationURL:  verificationURL,
 	}
 }
 
@@ -126,11 +142,11 @@ var passwordRegex = []*regexp.Regexp{
 }
 
 // Register creates a new user account
-func (s *authService) Register(ctx context.Context, req *models.RegisterRequest, avatarFile multipart.File, avatarFilename string) (string, string, error) {
+func (s *authService) Register(ctx context.Context, req *models.RegisterRequest, avatarFile multipart.File, avatarFilename string) error {
 	// Check user credentials return normalized email and username
 	normalizedEmail, normalizedUsername, err := checkRegisterCredentials(ctx, s.userRepo.(UserSharedRepository), req.Email, req.Username, req.Password)
 	if err != nil {
-		return "", "", err
+		return err
 	}
 
 	// Upload avatar if provided (before creating user to maintain transaction safety)
@@ -138,17 +154,17 @@ func (s *authService) Register(ctx context.Context, req *models.RegisterRequest,
 	if avatarFile != nil {
 		avatarURL, err = uploadAvatar(ctx, s.mediaBaseURL, s.apiKey, avatarFile, avatarFilename)
 		if err != nil {
-			return "", "", fmt.Errorf("failed to upload avatar: %w", err)
+			return fmt.Errorf("failed to upload avatar: %w", err)
 		}
 	}
 
 	// Hash password
 	passwordHash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
-		return "", "", err
+		return err
 	}
 
-	// Create user
+	// Create user with Active=false
 	user := &models.User{
 		Username:     normalizedUsername,
 		Email:        normalizedEmail,
@@ -159,7 +175,7 @@ func (s *authService) Register(ctx context.Context, req *models.RegisterRequest,
 
 	err = s.userRepo.Create(ctx, user)
 	if err != nil {
-		return "", "", err
+		return err
 	}
 
 	// Create default user settings
@@ -171,8 +187,27 @@ func (s *authService) Register(ctx context.Context, req *models.RegisterRequest,
 		}
 	}()
 
-	// Generate and save access and refresh tokens
-	return generateAndSaveTokens(ctx, s.tokenGenerator, s.userTokenRepo, user.ID, user.Role)
+	// Generate verification token with user_id (using access token format but we'll validate it differently)
+	verificationToken, _, err := s.tokenGenerator.GenerateTokens(user.ID, int(models.RoleUser))
+	if err != nil {
+		return err
+	}
+
+	// Build verification URL
+	verificationURL := fmt.Sprintf("%s?validToken=%s", s.verificationURL, verificationToken)
+
+	// Build content for email: email + ';' + verificationURL
+	content := fmt.Sprintf("%s;%s", normalizedEmail, verificationURL)
+
+	// Create immediate task to send verification email
+	if err = createImmediateTask(ctx, s.taskBaseURL, s.apiKey, user.ID, "register_template", content); err != nil {
+		// User is created but email verification failed
+		// Return special error to inform user
+		s.logger.Error("failed to create immediate task to send verification email", zap.Error(err))
+		return fmt.Errorf("user was registered, but we cannot send verification email due to temporary issues. Please contact support")
+	}
+
+	return nil
 }
 
 // Login authenticates a user
@@ -195,6 +230,11 @@ func (s *authService) Login(ctx context.Context, req *models.LoginRequest) (stri
 	// Verify password
 	if err = bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); err != nil {
 		return "", "", fmt.Errorf("invalid credentials")
+	}
+
+	// Check if user is active
+	if !user.Active {
+		return "", "", fmt.Errorf("email verification required. Please check your email and verify your account")
 	}
 
 	// Generate and save access and refresh tokens
@@ -251,6 +291,11 @@ func (s *authService) Refresh(ctx context.Context, refreshToken string) (string,
 	user, err := s.userRepo.GetByID(ctx, userToken.UserID)
 	if err != nil {
 		return "", "", err
+	}
+
+	// Check if user is active
+	if !user.Active {
+		return "", "", fmt.Errorf("email verification required. Please check your email and verify your account")
 	}
 
 	// Generate new tokens using userToken.UserID to ensure consistency with the token in database
@@ -359,4 +404,118 @@ func checkRegisterCredentials(ctx context.Context, userRepo UserSharedRepository
 	}
 
 	return normalizedEmail, normalizedUsername, nil
+}
+
+// createImmediateTask creates an immediate task in task-service to send an email
+func createImmediateTask(ctx context.Context, taskBaseURL, apiKey string, userID int, emailSlug, content string) error {
+	if taskBaseURL == "" {
+		return fmt.Errorf("TASK_BASE_URL is not configured")
+	}
+	if apiKey == "" {
+		return fmt.Errorf("API_KEY is not configured")
+	}
+
+	// Create request body
+	reqBody := map[string]any{
+		"user_id":    userID,
+		"email_slug": emailSlug,
+		"content":    content,
+	}
+
+	jsonBody, err := json.Marshal(reqBody)
+	if err != nil {
+		return fmt.Errorf("failed to marshal request body: %w", err)
+	}
+
+	// Build task service URL
+	taskBaseURL = strings.TrimSuffix(taskBaseURL, "/")
+
+	// Create HTTP request
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, taskBaseURL, bytes.NewBuffer(jsonBody))
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	// Set headers
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-API-Key", apiKey)
+
+	// Make HTTP request
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to create immediate task: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Check response status
+	if resp.StatusCode != http.StatusCreated {
+		return fmt.Errorf("task service returned status %d", resp.StatusCode)
+	}
+
+	return nil
+}
+
+// VerifyEmail verifies a user's email using the verification token
+func (s *authService) VerifyEmail(ctx context.Context, token string) (string, string, error) {
+	// Validate token and extract user ID
+	userID, _, err := s.tokenGenerator.ValidateAccessToken(token)
+	if err != nil {
+		return "", "", fmt.Errorf("invalid or expired verification token")
+	}
+
+	// Get user by ID
+	user, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return "", "", fmt.Errorf("user not found")
+	}
+
+	// Check if user is already active
+	if user.Active {
+		return "", "", fmt.Errorf("email has already been verified")
+	}
+
+	// Activate user
+	if err = s.userRepo.UpdateActive(ctx, userID, true); err != nil {
+		return "", "", err
+	}
+
+	// Generate and save access and refresh tokens
+	return generateAndSaveTokens(ctx, s.tokenGenerator, s.userTokenRepo, userID, user.Role)
+}
+
+// ResendVerificationEmail resends the verification email to a user
+func (s *authService) ResendVerificationEmail(ctx context.Context, email string) error {
+	// Normalize email
+	normalizedEmail := strings.TrimSpace(strings.ToLower(email))
+
+	// Get user by email
+	user, err := s.userRepo.GetByEmailOrUsername(ctx, normalizedEmail)
+	if err != nil {
+		return fmt.Errorf("user with this email does not exist. Please register first")
+	}
+
+	// Check if user is already active
+	if user.Active {
+		return fmt.Errorf("email has already been verified")
+	}
+
+	// Generate new verification token
+	verificationToken, _, err := s.tokenGenerator.GenerateTokens(user.ID, int(models.RoleUser))
+	if err != nil {
+		return fmt.Errorf("failed to generate verification token: %w", err)
+	}
+
+	// Build verification URL
+	verificationURL := fmt.Sprintf("%s?validToken=%s", s.verificationURL, verificationToken)
+
+	// Build content for email: email + ';' + verificationURL
+	content := fmt.Sprintf("%s;%s", normalizedEmail, verificationURL)
+
+	// Create immediate task to send verification email
+	if err = createImmediateTask(ctx, s.taskBaseURL, s.apiKey, user.ID, "register_template", content); err != nil {
+		return err
+	}
+
+	return nil
 }

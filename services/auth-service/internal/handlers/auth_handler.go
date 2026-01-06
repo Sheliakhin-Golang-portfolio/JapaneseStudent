@@ -21,8 +21,8 @@ type AuthService interface {
 	// "avatarFile" parameter is an optional file reader for the avatar image.
 	// "avatarFilename" parameter is the name of the avatar image file.
 	//
-	// If user passed invalid credentials, or such user already exists, or some other error occurs, the error will be returned together with empty strings for access and refresh tokens.
-	Register(ctx context.Context, req *models.RegisterRequest, avatarFile multipart.File, avatarFilename string) (string, string, error)
+	// If user passed invalid credentials, or such user already exists, or some other error occurs, the error will be returned.
+	Register(ctx context.Context, req *models.RegisterRequest, avatarFile multipart.File, avatarFilename string) error
 	// Method Login performs a user credentials validation and returns a user.
 	//
 	// "req" parameter contains login and password.
@@ -35,6 +35,18 @@ type AuthService interface {
 	//
 	// If refresh token is invalid or expired, or some other error occurs, the error will be returned together with empty strings for new access and refresh tokens.
 	Refresh(ctx context.Context, refreshToken string) (string, string, error)
+	// Method VerifyEmail verifies a user's email using the verification token.
+	//
+	// "token" parameter is the verification token from the email.
+	//
+	// If token is invalid, user not found, or user already verified, the error will be returned together with empty strings for access and refresh tokens.
+	VerifyEmail(ctx context.Context, token string) (string, string, error)
+	// Method ResendVerificationEmail resends the verification email to a user.
+	//
+	// "email" parameter is the user's email address.
+	//
+	// If user does not exist, user already verified, or email sending fails, the error will be returned.
+	ResendVerificationEmail(ctx context.Context, email string) error
 }
 
 // AuthHandler handles authentication-related HTTP requests
@@ -61,6 +73,8 @@ func (h *AuthHandler) RegisterRoutes(r chi.Router) {
 		r.Post("/register", h.Register)
 		r.Post("/login", h.Login)
 		r.Post("/refresh", h.Refresh)
+		r.Get("/verify-email", h.VerifyEmail)
+		r.Post("/resend-verification", h.ResendVerificationEmail)
 	})
 }
 
@@ -122,7 +136,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Register user
-	accessToken, refreshToken, err := h.authService.Register(r.Context(), req, avatarFile, avatarFilename)
+	err = h.authService.Register(r.Context(), req, avatarFile, avatarFilename)
 	if err != nil {
 		h.Logger.Error("failed to register user", zap.Error(err))
 		errStatus := http.StatusInternalServerError
@@ -130,15 +144,16 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		if strings.Contains(err.Error(), "already exists") || strings.Contains(err.Error(), "invalid") || strings.Contains(err.Error(), "generate") || strings.Contains(err.Error(), "check") {
 			errStatus = http.StatusBadRequest
 		}
+		// Check if it's a partial registration error (user created but email failed)
+		if strings.Contains(err.Error(), "cannot send verification email") {
+			errStatus = http.StatusAccepted // 202 Accepted - user created but email failed
+		}
 		h.RespondError(w, errStatus, err.Error())
 		return
 	}
 
-	// Set cookies
-	h.setTokenCookies(w, accessToken, refreshToken)
-
 	// Return success response
-	h.RespondJSON(w, http.StatusCreated, map[string]string{"message": "user registered successfully"})
+	h.RespondJSON(w, http.StatusCreated, map[string]string{"message": "user registered successfully. Please check your email to verify your account"})
 }
 
 // Login handles POST /auth/login
@@ -247,4 +262,89 @@ func (h *AuthHandler) setTokenCookies(w http.ResponseWriter, accessToken, refres
 		SameSite: http.SameSiteLaxMode,
 	}
 	http.SetCookie(w, refreshCookie)
+}
+
+// VerifyEmail handles GET /auth/verify-email
+// @Summary Verify user email
+// @Description Verify user's email using the verification token from the email link. Returns access and refresh tokens as HTTP-only cookies.
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param validToken query string true "Verification token from email"
+// @Success 200 {object} map[string]string "Email verified successfully"
+// @Failure 400 {object} map[string]string "Invalid or expired token"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Router /auth/verify-email [get]
+func (h *AuthHandler) VerifyEmail(w http.ResponseWriter, r *http.Request) {
+	// Extract validToken from query parameter
+	validToken := r.URL.Query().Get("validToken")
+	if validToken == "" {
+		h.RespondError(w, http.StatusBadRequest, "verification token is required")
+		return
+	}
+
+	// Verify email
+	accessToken, refreshToken, err := h.authService.VerifyEmail(r.Context(), validToken)
+	if err != nil {
+		h.Logger.Error("failed to verify email", zap.Error(err))
+		errStatus := http.StatusBadRequest
+		if strings.Contains(err.Error(), "already been verified") {
+			errStatus = http.StatusConflict // 409 Conflict
+		}
+		h.RespondError(w, errStatus, err.Error())
+		return
+	}
+
+	// Set cookies
+	h.setTokenCookies(w, accessToken, refreshToken)
+
+	// Return success response
+	h.RespondJSON(w, http.StatusOK, map[string]string{"message": "email verified successfully"})
+}
+
+// ResendVerificationEmailRequest represents a resend verification email request
+type ResendVerificationEmailRequest struct {
+	Email string `json:"email"`
+}
+
+// ResendVerificationEmail handles POST /auth/resend-verification
+// @Summary Resend verification email
+// @Description Resend verification email to a user who hasn't verified their email yet.
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param request body ResendVerificationEmailRequest true "Resend verification email request"
+// @Success 200 {object} map[string]string "Verification email sent successfully"
+// @Failure 400 {object} map[string]string "Invalid request body"
+// @Failure 404 {object} map[string]string "User not found"
+// @Failure 409 {object} map[string]string "Email already verified"
+// @Router /auth/resend-verification [post]
+func (h *AuthHandler) ResendVerificationEmail(w http.ResponseWriter, r *http.Request) {
+	var req ResendVerificationEmailRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.RespondError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	if req.Email == "" {
+		h.RespondError(w, http.StatusBadRequest, "email is required")
+		return
+	}
+
+	// Resend verification email
+	err := h.authService.ResendVerificationEmail(r.Context(), req.Email)
+	if err != nil {
+		h.Logger.Error("failed to resend verification email", zap.Error(err))
+		errStatus := http.StatusBadRequest
+		if strings.Contains(err.Error(), "does not exist") {
+			errStatus = http.StatusNotFound // 404 Not Found
+		} else if strings.Contains(err.Error(), "already been verified") {
+			errStatus = http.StatusConflict // 409 Conflict
+		}
+		h.RespondError(w, errStatus, err.Error())
+		return
+	}
+
+	// Return success response
+	h.RespondJSON(w, http.StatusOK, map[string]string{"message": "verification email sent successfully"})
 }

@@ -24,11 +24,11 @@ func NewUserRepository(db *sql.DB) *userRepository {
 // Create inserts a new user into the database
 func (r *userRepository) Create(ctx context.Context, user *models.User) error {
 	query := `
-		INSERT INTO users (username, email, password_hash, role, avatar)
-		VALUES (?, ?, ?, ?, ?)
+		INSERT INTO users (username, email, password_hash, role, avatar, active)
+		VALUES (?, ?, ?, ?, ?, ?)
 	`
 
-	result, err := r.db.ExecContext(ctx, query, user.Username, user.Email, user.PasswordHash, user.Role, user.Avatar)
+	result, err := r.db.ExecContext(ctx, query, user.Username, user.Email, user.PasswordHash, user.Role, user.Avatar, user.Active)
 	if err != nil {
 		return fmt.Errorf("failed to create user: %w", err)
 	}
@@ -45,7 +45,7 @@ func (r *userRepository) Create(ctx context.Context, user *models.User) error {
 // GetByEmailOrUsername retrieves a user by email or username
 func (r *userRepository) GetByEmailOrUsername(ctx context.Context, login string) (*models.User, error) {
 	query := `
-		SELECT id, username, email, password_hash, role, avatar
+		SELECT id, username, email, password_hash, role, avatar, active
 		FROM users
 		WHERE email = ? OR username = ?
 		LIMIT 1
@@ -59,6 +59,7 @@ func (r *userRepository) GetByEmailOrUsername(ctx context.Context, login string)
 		&user.PasswordHash,
 		&user.Role,
 		&user.Avatar,
+		&user.Active,
 	)
 
 	if err == sql.ErrNoRows {
@@ -100,7 +101,7 @@ func (r *userRepository) ExistsByUsername(ctx context.Context, username string) 
 // GetByID retrieves a user by ID
 func (r *userRepository) GetByID(ctx context.Context, userID int) (*models.User, error) {
 	query := `
-		SELECT username, email, password_hash, role, avatar
+		SELECT username, email, password_hash, role, avatar, active
 		FROM users
 		WHERE id = ?
 		LIMIT 1
@@ -113,6 +114,7 @@ func (r *userRepository) GetByID(ctx context.Context, userID int) (*models.User,
 		&user.PasswordHash,
 		&user.Role,
 		&user.Avatar,
+		&user.Active,
 	)
 
 	if err == sql.ErrNoRows {
@@ -346,4 +348,29 @@ func (r *userRepository) GetTutorsList(ctx context.Context) ([]models.TutorListI
 	}
 
 	return tutors, nil
+}
+
+// UpdateActive updates the active status of a user
+func (r *userRepository) UpdateActive(ctx context.Context, userID int, active bool) error {
+	query := `
+		UPDATE users
+		SET active = ?
+		WHERE id = ?
+	`
+
+	result, err := r.db.ExecContext(ctx, query, active, userID)
+	if err != nil {
+		return fmt.Errorf("failed to update user active status: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("user not found")
+	}
+
+	return nil
 }

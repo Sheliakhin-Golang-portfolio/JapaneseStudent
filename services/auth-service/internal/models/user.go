@@ -17,6 +17,7 @@ type User struct {
 	PasswordHash string `json:"-"`    // Never serialize password hash
 	Role         Role   `json:"role"` // 1=User, 2=Tutor, 3=Admin, default=1
 	Avatar       string `json:"avatar,omitempty"`
+	Active       bool   `json:"active"`
 }
 
 // RegisterRequest represents a registration request
@@ -64,6 +65,7 @@ type CreateUserRequest struct {
 type UpdateUserWithSettingsRequest struct {
 	Username string                     `json:"username,omitempty"`
 	Email    string                     `json:"email,omitempty"`
+	Active   *bool                      `json:"active,omitempty"`
 	Role     *Role                      `json:"role,omitempty"`
 	Settings *UpdateUserSettingsRequest `json:"settings,omitempty"`
 }

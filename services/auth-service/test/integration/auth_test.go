@@ -1,5 +1,23 @@
 package integration
 
+// NOTE: Email Verification Testing
+//
+// This integration test suite is configured to avoid sending emails to the task microservice
+// by using empty taskBaseURL and apiKey values. This prevents actual HTTP requests to the
+// task service during testing.
+//
+// Email verification functionality (sending verification emails, verifying tokens, etc.)
+// should be tested on a real live server with the task microservice running, as it involves:
+// - HTTP communication with the task microservice
+// - Email delivery through the task service
+// - End-to-end verification flow
+//
+// In these tests:
+// - Users are created with active=false (as in production)
+// - Registration fails when email sending is attempted (taskBaseURL is empty)
+// - Test users are manually activated after registration to allow login tests
+// - This approach allows testing the core registration/login logic without external dependencies
+
 import (
 	"bytes"
 	"context"
@@ -54,19 +72,22 @@ func seedTestData(t *testing.T, db *sql.DB) {
 	require.NoError(t, err, "Failed to reset user_tokens AUTO_INCREMENT")
 
 	// Insert test user with known password
+	// NOTE: Setting active=true for test users to allow login tests to work.
+	// In real scenarios, users are created with active=false and must verify email first.
+	// Email verification should be tested on a real live server with the task microservice running.
 	passwordHash, err := bcrypt.GenerateFromPassword([]byte("Password123!"), bcrypt.DefaultCost)
 	require.NoError(t, err, "Failed to hash password")
 
-	query := `INSERT INTO users (username, email, password_hash, role, avatar) VALUES (?, ?, ?, ?, ?)`
-	_, err = db.Exec(query, "testuser", "test@example.com", string(passwordHash), models.RoleUser, "")
+	query := `INSERT INTO users (username, email, password_hash, role, avatar, active) VALUES (?, ?, ?, ?, ?, ?)`
+	_, err = db.Exec(query, "testuser", "test@example.com", string(passwordHash), models.RoleUser, "", true)
 	require.NoError(t, err, "Failed to seed test user")
 
 	// Insert test tutors
 	tutorPasswordHash, err := bcrypt.GenerateFromPassword([]byte("Password123!"), bcrypt.DefaultCost)
 	require.NoError(t, err, "Failed to hash tutor password")
-	_, err = db.Exec(query, "tutor1", "tutor1@example.com", string(tutorPasswordHash), models.RoleTutor, "")
+	_, err = db.Exec(query, "tutor1", "tutor1@example.com", string(tutorPasswordHash), models.RoleTutor, "", true)
 	require.NoError(t, err, "Failed to seed test tutor1")
-	_, err = db.Exec(query, "tutor2", "tutor2@example.com", string(tutorPasswordHash), models.RoleTutor, "")
+	_, err = db.Exec(query, "tutor2", "tutor2@example.com", string(tutorPasswordHash), models.RoleTutor, "", true)
 	require.NoError(t, err, "Failed to seed test tutor2")
 }
 
@@ -92,12 +113,32 @@ func getCookieValue(w *httptest.ResponseRecorder, name string) string {
 }
 
 // setupTestRouter creates a test router with all handlers
-func setupTestRouter(db *sql.DB, logger *zap.Logger) chi.Router {
+// NOTE: taskBaseURL and apiKey are set to empty strings to avoid sending emails to task microservice in tests.
+// Email verification functionality should be tested on a real live server with the task microservice running.
+func setupTestRouter(db *sql.DB, logger *zap.Logger, cfg *config.Config) chi.Router {
 	userRepo := repositories.NewUserRepository(db)
 	tokenRepo := repositories.NewUserTokenRepository(db)
 	userSettingsRepo := repositories.NewUserSettingsRepository(db)
-	tokenGen := service.NewTokenGenerator("test-secret-key-for-integration-tests", 1*time.Hour, 7*24*time.Hour)
-	authSvc := services.NewAuthService(userRepo, tokenRepo, userSettingsRepo, tokenGen, logger, "http://localhost:8080", "test-api-key")
+	
+	// Use JWT config from LoadTestConfig, with fallback defaults for tests
+	jwtSecret := cfg.JWT.Secret
+	if jwtSecret == "" {
+		jwtSecret = "test-secret-key-for-integration-tests"
+	}
+	accessExpiry := cfg.JWT.AccessTokenExpiry
+	if accessExpiry == 0 {
+		accessExpiry = 1 * time.Hour
+	}
+	refreshExpiry := cfg.JWT.RefreshTokenExpiry
+	if refreshExpiry == 0 {
+		refreshExpiry = 7 * 24 * time.Hour
+	}
+	tokenGen := service.NewTokenGenerator(jwtSecret, accessExpiry, refreshExpiry)
+	
+	// Using empty taskBaseURL and apiKey to prevent email sending in tests
+	verificationURL := "http://localhost:8080"
+	apiKey := "test-api-key"
+	authSvc := services.NewAuthService(userRepo, tokenRepo, userSettingsRepo, tokenGen, logger, verificationURL, apiKey, "", "")
 	authHandler := handlers.NewAuthHandler(authSvc, logger)
 
 	userSettingsSvc := services.NewUserSettingsService(userSettingsRepo)
@@ -162,7 +203,9 @@ func TestMain(m *testing.M) {
 	setupTestSchemaForMain(testDB)
 
 	// Setup test router
-	testRouter = setupTestRouter(testDB, testLogger)
+	// NOTE: Using empty taskBaseURL and apiKey to avoid sending emails to task microservice in tests.
+	// Email verification functionality should be tested on a real live server with the task microservice running.
+	testRouter = setupTestRouter(testDB, testLogger, cfg)
 
 	// Run tests
 	code := m.Run()
@@ -176,14 +219,20 @@ func TestMain(m *testing.M) {
 
 // setupTestSchemaForMain creates the test database schema (for TestMain)
 func setupTestSchemaForMain(db *sql.DB) {
+	// Drop tables if they exist to ensure clean schema
+	db.Exec("DROP TABLE IF EXISTS user_settings")
+	db.Exec("DROP TABLE IF EXISTS user_tokens")
+	db.Exec("DROP TABLE IF EXISTS users")
+
 	usersTable := `
-		CREATE TABLE IF NOT EXISTS users (
+		CREATE TABLE users (
 			id INT PRIMARY KEY AUTO_INCREMENT,
 			username VARCHAR(255) NOT NULL UNIQUE,
 			email VARCHAR(255) NOT NULL UNIQUE,
 			password_hash VARCHAR(255) NOT NULL,
 			role INT NOT NULL DEFAULT 1,
 			avatar VARCHAR(500) NULL,
+			active BOOLEAN NOT NULL DEFAULT FALSE,
 			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 			INDEX idx_email (email),
 			INDEX idx_username (username)
@@ -191,7 +240,7 @@ func setupTestSchemaForMain(db *sql.DB) {
 	`
 
 	userTokensTable := `
-		CREATE TABLE IF NOT EXISTS user_tokens (
+		CREATE TABLE user_tokens (
 			id INT PRIMARY KEY AUTO_INCREMENT,
 			user_id INT NOT NULL,
 			token TEXT NOT NULL,
@@ -201,7 +250,7 @@ func setupTestSchemaForMain(db *sql.DB) {
 	`
 
 	userSettingsTable := `
-		CREATE TABLE IF NOT EXISTS user_settings (
+		CREATE TABLE user_settings (
 			id INT PRIMARY KEY AUTO_INCREMENT,
 			user_id INT NOT NULL UNIQUE,
 			new_word_count INT NOT NULL DEFAULT 20,
@@ -219,6 +268,10 @@ func setupTestSchemaForMain(db *sql.DB) {
 	db.Exec(userSettingsTable)
 }
 
+// TestIntegration_Register tests user registration.
+// NOTE: Email verification is skipped in integration tests (taskBaseURL is empty).
+// After registration, users are manually activated in the database to allow login tests.
+// Email verification functionality should be tested on a real live server with the task microservice running.
 func TestIntegration_Register(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration tests in short mode")
@@ -237,23 +290,19 @@ func TestIntegration_Register(t *testing.T) {
 				"username": "newuser",
 				"password": "Password123!",
 			},
-			expectedStatus: http.StatusCreated,
+			expectedStatus: http.StatusAccepted, // 202 Accepted - user created but email sending failed (taskBaseURL is empty in tests)
 			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
 				var response map[string]string
 				err := json.NewDecoder(w.Body).Decode(&response)
 				require.NoError(t, err)
+				// Registration fails because we can't send verification email (taskBaseURL is empty in tests)
+				assert.Contains(t, response["error"], "cannot send verification email")
 
-				// Tokens are in cookies, not in JSON response
-				accessToken := getCookieValue(w, "access_token")
-				refreshToken := getCookieValue(w, "refresh_token")
-				assert.NotEmpty(t, accessToken, "access token should be set in cookie")
-				assert.NotEmpty(t, refreshToken, "refresh token should be set in cookie")
-
-				// Verify user was created in database
+				// However, user should still be created in database (registration happens before email sending)
 				var count int
 				err = testDB.QueryRow("SELECT COUNT(*) FROM users WHERE email = ?", "newuser@example.com").Scan(&count)
 				require.NoError(t, err)
-				assert.Equal(t, 1, count)
+				assert.Equal(t, 1, count, "user should be created even if email sending fails")
 
 				// Verify password is hashed (not stored as plaintext)
 				var passwordHash string
@@ -261,6 +310,16 @@ func TestIntegration_Register(t *testing.T) {
 				require.NoError(t, err)
 				assert.NotEqual(t, "Password123!", passwordHash)
 				assert.True(t, len(passwordHash) > 50) // bcrypt hashes are typically 60 characters
+
+				// Verify user is inactive (email not verified)
+				var active bool
+				err = testDB.QueryRow("SELECT active FROM users WHERE email = ?", "newuser@example.com").Scan(&active)
+				require.NoError(t, err)
+				assert.False(t, active, "user should be inactive until email is verified")
+
+				// Manually activate user for testing purposes (in real scenario, this happens via email verification)
+				_, err = testDB.Exec("UPDATE users SET active = true WHERE email = ?", "newuser@example.com")
+				require.NoError(t, err, "failed to activate user for testing")
 
 				// Verify avatar is empty (not touching media service in tests)
 				var avatar string
@@ -635,8 +694,29 @@ func TestIntegration_ServiceLayer(t *testing.T) {
 	userRepo := repositories.NewUserRepository(testDB)
 	tokenRepo := repositories.NewUserTokenRepository(testDB)
 	userSettingsRepo := repositories.NewUserSettingsRepository(testDB)
-	tokenGen := service.NewTokenGenerator("test-secret", 1*time.Hour, 7*24*time.Hour)
-	authSvc := services.NewAuthService(userRepo, tokenRepo, userSettingsRepo, tokenGen, logger, "http://localhost:8080", "test-api-key")
+	
+	// Load test config for JWT settings
+	cfg, err := config.LoadTestConfig()
+	require.NoError(t, err)
+	
+	// Use JWT config from LoadTestConfig, with fallback defaults for tests
+	jwtSecret := cfg.JWT.Secret
+	if jwtSecret == "" {
+		jwtSecret = "test-secret"
+	}
+	accessExpiry := cfg.JWT.AccessTokenExpiry
+	if accessExpiry == 0 {
+		accessExpiry = 1 * time.Hour
+	}
+	refreshExpiry := cfg.JWT.RefreshTokenExpiry
+	if refreshExpiry == 0 {
+		refreshExpiry = 7 * 24 * time.Hour
+	}
+	tokenGen := service.NewTokenGenerator(jwtSecret, accessExpiry, refreshExpiry)
+	
+	// Using empty taskBaseURL and apiKey to prevent email sending in tests
+	// NOTE: Email verification functionality should be tested on a real live server with the task microservice running.
+	authSvc := services.NewAuthService(userRepo, tokenRepo, userSettingsRepo, tokenGen, logger, "http://localhost:8080", "test-api-key", "", "")
 	ctx := context.Background()
 
 	t.Run("Register", func(t *testing.T) {
@@ -645,10 +725,20 @@ func TestIntegration_ServiceLayer(t *testing.T) {
 			Username: "servicetest",
 			Password: "Password123!",
 		}
-		accessToken, refreshToken, err := authSvc.Register(ctx, req, nil, "") // Using nil avatarFile and empty avatarFilename to avoid touching media service
+		// Register will fail because taskBaseURL is empty (email sending disabled in tests)
+		err := authSvc.Register(ctx, req, nil, "") // Using nil avatarFile and empty avatarFilename to avoid touching media service
+		require.Error(t, err, "registration should fail when taskBaseURL is empty")
+		assert.Contains(t, err.Error(), "cannot send verification email")
+
+		// Verify user was created despite email failure
+		user, err := userRepo.GetByEmailOrUsername(ctx, "servicetest@example.com")
 		require.NoError(t, err)
-		assert.NotEmpty(t, accessToken)
-		assert.NotEmpty(t, refreshToken)
+		assert.NotNil(t, user)
+		assert.False(t, user.Active, "user should be inactive until email is verified")
+
+		// Manually activate user for testing purposes (in real scenario, this happens via email verification)
+		err = userRepo.UpdateActive(ctx, user.ID, true)
+		require.NoError(t, err, "failed to activate user for testing")
 	})
 
 	t.Run("Login", func(t *testing.T) {

@@ -89,7 +89,7 @@ func main() {
 	userSettingsRepo := repositories.NewUserSettingsRepository(db)
 
 	// Initialize services
-	authService := services.NewAuthService(userRepo, userTokenRepo, userSettingsRepo, tokenGenerator, logger.Logger, cfg.MediaBaseURL, cfg.APIKey)
+	authService := services.NewAuthService(userRepo, userTokenRepo, userSettingsRepo, tokenGenerator, logger.Logger, cfg.MediaBaseURL, cfg.APIKey, cfg.TaskBaseURL, cfg.VerificationURL)
 	userSettingsService := services.NewUserSettingsService(userSettingsRepo)
 
 	// Initialize handlers

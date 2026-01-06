@@ -435,12 +435,39 @@ The project includes three types of tests:
 **File**: `JapaneseStudent/services/task-service/test/integration/task_service_test.go`
 
 **Test Suites**:
-- `TestEmailTemplateRepository_Integration`: Create and Get, GetAll, Update, Delete
-- `TestImmediateTaskRepository_Integration`: Create and Get, UpdateStatus
-- `TestScheduledTaskRepository_Integration`: Create and Get, UpdatePreviousRunAndNextRun
-- `TestEmailTemplateService_Integration`: Create, GetAll
-- `TestImmediateTaskService_Integration`: Create (requires Asynq client)
-- `TestScheduledTaskService_Integration`: Create with URL, Create with email slug (requires Redis client)
+
+**EmailTemplateRepository Integration Tests**:
+- `Create and Get` (1 test case): Success - creates email template with slug, subject_template, body_template, verifies ID is assigned, retrieves and validates all fields
+- `GetAll` (1 test case): Success - retrieves paginated list of email templates with default filters
+- `Update` (1 test case): Success - updates email template slug and subject_template, verifies changes persisted
+- `Delete` (1 test case): Success - deletes email template and verifies it can no longer be retrieved
+
+**ImmediateTaskRepository Integration Tests**:
+- `Create and Get` (1 test case): Success - creates immediate task with user_id, template_id, content, and status, verifies ID assigned, retrieves and validates all fields
+- `UpdateStatus` (1 test case): Success - updates task status from Enqueued to Completed, verifies status change persisted
+
+**ScheduledTaskRepository Integration Tests**:
+- `Create and Get` (1 test case): Success - creates scheduled task with user_id, template_id, URL, content, next_run, active status, and cron expression, verifies ID assigned, retrieves and validates all fields
+- `UpdatePreviousRunAndNextRun` (1 test case): Success - updates previous_run and next_run timestamps, verifies previous_run is set and timestamps persisted correctly
+
+**EmailTemplateService Integration Tests**:
+- `Create` (1 test case): Success - creates email template via service layer with slug, subject_template, body_template, verifies ID returned
+- `GetAll` (1 test case): Success - retrieves paginated list of email templates via service layer with default pagination
+
+**ImmediateTaskService Integration Tests**:
+- `Create` (1 test case): Success - creates immediate task via service layer with user_id, email_slug, and content, requires Asynq client for job enqueueing, verifies ID returned and task created in database
+
+**ScheduledTaskService Integration Tests**:
+- `Create with URL` (1 test case): Success - creates scheduled task with URL and cron expression, requires Redis client for task scheduling, verifies ID returned and task created in database
+- `Create with email slug` (1 test case): Success - creates scheduled task with email_slug, content, and cron expression, requires Redis client for task scheduling, verifies ID returned and task created in database
+
+**Test Infrastructure**:
+- Uses TestMain for setup/teardown
+- Automatically cleans up test data before/after each test
+- Seeds test data (email templates) for repository tests
+- Gracefully skips tests if database, Redis, or Asynq unavailable
+- Uses test database (`japanesestudent_test`)
+- Uses Redis DB 1 for tests to avoid conflicts
 
 **Status**: ✅ Integration tests created and ready to run (requires MySQL database, Redis, and Asynq)
 
@@ -940,15 +967,29 @@ The test suite aims for comprehensive coverage across all services and layers.
 - ✅ Benchmark tests for performance measurement
 
 #### task-service Integration Tests:
-- ✅ EmailTemplateRepository end-to-end tests (Create, Get, GetAll, Update, Delete)
-- ✅ ImmediateTaskRepository end-to-end tests (Create, Get, UpdateStatus)
-- ✅ ScheduledTaskRepository end-to-end tests (Create, Get, UpdatePreviousRunAndNextRun)
-- ✅ EmailTemplateService end-to-end tests (Create, GetAll)
-- ✅ ImmediateTaskService end-to-end tests (Create with Asynq integration)
-- ✅ ScheduledTaskService end-to-end tests (Create with URL, Create with email slug and Redis integration)
+- ✅ EmailTemplateRepository end-to-end tests:
+  - Create and Get: Creates email template and verifies all fields persisted correctly
+  - GetAll: Retrieves paginated list of email templates
+  - Update: Updates email template fields and verifies changes
+  - Delete: Deletes email template and verifies removal
+- ✅ ImmediateTaskRepository end-to-end tests:
+  - Create and Get: Creates immediate task with template_id, content, status and verifies all fields
+  - UpdateStatus: Updates task status and verifies status change persisted
+- ✅ ScheduledTaskRepository end-to-end tests:
+  - Create and Get: Creates scheduled task with URL, content, cron, next_run and verifies all fields
+  - UpdatePreviousRunAndNextRun: Updates task execution timestamps and verifies changes persisted
+- ✅ EmailTemplateService end-to-end tests:
+  - Create: Creates email template via service layer with validation
+  - GetAll: Retrieves paginated templates via service layer
+- ✅ ImmediateTaskService end-to-end tests:
+  - Create: Creates immediate task with Asynq client integration for job enqueueing
+- ✅ ScheduledTaskService end-to-end tests:
+  - Create with URL: Creates scheduled task with URL endpoint and Redis integration
+  - Create with email slug: Creates scheduled task with email template and Redis integration
 - ✅ Repository layer with real database
 - ✅ Service layer with real database
-- ✅ Error scenarios and validation
+- ✅ Test infrastructure with automatic cleanup and seeding
+- ✅ Error scenarios and validation (handled via graceful test skipping if dependencies unavailable)
 - Note: Requires MySQL database, Redis, and Asynq
 
 #### auth-service Integration Tests:

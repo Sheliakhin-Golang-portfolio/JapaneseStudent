@@ -72,6 +72,10 @@ func (m *mockAdminUserRepository) GetTutorsList(ctx context.Context) ([]models.T
 	return m.tutorsList, nil
 }
 
+func (m *mockAdminUserRepository) UpdateActive(ctx context.Context, userID int, active bool) error {
+	return m.err
+}
+
 // Implement UserSharedRepository interface methods
 func (m *mockAdminUserRepository) ExistsByEmail(ctx context.Context, email string) (bool, error) {
 	if m.existsByEmailError != nil {

@@ -20,9 +20,11 @@ type Config struct {
 	CORS          CORSConfig
 	JWT           JWTConfig
 	SMTP          SMTPConfig
-	APIKey        string
-	MediaBasePath string
-	MediaBaseURL  string
+	APIKey         string
+	MediaBasePath  string
+	MediaBaseURL   string
+	VerificationURL string
+	TaskBaseURL    string
 }
 
 // DatabaseConfig holds database connection settings
@@ -191,6 +193,12 @@ func Load() (*Config, error) {
 
 	// Media base URL configuration (optional, for media service)
 	cfg.MediaBaseURL = os.Getenv("MEDIA_BASE_URL")
+
+	// Verification URL configuration (required for email verification)
+	cfg.VerificationURL = os.Getenv("VERIFICATION_URL")
+
+	// Task base URL configuration (optional, for task service)
+	cfg.TaskBaseURL = os.Getenv("TASK_BASE_URL")
 
 	// Redis configuration (optional, for task service)
 	redisHost := os.Getenv("REDIS_HOST")
