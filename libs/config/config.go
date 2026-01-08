@@ -13,18 +13,21 @@ import (
 
 // Config holds all configuration for the application
 type Config struct {
-	Database      DatabaseConfig
-	Redis         RedisConfig
-	Server        ServerConfig
-	Logging       LoggingConfig
-	CORS          CORSConfig
-	JWT           JWTConfig
-	SMTP          SMTPConfig
-	APIKey         string
-	MediaBasePath  string
-	MediaBaseURL   string
-	VerificationURL string
-	TaskBaseURL    string
+	Database             DatabaseConfig
+	Redis                RedisConfig
+	Server               ServerConfig
+	Logging              LoggingConfig
+	CORS                 CORSConfig
+	JWT                  JWTConfig
+	SMTP                 SMTPConfig
+	APIKey               string
+	MediaBasePath        string
+	MediaBaseURL         string
+	VerificationURL      string
+	ImmediateTaskBaseURL string
+	ScheduledTaskBaseURL string
+	IsDockerContainer    bool
+	AuthServiceBaseURL   string
 }
 
 // DatabaseConfig holds database connection settings
@@ -198,7 +201,8 @@ func Load() (*Config, error) {
 	cfg.VerificationURL = os.Getenv("VERIFICATION_URL")
 
 	// Task base URL configuration (optional, for task service)
-	cfg.TaskBaseURL = os.Getenv("TASK_BASE_URL")
+	cfg.ImmediateTaskBaseURL = os.Getenv("IMMEDIATE_TASK_BASE_URL")
+	cfg.ScheduledTaskBaseURL = os.Getenv("SCHEDULED_TASK_BASE_URL")
 
 	// Redis configuration (optional, for task service)
 	redisHost := os.Getenv("REDIS_HOST")
@@ -254,6 +258,19 @@ func Load() (*Config, error) {
 		smtpFrom = "noreply@japanesestudent.com" // default
 	}
 	cfg.SMTP.From = smtpFrom
+
+	// Configuration for Auth service to use inner bridge network (optional, we only set it to true for docker container to ignore host)
+	isDockerContainer := os.Getenv("IS_DOCKER_CONTAINER")
+	if isDockerContainer == "" {
+		isDockerContainer = "false"
+	}
+	cfg.IsDockerContainer, err = strconv.ParseBool(isDockerContainer)
+	if err != nil {
+		return nil, fmt.Errorf("invalid IS_DOCKER_CONTAINER: %w", err)
+	}
+
+	// Auth Service Base URL configuration (optional, for auth service to use inner bridge network)
+	cfg.AuthServiceBaseURL = os.Getenv("AUTH_SERVICE_BASE_URL")
 
 	return cfg, nil
 }

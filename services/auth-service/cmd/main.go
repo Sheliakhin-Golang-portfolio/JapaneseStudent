@@ -89,18 +89,20 @@ func main() {
 	userSettingsRepo := repositories.NewUserSettingsRepository(db)
 
 	// Initialize services
-	authService := services.NewAuthService(userRepo, userTokenRepo, userSettingsRepo, tokenGenerator, logger.Logger, cfg.MediaBaseURL, cfg.APIKey, cfg.TaskBaseURL, cfg.VerificationURL)
+	authService := services.NewAuthService(userRepo, userTokenRepo, userSettingsRepo, tokenGenerator, logger.Logger, cfg.MediaBaseURL, cfg.APIKey, cfg.ImmediateTaskBaseURL, cfg.VerificationURL)
 	userSettingsService := services.NewUserSettingsService(userSettingsRepo)
 
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(authService, logger.Logger)
-	adminService := services.NewAdminService(userRepo, userTokenRepo, userSettingsRepo, tokenGenerator, logger.Logger, cfg.MediaBaseURL, cfg.APIKey)
+	adminService := services.NewAdminService(userRepo, userTokenRepo, userSettingsRepo, tokenGenerator, logger.Logger, cfg.MediaBaseURL, cfg.APIKey, cfg.ScheduledTaskBaseURL)
 	userSettingsHandler := handlers.NewUserSettingsHandler(userSettingsService, logger.Logger)
-	adminHandler := handlers.NewAdminHandler(adminService, logger.Logger, cfg.MediaBaseURL, cfg.APIKey)
+	adminHandler := handlers.NewAdminHandler(adminService, logger.Logger, cfg.MediaBaseURL, cfg.IsDockerContainer, cfg.AuthServiceBaseURL)
+	tokenCleaningHandler := handlers.NewTokenCleaningHandler(userTokenRepo, logger.Logger, cfg.JWT.RefreshTokenExpiry)
 
 	// Initialize auth middleware
 	authMiddleware := middleware.AuthMiddleware(tokenGenerator)
 	adminMiddleware := middleware.RoleMiddleware(tokenGenerator, 3) // Admin role = 3
+	apiKeyMiddleware := middleware.APIKeyMiddleware(cfg.APIKey)
 
 	// Setup router
 	r := chi.NewRouter()
@@ -124,6 +126,11 @@ func main() {
 		authHandler.RegisterRoutes(r)
 		// Register user settings routes
 		userSettingsHandler.RegisterRoutes(r, authMiddleware)
+		// Register token cleaning routes with API key middleware
+		r.Group(func(r chi.Router) {
+			r.Use(apiKeyMiddleware)
+			tokenCleaningHandler.RegisterRoutes(r)
+		})
 		// Register admin routes with role middleware
 		r.Group(func(r chi.Router) {
 			r.Use(adminMiddleware)

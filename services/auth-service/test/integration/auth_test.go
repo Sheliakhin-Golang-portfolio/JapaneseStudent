@@ -144,8 +144,10 @@ func setupTestRouter(db *sql.DB, logger *zap.Logger, cfg *config.Config) chi.Rou
 	userSettingsSvc := services.NewUserSettingsService(userSettingsRepo)
 	userSettingsHandler := handlers.NewUserSettingsHandler(userSettingsSvc, logger)
 
-	adminSvc := services.NewAdminService(userRepo, tokenRepo, userSettingsRepo, tokenGen, logger, "", "")
-	adminHandler := handlers.NewAdminHandler(adminSvc, logger, "", "")
+	adminSvc := services.NewAdminService(userRepo, tokenRepo, userSettingsRepo, tokenGen, logger, "", "", "")
+	adminHandler := handlers.NewAdminHandler(adminSvc, logger, "", false, "")
+
+	tokenCleaningHandler := handlers.NewTokenCleaningHandler(tokenRepo, logger, refreshExpiry)
 
 	r := chi.NewRouter()
 	// Scope router to /api/v6 to match main.go setup
@@ -164,6 +166,8 @@ func setupTestRouter(db *sql.DB, logger *zap.Logger, cfg *config.Config) chi.Rou
 		userSettingsHandler.RegisterRoutes(r, authMiddleware)
 		// Register admin routes without middleware for testing (we'll test the endpoint directly)
 		adminHandler.RegisterRoutes(r)
+		// Register token cleaning handler
+		tokenCleaningHandler.RegisterRoutes(r)
 	})
 
 	return r
@@ -1609,4 +1613,189 @@ func TestIntegration_AdminDeleteUser(t *testing.T) {
 			}
 		})
 	}
+}
+
+// NOTE: Task Scheduling Testing
+//
+// The ScheduleTasks method in admin_service.go schedules tasks via HTTP requests to the task-service.
+// This functionality requires the task-service to be running and properly configured.
+// Task scheduling should be tested in a live environment with the task-service running, as it involves:
+// - HTTP communication with the task microservice
+// - Task creation and scheduling through the task service
+// - End-to-end task execution flow
+//
+// In these tests, we focus ONLY on the token cleaning process itself, not the task scheduling.
+
+func TestIntegration_TokenCleaning(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration tests in short mode")
+	}
+
+	cleanupTestData(t, testDB)
+	seedTestData(t, testDB)
+	defer cleanupTestData(t, testDB)
+
+	// Get refresh token expiry from config
+	cfg, err := config.LoadTestConfig()
+	require.NoError(t, err)
+	refreshExpiry := cfg.JWT.RefreshTokenExpiry
+	if refreshExpiry == 0 {
+		refreshExpiry = 7 * 24 * time.Hour
+	}
+
+	// Create expired tokens (created more than refreshExpiry ago)
+	expiredTime := time.Now().Add(-refreshExpiry).Add(-1 * time.Hour) // 1 hour older than expiry
+	_, err = testDB.Exec("INSERT INTO user_tokens (user_id, token, created_at) VALUES (?, ?, ?)", 
+		1, "expired-token-1", expiredTime)
+	require.NoError(t, err)
+	_, err = testDB.Exec("INSERT INTO user_tokens (user_id, token, created_at) VALUES (?, ?, ?)", 
+		1, "expired-token-2", expiredTime)
+	require.NoError(t, err)
+
+	// Create valid tokens (created recently)
+	_, err = testDB.Exec("INSERT INTO user_tokens (user_id, token, created_at) VALUES (?, ?, NOW())", 
+		1, "valid-token-1")
+	require.NoError(t, err)
+	_, err = testDB.Exec("INSERT INTO user_tokens (user_id, token, created_at) VALUES (?, ?, NOW())", 
+		1, "valid-token-2")
+	require.NoError(t, err)
+
+	tests := []struct {
+		name           string
+		expectedStatus int
+		validateFunc   func(*testing.T, *httptest.ResponseRecorder)
+	}{
+		{
+			name:           "success clean expired tokens",
+			expectedStatus: http.StatusOK,
+			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
+				var response map[string]string
+				err := json.NewDecoder(w.Body).Decode(&response)
+				require.NoError(t, err)
+				assert.Contains(t, response["message"], "token cleaning completed successfully")
+
+				// Verify expired tokens were deleted
+				var expiredCount int
+				err = testDB.QueryRow("SELECT COUNT(*) FROM user_tokens WHERE token IN (?, ?)", 
+					"expired-token-1", "expired-token-2").Scan(&expiredCount)
+				require.NoError(t, err)
+				assert.Equal(t, 0, expiredCount, "expired tokens should be deleted")
+
+				// Verify valid tokens still exist
+				var validCount int
+				err = testDB.QueryRow("SELECT COUNT(*) FROM user_tokens WHERE token IN (?, ?)", 
+					"valid-token-1", "valid-token-2").Scan(&validCount)
+				require.NoError(t, err)
+				assert.Equal(t, 2, validCount, "valid tokens should not be deleted")
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, "/api/v6/tokens/clean", nil)
+			w := httptest.NewRecorder()
+
+			testRouter.ServeHTTP(w, req)
+
+			assert.Equal(t, tt.expectedStatus, w.Code)
+			if tt.validateFunc != nil {
+				tt.validateFunc(t, w)
+			}
+		})
+	}
+}
+
+func TestIntegration_TokenCleaning_NoExpiredTokens(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration tests in short mode")
+	}
+
+	cleanupTestData(t, testDB)
+	seedTestData(t, testDB)
+	defer cleanupTestData(t, testDB)
+
+	// Create only valid tokens (all recent)
+	_, err := testDB.Exec("INSERT INTO user_tokens (user_id, token, created_at) VALUES (?, ?, NOW())", 
+		1, "valid-token-1")
+	require.NoError(t, err)
+	_, err = testDB.Exec("INSERT INTO user_tokens (user_id, token, created_at) VALUES (?, ?, NOW())", 
+		1, "valid-token-2")
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v6/tokens/clean", nil)
+	w := httptest.NewRecorder()
+
+	testRouter.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var response map[string]string
+	err = json.NewDecoder(w.Body).Decode(&response)
+	require.NoError(t, err)
+	assert.Contains(t, response["message"], "token cleaning completed successfully")
+
+	// Verify all tokens still exist (none were expired)
+	var count int
+	err = testDB.QueryRow("SELECT COUNT(*) FROM user_tokens WHERE token IN (?, ?)", 
+		"valid-token-1", "valid-token-2").Scan(&count)
+	require.NoError(t, err)
+	assert.Equal(t, 2, count, "all tokens should still exist")
+}
+
+func TestIntegration_TokenCleaning_RepositoryLayer(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration tests in short mode")
+	}
+
+	cleanupTestData(t, testDB)
+	seedTestData(t, testDB)
+	defer cleanupTestData(t, testDB)
+
+	tokenRepo := repositories.NewUserTokenRepository(testDB)
+	ctx := context.Background()
+
+	// Create tokens with specific creation times
+	expiredTime := time.Now().Add(-8 * 24 * time.Hour) // 8 days ago (older than 7 day expiry)
+	validTime := time.Now().Add(-1 * time.Hour)        // 1 hour ago (recent)
+
+	// Insert expired tokens
+	_, err := testDB.Exec("INSERT INTO user_tokens (user_id, token, created_at) VALUES (?, ?, ?)", 
+		1, "expired-1", expiredTime)
+	require.NoError(t, err)
+	_, err = testDB.Exec("INSERT INTO user_tokens (user_id, token, created_at) VALUES (?, ?, ?)", 
+		1, "expired-2", expiredTime)
+	require.NoError(t, err)
+
+	// Insert valid tokens
+	_, err = testDB.Exec("INSERT INTO user_tokens (user_id, token, created_at) VALUES (?, ?, ?)", 
+		1, "valid-1", validTime)
+	require.NoError(t, err)
+
+	// Calculate expiry time (7 days ago)
+	cfg, err := config.LoadTestConfig()
+	require.NoError(t, err)
+	refreshExpiry := cfg.JWT.RefreshTokenExpiry
+	if refreshExpiry == 0 {
+		refreshExpiry = 7 * 24 * time.Hour
+	}
+	expiryTime := time.Now().Add(-refreshExpiry)
+
+	// Test DeleteExpiredTokens
+	deletedCount, err := tokenRepo.DeleteExpiredTokens(ctx, expiryTime)
+	require.NoError(t, err)
+	assert.Equal(t, 2, deletedCount, "should delete 2 expired tokens")
+
+	// Verify expired tokens were deleted
+	var expiredCount int
+	err = testDB.QueryRow("SELECT COUNT(*) FROM user_tokens WHERE token IN (?, ?)", 
+		"expired-1", "expired-2").Scan(&expiredCount)
+	require.NoError(t, err)
+	assert.Equal(t, 0, expiredCount, "expired tokens should be deleted")
+
+	// Verify valid token still exists
+	var validCount int
+	err = testDB.QueryRow("SELECT COUNT(*) FROM user_tokens WHERE token = ?", "valid-1").Scan(&validCount)
+	require.NoError(t, err)
+	assert.Equal(t, 1, validCount, "valid token should still exist")
 }

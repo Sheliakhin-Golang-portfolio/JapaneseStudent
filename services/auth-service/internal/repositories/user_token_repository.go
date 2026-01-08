@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"time"
 
 	"github.com/japanesestudent/auth-service/internal/models"
 )
@@ -94,4 +95,21 @@ func (r *userTokenRepository) DeleteByToken(ctx context.Context, token string) e
 	}
 
 	return nil
+}
+
+// DeleteExpiredTokens deletes all user tokens with created_at older than or equal to expiryTime
+func (r *userTokenRepository) DeleteExpiredTokens(ctx context.Context, expiryTime time.Time) (int, error) {
+	query := `DELETE FROM user_tokens WHERE created_at <= ?`
+
+	result, err := r.db.ExecContext(ctx, query, expiryTime)
+	if err != nil {
+		return 0, fmt.Errorf("failed to delete expired tokens: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	return int(rowsAffected), nil
 }

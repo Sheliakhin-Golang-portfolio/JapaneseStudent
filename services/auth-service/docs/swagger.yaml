@@ -129,6 +129,36 @@ info:
   title: JapaneseStudent Auth API
   version: "4.0"
 paths:
+  /admin/tasks/schedule-token-cleaning:
+    post:
+      consumes:
+      - application/json
+      description: Creates a scheduled task in task-service to call token cleaning
+        endpoint twice daily
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Task scheduled successfully
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad request - invalid configuration or task creation failed
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Schedule token cleaning task
+      tags:
+      - admin
   /admin/tutors:
     get:
       consumes:
@@ -706,6 +736,32 @@ paths:
       summary: Update user settings
       tags:
       - settings
+  /tokens/clean:
+    get:
+      consumes:
+      - application/json
+      description: Removes all user tokens with created_at older than refresh token
+        expiry time
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Token cleaning completed successfully
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Clean expired tokens
+      tags:
+      - tokens
 securityDefinitions:
   ApiKeyAuth:
     description: Type "Bearer" followed by a space and JWT token.

@@ -90,6 +90,7 @@ func main() {
 		cfg.SMTP.Username,
 		cfg.SMTP.Password,
 		cfg.SMTP.From,
+		cfg.APIKey,
 	)
 
 	// Register task handlers

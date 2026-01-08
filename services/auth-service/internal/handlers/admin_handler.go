@@ -65,14 +65,21 @@ type AdminService interface {
 	//
 	// If some other error occurs, the error will be returned together with nil.
 	GetTutorsList(ctx context.Context) ([]models.TutorListItem, error)
+	// Method ScheduleTokenCleaningTask schedules a token cleaning task.
+	//
+	// "tokenCleaningURL" parameter is used to specify the token cleaning URL.
+	//
+	// If some other error occurs, the error will be returned.
+	ScheduleTasks(ctx context.Context, tokenCleaningURL string) error
 }
 
 // AdminHandler handles admin-related HTTP requests
 type AdminHandler struct {
 	handlers.BaseHandler
-	adminService AdminService
-	mediaBaseURL string
-	apiKey       string
+	adminService       AdminService
+	mediaBaseURL       string
+	isDockerContainer  bool
+	authServiceBaseURL string
 }
 
 // NewAdminHandler creates a new admin handler
@@ -80,13 +87,15 @@ func NewAdminHandler(
 	adminService AdminService,
 	logger *zap.Logger,
 	mediaBaseURL string,
-	apiKey string,
+	isDockerContainer bool,
+	authServiceBaseURL string,
 ) *AdminHandler {
 	return &AdminHandler{
-		BaseHandler:  handlers.BaseHandler{Logger: logger},
-		adminService: adminService,
-		mediaBaseURL: mediaBaseURL,
-		apiKey:       apiKey,
+		BaseHandler:        handlers.BaseHandler{Logger: logger},
+		adminService:       adminService,
+		mediaBaseURL:       mediaBaseURL,
+		isDockerContainer:  isDockerContainer,
+		authServiceBaseURL: authServiceBaseURL,
 	}
 }
 
@@ -101,6 +110,7 @@ func (h *AdminHandler) RegisterRoutes(r chi.Router) {
 		r.Patch("/users/{id}", h.UpdateUserWithSettings)
 		r.Delete("/users/{id}", h.DeleteUser)
 		r.Get("/tutors", h.GetTutorsList)
+		r.Post("/tasks/schedule-token-cleaning", h.ScheduleTokenCleaningTask)
 	})
 }
 
@@ -503,4 +513,37 @@ func (h *AdminHandler) GetTutorsList(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.RespondJSON(w, http.StatusOK, tutors)
+}
+
+// ScheduleTokenCleaningTask handles POST /admin/tasks/schedule-token-cleaning
+// @Summary Schedule token cleaning task
+// @Description Creates a scheduled task in task-service to call token cleaning endpoint twice daily
+// @Tags admin
+// @Accept json
+// @Produce json
+// @Success 201 {object} map[string]string "Task scheduled successfully"
+// @Failure 400 {object} map[string]string "Bad request - invalid configuration or task creation failed"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Router /admin/tasks/schedule-token-cleaning [post]
+func (h *AdminHandler) ScheduleTokenCleaningTask(w http.ResponseWriter, r *http.Request) {
+	var tokenCleaningURL string
+	// If all services are in the same docker network, we can use this network instead of constructing the URL from the request
+	if h.isDockerContainer {
+		tokenCleaningURL = fmt.Sprintf("%s/api/v6/tokens/clean", h.authServiceBaseURL)
+	} else {
+		// Construct the token cleaning endpoint URL from the request
+		scheme := "http"
+		if r.TLS != nil {
+			scheme = "https"
+		}
+		tokenCleaningURL = fmt.Sprintf("%s://%s/api/v6/tokens/clean", scheme, r.Host)
+	}
+
+	if err := h.adminService.ScheduleTasks(r.Context(), tokenCleaningURL); err != nil {
+		h.Logger.Error("failed to schedule token cleaning task", zap.Error(err))
+		h.RespondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	h.RespondJSON(w, http.StatusCreated, map[string]string{"message": "token cleaning task scheduled successfully"})
 }

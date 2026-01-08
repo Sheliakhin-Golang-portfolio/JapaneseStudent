@@ -1,7 +1,9 @@
 package services
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"mime/multipart"
@@ -84,6 +86,7 @@ type adminService struct {
 	logger           *zap.Logger
 	mediaBaseURL     string
 	apiKey           string
+	taskBaseURL      string
 }
 
 // NewAuthService creates a new auth service
@@ -95,6 +98,7 @@ func NewAdminService(
 	logger *zap.Logger,
 	mediaBaseURL string,
 	apiKey string,
+	taskBaseURL string,
 ) *adminService {
 	return &adminService{
 		userRepo:         userRepo,
@@ -104,6 +108,7 @@ func NewAdminService(
 		logger:           logger,
 		mediaBaseURL:     mediaBaseURL,
 		apiKey:           apiKey,
+		taskBaseURL:      taskBaseURL,
 	}
 }
 
@@ -619,4 +624,53 @@ func uploadAvatar(ctx context.Context, mediaBaseURL, apiKey string, avatarFile m
 // GetTutorsList retrieves a list of tutors (only ID and username)
 func (s *adminService) GetTutorsList(ctx context.Context) ([]models.TutorListItem, error) {
 	return s.userRepo.GetTutorsList(ctx)
+}
+
+// ScheduleTasks schedules tasks for admin
+func (s *adminService) ScheduleTasks(ctx context.Context, tokenCleaningURL string) error {
+	if s.taskBaseURL == "" {
+		return fmt.Errorf("TASK_BASE_URL is not configured")
+	}
+
+	if s.apiKey == "" {
+		return fmt.Errorf("API_KEY is not configured")
+	}
+	// Create request body
+	reqBody := map[string]any{
+		"user_id":    nil,
+		"url":        tokenCleaningURL,
+		"email_slug": "",
+		"content":    "",
+		"cron":       "0 0,12 * * *",
+	}
+
+	jsonBody, err := json.Marshal(reqBody)
+	if err != nil {
+		return fmt.Errorf("failed to marshal request body: %w", err)
+	}
+
+	// Create HTTP POST request to task-service
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.taskBaseURL, bytes.NewBuffer(jsonBody))
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	// Set headers
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-API-Key", s.apiKey)
+
+	// Execute request
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to send request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Check response status
+	if resp.StatusCode != http.StatusCreated {
+		return fmt.Errorf("task service returned status %d", resp.StatusCode)
+	}
+
+	return nil
 }

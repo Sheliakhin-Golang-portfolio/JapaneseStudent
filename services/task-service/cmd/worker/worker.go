@@ -90,6 +90,7 @@ type Worker struct {
 	smtpUsername      string
 	smtpPassword      string
 	smtpFrom          string
+	apiKey            string
 }
 
 // NewWorker creates a new worker instance
@@ -102,6 +103,7 @@ func NewWorker(
 	smtpHost string,
 	smtpPort int,
 	smtpUsername, smtpPassword, smtpFrom string,
+	apiKey string,
 ) *Worker {
 	return &Worker{
 		logger:            logger,
@@ -114,6 +116,7 @@ func NewWorker(
 		smtpUsername:      smtpUsername,
 		smtpPassword:      smtpPassword,
 		smtpFrom:          smtpFrom,
+		apiKey:            apiKey,
 	}
 }
 
@@ -218,7 +221,16 @@ func (w *Worker) HandleScheduledTask(ctx context.Context, t *asynq.Task) error {
 			url = fmt.Sprintf("%s/%d", url, *task.UserID)
 		}
 
-		resp, err := http.Get(url)
+		// Create HTTP GET request
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+		if err != nil {
+			return fmt.Errorf("failed to create request: %w", err)
+		}
+		// Set API key header
+		req.Header.Set("X-API-Key", w.apiKey)
+		// Execute request
+		client := &http.Client{}
+		resp, err := client.Do(req)
 		if err != nil {
 			// Create log entry in goroutine
 			go func() {

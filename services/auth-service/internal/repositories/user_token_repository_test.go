@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/japanesestudent/auth-service/internal/models"
@@ -334,6 +335,82 @@ func TestUserTokenRepository_DeleteByToken(t *testing.T) {
 				assert.Error(t, err)
 			} else {
 				assert.NoError(t, err)
+			}
+
+			assert.NoError(t, mock.ExpectationsWereMet())
+		})
+	}
+}
+
+func TestUserTokenRepository_DeleteExpiredTokens(t *testing.T) {
+	tests := []struct {
+		name            string
+		expiryTime      time.Time
+		setupMock       func(sqlmock.Sqlmock)
+		expectedError   bool
+		expectedCount   int
+	}{
+		{
+			name:       "success - delete expired tokens",
+			expiryTime: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+			setupMock: func(mock sqlmock.Sqlmock) {
+				mock.ExpectExec(`DELETE FROM user_tokens WHERE created_at <= \?`).
+					WithArgs(time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)).
+					WillReturnResult(sqlmock.NewResult(0, 5))
+			},
+			expectedError: false,
+			expectedCount: 5,
+		},
+		{
+			name:       "success - no tokens to delete",
+			expiryTime: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+			setupMock: func(mock sqlmock.Sqlmock) {
+				mock.ExpectExec(`DELETE FROM user_tokens WHERE created_at <= \?`).
+					WithArgs(time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)).
+					WillReturnResult(sqlmock.NewResult(0, 0))
+			},
+			expectedError: false,
+			expectedCount: 0,
+		},
+		{
+			name:       "database error",
+			expiryTime: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+			setupMock: func(mock sqlmock.Sqlmock) {
+				mock.ExpectExec(`DELETE FROM user_tokens WHERE created_at <= \?`).
+					WithArgs(time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)).
+					WillReturnError(errors.New("database error"))
+			},
+			expectedError: true,
+			expectedCount:  0,
+		},
+		{
+			name:       "error getting rows affected",
+			expiryTime: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+			setupMock: func(mock sqlmock.Sqlmock) {
+				mock.ExpectExec(`DELETE FROM user_tokens WHERE created_at <= \?`).
+					WithArgs(time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)).
+					WillReturnResult(sqlmock.NewErrorResult(errors.New("rows affected error")))
+			},
+			expectedError: true,
+			expectedCount:  0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo, mock, cleanup := setupUserTokenTestRepository(t)
+			defer cleanup()
+
+			tt.setupMock(mock)
+
+			count, err := repo.DeleteExpiredTokens(context.Background(), tt.expiryTime)
+
+			if tt.expectedError {
+				assert.Error(t, err)
+				assert.Equal(t, 0, count)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.expectedCount, count)
 			}
 
 			assert.NoError(t, mock.ExpectationsWereMet())
