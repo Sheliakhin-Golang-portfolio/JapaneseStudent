@@ -53,7 +53,8 @@ JapaneseStudent/
 │   │   │   ├── handlers/          # HTTP handlers
 │   │   │   │   ├── auth_handler.go
 │   │   │   │   ├── admin_handler.go
-│   │   │   │   └── user_settings_handler.go
+│   │   │   │   ├── user_settings_handler.go
+│   │   │   │   └── token_cleaning_handler.go
 │   │   │   ├── models/           # Domain models
 │   │   │   │   ├── user.go
 │   │   │   │   ├── user_token.go
@@ -291,11 +292,13 @@ BASE_URL=http://localhost:8082
 # Media service base URL (required for auth-service avatar upload/delete functionality)
 MEDIA_BASE_URL=http://localhost:8082
 
-# Auth Service Configuration (required for auth-service email verification)
+# Auth Service Configuration (required for auth-service email verification and token cleaning)
 # Verification URL for email verification links (required for registration flow)
 VERIFICATION_URL=http://localhost:8081/api/v6/auth/verify-email
 # Task service base URL for creating immediate tasks (required for sending verification emails)
-TASK_BASE_URL=http://localhost:8083/api/v6/tasks/immediate
+IMMEDIATE_TASK_BASE_URL=http://localhost:8083/api/v6/tasks/immediate
+# Task service base URL for creating scheduled tasks (required for token cleaning task scheduling)
+SCHEDULED_TASK_BASE_URL=http://localhost:8083/api/v6/tasks/scheduled
 
 # Task Service Configuration (required for task-service)
 # Redis Configuration
@@ -368,7 +371,7 @@ migrate -path services/task-service/migrations -database "mysql://user:password@
 
 **Auth Service Migrations:**
 1. `000001_create_users_table` - Creates users table with email, username, password_hash, and role
-2. `000002_create_user_tokens_table` - Creates user_tokens table for refresh token storage
+2. `000002_create_user_tokens_table` - Creates user_tokens table for refresh token storage with `created_at` timestamp for expiration tracking (used for token cleaning)
 3. `000003_create_user_settings_table` - Creates user_settings table for user preferences
 4. `000004_add_avatar_to_users_table` - Adds avatar column to users table
 5. `000005_add_active_to_users_table` - Adds active column to users table (default: FALSE)
@@ -451,6 +454,7 @@ The task API will be available at `http://localhost:8083`
 **Note**: 
 - media-service requires `MEDIA_BASE_PATH` environment variable to be set for file storage.
 - auth-service requires `MEDIA_BASE_URL` and `API_KEY` environment variables to be set for avatar upload/delete functionality.
+- auth-service requires `IMMEDIATE_TASK_BASE_URL` for sending verification emails and `SCHEDULED_TASK_BASE_URL` with `API_KEY` for token cleaning task scheduling functionality.
 - task-service requires Redis to be running and configured via `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD`, and `REDIS_DB` environment variables.
 
 ## Docker Deployment
@@ -577,6 +581,35 @@ docker-compose down -v
 - `DELETE /api/v6/admin/users/{id}` - Delete a user by ID
   - Returns: 204 No Content on success (or 200 with message if avatar deletion fails)
   - Note: Automatically deletes user's avatar from media-service if present
+- `GET /api/v6/admin/tutors` - Get list of tutors
+  - Returns: List of tutors (users with role = 2) with only ID and username
+  - Used for course/lesson assignment where tutor needs to be selected
+- `POST /api/v6/admin/tasks/schedule-token-cleaning` - Schedule token cleaning task
+  - Headers:
+    - `Authorization`: Bearer token (admin role required)
+  - Body: `{ "tokenCleaningURL": "http://localhost:8081/api/v6/tokens/clean" }`
+  - Behavior:
+    - Creates a scheduled task in task-service to call token cleaning endpoint twice daily (at 00:00 and 12:00 UTC)
+    - Requires task-service to be running and configured
+    - Requires `TASK_BASE_URL` and `API_KEY` environment variables to be set in auth-service
+  - Returns: Success message with task scheduling confirmation
+  - Errors:
+    - 400 Bad Request: Missing or invalid token cleaning URL
+    - 500 Internal Server Error: Task-service communication error or configuration issue
+
+#### Token Cleaning (Requires API Key)
+- `GET /api/v6/tokens/clean` - Clean expired user tokens
+  - Headers:
+    - `X-API-Key`: API key for service-to-service authentication (required)
+  - Behavior:
+    - Deletes all user tokens with `created_at` older than refresh token expiry time (configured via `JWT_REFRESH_TOKEN_EXPIRY`)
+    - Returns count of deleted tokens
+    - Handles case where no tokens are expired (0 deleted is not an error)
+  - Returns: Success message with deletion confirmation
+  - Errors:
+    - 401 Unauthorized: Missing or invalid API key
+    - 500 Internal Server Error: Database error during token deletion
+  - Note: This endpoint is typically called by a scheduled task created via the admin task scheduling endpoint
 
 ### Learning Service (Port 8080)
 
@@ -1034,7 +1067,7 @@ All integration tests automatically set up test data, run tests in isolation, an
 - `id` - Primary key (auto-increment)
 - `user_id` - Foreign key to users.id
 - `token` - Refresh token (unique, indexed)
-- `updated_at` - Timestamp
+- `created_at` - Timestamp when token was created (used for token expiration tracking)
 
 #### User Settings Table
 - `id` - Primary key (auto-increment)

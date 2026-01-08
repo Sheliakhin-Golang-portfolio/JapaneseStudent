@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/japanesestudent/auth-service/internal/models"
 	"github.com/japanesestudent/libs/auth/service"
@@ -89,6 +90,12 @@ type UserTokenRepository interface {
 	//
 	// If some error occurs during user token deletion, the error will be returned together with "nil" value.
 	DeleteByToken(ctx context.Context, token string) error
+	// Method DeleteExpiredTokens deletes all user tokens with created_at older than or equal to expiryTime.
+	//
+	// "expiryTime" parameter is used to delete all user tokens with created_at older than or equal to expiryTime.
+	//
+	// If some error occurs during user token deletion, the error will be returned together with "nil" value.
+	DeleteExpiredTokens(ctx context.Context, expiryTime time.Time) (int, error)
 }
 
 // authService implements AuthService
@@ -315,9 +322,6 @@ func (s *authService) Refresh(ctx context.Context, refreshToken string) (string,
 // Below is the methods with simple logic and shared between auth and admin services
 
 // Method that generates and saves access and refresh tokens
-//
-// In current implementation of authentication, we do not track the lifespan or count of refresh tokens,
-// we will make it possible in the future.
 func generateAndSaveTokens(ctx context.Context, tokenGenerator *service.TokenGenerator,
 	userTokenRepo UserTokenRepository, userID int, role models.Role) (string, string, error) {
 	// Generate tokens

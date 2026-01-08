@@ -108,6 +108,10 @@ func (m *mockUserTokenRepository) DeleteByToken(ctx context.Context, token strin
 	return m.err
 }
 
+func (m *mockUserTokenRepository) DeleteExpiredTokens(ctx context.Context, expiryTime time.Time) (int, error) {
+	return 0, m.err
+}
+
 // mockUserSettingsRepositoryForAuth is a mock implementation of UserSettingsRepository for auth service tests
 type mockUserSettingsRepositoryForAuth struct {
 	err error
@@ -165,7 +169,8 @@ func TestAuthService_Register(t *testing.T) {
 				existsByUsernameResult: false,
 			},
 			tokenRepo:     &mockUserTokenRepository{},
-			expectedError: false,
+			expectedError: true,
+			errorContains: "user was registered, but we cannot send verification email",
 		},
 		{
 			name:     "invalid email format - missing @",
@@ -333,7 +338,8 @@ func TestAuthService_Register(t *testing.T) {
 				existsByUsernameResult: false,
 			},
 			tokenRepo:     &mockUserTokenRepository{},
-			expectedError: false,
+			expectedError: true,
+			errorContains: "user was registered, but we cannot send verification email",
 		},
 		{
 			name:     "username trimming - leading and trailing spaces",
@@ -345,7 +351,8 @@ func TestAuthService_Register(t *testing.T) {
 				existsByUsernameResult: false,
 			},
 			tokenRepo:     &mockUserTokenRepository{},
-			expectedError: false,
+			expectedError: true,
+			errorContains: "user was registered, but we cannot send verification email",
 		},
 		{
 			name:     "database error on user creation",
@@ -374,7 +381,7 @@ func TestAuthService_Register(t *testing.T) {
 				err: errors.New("token creation error"),
 			},
 			expectedError: true,
-			errorContains: "failed to save refresh token",
+			errorContains: "user was registered, but we cannot send verification email",
 		},
 		{
 			name:     "database error checking email",
@@ -455,6 +462,7 @@ func TestAuthService_Login(t *testing.T) {
 				PasswordHash: string(validPasswordHash),
 				Role:         models.RoleUser,
 				Avatar:       "", // Empty avatar for tests
+				Active:       true,
 			},
 			},
 			tokenRepo:     &mockUserTokenRepository{},
@@ -472,6 +480,7 @@ func TestAuthService_Login(t *testing.T) {
 				PasswordHash: string(validPasswordHash),
 				Role:         models.RoleUser,
 				Avatar:       "", // Empty avatar for tests
+				Active:       true,
 			},
 			},
 			tokenRepo:     &mockUserTokenRepository{},
@@ -489,6 +498,7 @@ func TestAuthService_Login(t *testing.T) {
 				PasswordHash: string(validPasswordHash),
 				Role:         models.RoleUser,
 				Avatar:       "", // Empty avatar for tests
+				Active:       true,
 			},
 			},
 			tokenRepo:     &mockUserTokenRepository{},
@@ -507,6 +517,7 @@ func TestAuthService_Login(t *testing.T) {
 				PasswordHash: string(validPasswordHash),
 				Role:         models.RoleUser,
 				Avatar:       "", // Empty avatar for tests
+				Active:       true,
 			},
 			},
 			tokenRepo:     &mockUserTokenRepository{},
@@ -536,6 +547,7 @@ func TestAuthService_Login(t *testing.T) {
 				PasswordHash: string(validPasswordHash),
 				Role:         models.RoleUser,
 				Avatar:       "", // Empty avatar for tests
+				Active:       true,
 			},
 			},
 			tokenRepo:     &mockUserTokenRepository{},
@@ -554,6 +566,7 @@ func TestAuthService_Login(t *testing.T) {
 				PasswordHash: string(validPasswordHash),
 				Role:         models.RoleUser,
 				Avatar:       "", // Empty avatar for tests
+				Active:       true,
 			},
 			},
 			tokenRepo:     &mockUserTokenRepository{},
@@ -582,6 +595,7 @@ func TestAuthService_Login(t *testing.T) {
 				PasswordHash: string(validPasswordHash),
 				Role:         models.RoleUser,
 				Avatar:       "", // Empty avatar for tests
+				Active:       true,
 			},
 			},
 			tokenRepo: &mockUserTokenRepository{
@@ -641,6 +655,7 @@ func TestAuthService_Refresh(t *testing.T) {
 					ID:     1,
 					Role:   models.RoleUser,
 					Avatar: "", // Empty avatar for tests
+					Active: true,
 				},
 			},
 			tokenRepo: &mockUserTokenRepository{
@@ -697,8 +712,9 @@ func TestAuthService_Refresh(t *testing.T) {
 			refreshToken: validRefreshToken,
 			userRepo: &mockUserRepository{
 				user: &models.User{
-					ID:   1,
-					Role: models.RoleUser,
+					ID:     1,
+					Role:   models.RoleUser,
+					Active: true,
 				},
 			},
 			tokenRepo: &mockUserTokenRepository{
