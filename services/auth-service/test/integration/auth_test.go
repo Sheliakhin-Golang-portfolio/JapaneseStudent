@@ -119,7 +119,7 @@ func setupTestRouter(db *sql.DB, logger *zap.Logger, cfg *config.Config) chi.Rou
 	userRepo := repositories.NewUserRepository(db)
 	tokenRepo := repositories.NewUserTokenRepository(db)
 	userSettingsRepo := repositories.NewUserSettingsRepository(db)
-	
+
 	// Use JWT config from LoadTestConfig, with fallback defaults for tests
 	jwtSecret := cfg.JWT.Secret
 	if jwtSecret == "" {
@@ -134,7 +134,7 @@ func setupTestRouter(db *sql.DB, logger *zap.Logger, cfg *config.Config) chi.Rou
 		refreshExpiry = 7 * 24 * time.Hour
 	}
 	tokenGen := service.NewTokenGenerator(jwtSecret, accessExpiry, refreshExpiry)
-	
+
 	// Using empty taskBaseURL and apiKey to prevent email sending in tests
 	verificationURL := "http://localhost:8080"
 	apiKey := "test-api-key"
@@ -142,7 +142,8 @@ func setupTestRouter(db *sql.DB, logger *zap.Logger, cfg *config.Config) chi.Rou
 	authHandler := handlers.NewAuthHandler(authSvc, logger)
 
 	userSettingsSvc := services.NewUserSettingsService(userSettingsRepo)
-	userSettingsHandler := handlers.NewUserSettingsHandler(userSettingsSvc, logger)
+	profileSvc := services.NewProfileService(userRepo, tokenGen, "", "", "", "")
+	profileHandler := handlers.NewProfileHandler(profileSvc, userSettingsSvc, logger)
 
 	adminSvc := services.NewAdminService(userRepo, tokenRepo, userSettingsRepo, tokenGen, logger, "", "", "")
 	adminHandler := handlers.NewAdminHandler(adminSvc, logger, "", false, "")
@@ -163,7 +164,7 @@ func setupTestRouter(db *sql.DB, logger *zap.Logger, cfg *config.Config) chi.Rou
 				h.ServeHTTP(w, r)
 			})
 		}
-		userSettingsHandler.RegisterRoutes(r, authMiddleware)
+		profileHandler.RegisterRoutes(r, authMiddleware)
 		// Register admin routes without middleware for testing (we'll test the endpoint directly)
 		adminHandler.RegisterRoutes(r)
 		// Register token cleaning handler
@@ -698,11 +699,11 @@ func TestIntegration_ServiceLayer(t *testing.T) {
 	userRepo := repositories.NewUserRepository(testDB)
 	tokenRepo := repositories.NewUserTokenRepository(testDB)
 	userSettingsRepo := repositories.NewUserSettingsRepository(testDB)
-	
+
 	// Load test config for JWT settings
 	cfg, err := config.LoadTestConfig()
 	require.NoError(t, err)
-	
+
 	// Use JWT config from LoadTestConfig, with fallback defaults for tests
 	jwtSecret := cfg.JWT.Secret
 	if jwtSecret == "" {
@@ -717,7 +718,7 @@ func TestIntegration_ServiceLayer(t *testing.T) {
 		refreshExpiry = 7 * 24 * time.Hour
 	}
 	tokenGen := service.NewTokenGenerator(jwtSecret, accessExpiry, refreshExpiry)
-	
+
 	// Using empty taskBaseURL and apiKey to prevent email sending in tests
 	// NOTE: Email verification functionality should be tested on a real live server with the task microservice running.
 	authSvc := services.NewAuthService(userRepo, tokenRepo, userSettingsRepo, tokenGen, logger, "http://localhost:8080", "test-api-key", "", "")
@@ -788,7 +789,7 @@ func TestIntegration_UserSettings(t *testing.T) {
 			name:           "success get user settings",
 			userID:         1,
 			method:         http.MethodGet,
-			url:            "/api/v6/settings",
+			url:            "/api/v6/profile/settings",
 			requestBody:    nil,
 			expectedStatus: http.StatusOK,
 			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
@@ -805,7 +806,7 @@ func TestIntegration_UserSettings(t *testing.T) {
 			name:           "success update user settings - partial",
 			userID:         1,
 			method:         http.MethodPatch,
-			url:            "/api/v6/settings",
+			url:            "/api/v6/profile/settings",
 			requestBody:    map[string]any{"newWordCount": 25},
 			expectedStatus: http.StatusNoContent,
 			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
@@ -820,7 +821,7 @@ func TestIntegration_UserSettings(t *testing.T) {
 			name:           "success update user settings - all fields",
 			userID:         1,
 			method:         http.MethodPatch,
-			url:            "/api/v6/settings",
+			url:            "/api/v6/profile/settings",
 			requestBody:    map[string]any{"newWordCount": 30, "oldWordCount": 35, "alphabetLearnCount": 12, "language": "ru"},
 			expectedStatus: http.StatusNoContent,
 			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
@@ -839,7 +840,7 @@ func TestIntegration_UserSettings(t *testing.T) {
 			name:           "invalid newWordCount - too low",
 			userID:         1,
 			method:         http.MethodPatch,
-			url:            "/api/v6/settings",
+			url:            "/api/v6/profile/settings",
 			requestBody:    map[string]any{"newWordCount": 5},
 			expectedStatus: http.StatusBadRequest,
 			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
@@ -853,7 +854,7 @@ func TestIntegration_UserSettings(t *testing.T) {
 			name:           "invalid newWordCount - too high",
 			userID:         1,
 			method:         http.MethodPatch,
-			url:            "/api/v6/settings",
+			url:            "/api/v6/profile/settings",
 			requestBody:    map[string]any{"newWordCount": 50},
 			expectedStatus: http.StatusBadRequest,
 			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
@@ -867,7 +868,7 @@ func TestIntegration_UserSettings(t *testing.T) {
 			name:           "invalid language",
 			userID:         1,
 			method:         http.MethodPatch,
-			url:            "/api/v6/settings",
+			url:            "/api/v6/profile/settings",
 			requestBody:    map[string]any{"language": "fr"},
 			expectedStatus: http.StatusBadRequest,
 			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
@@ -881,7 +882,7 @@ func TestIntegration_UserSettings(t *testing.T) {
 			name:           "empty request body",
 			userID:         1,
 			method:         http.MethodPatch,
-			url:            "/api/v6/settings",
+			url:            "/api/v6/profile/settings",
 			requestBody:    map[string]any{},
 			expectedStatus: http.StatusBadRequest,
 			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
@@ -895,7 +896,7 @@ func TestIntegration_UserSettings(t *testing.T) {
 			name:           "user settings not found",
 			userID:         999,
 			method:         http.MethodGet,
-			url:            "/api/v6/settings",
+			url:            "/api/v6/profile/settings",
 			requestBody:    nil,
 			expectedStatus: http.StatusInternalServerError,
 			validateFunc:   nil,
@@ -1615,6 +1616,214 @@ func TestIntegration_AdminDeleteUser(t *testing.T) {
 	}
 }
 
+func TestIntegration_AdminUpdateUserPassword(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration tests in short mode")
+	}
+
+	cleanupTestData(t, testDB)
+	seedTestData(t, testDB)
+	defer cleanupTestData(t, testDB)
+
+	// Create a separate user for password update
+	var newUserID int
+	passwordHash, err := bcrypt.GenerateFromPassword([]byte("OldPassword123!"), bcrypt.DefaultCost)
+	require.NoError(t, err)
+	err = testDB.QueryRow("INSERT INTO users (username, email, password_hash, role, avatar) VALUES (?, ?, ?, ?, ?) RETURNING id",
+		"passworduser", "passworduser@example.com", string(passwordHash), models.RoleUser, "").Scan(&newUserID)
+	if err != nil {
+		// MySQL doesn't support RETURNING, use LastInsertId approach
+		result, err := testDB.Exec("INSERT INTO users (username, email, password_hash, role, avatar) VALUES (?, ?, ?, ?, ?)",
+			"passworduser", "passworduser@example.com", string(passwordHash), models.RoleUser, "")
+		require.NoError(t, err)
+		insertID, err := result.LastInsertId()
+		require.NoError(t, err)
+		newUserID = int(insertID)
+	}
+
+	tests := []struct {
+		name           string
+		userID         string
+		requestBody    map[string]string
+		expectedStatus int
+		validateFunc   func(*testing.T, *httptest.ResponseRecorder)
+	}{
+		{
+			name:   "success update password",
+			userID: fmt.Sprintf("%d", newUserID),
+			requestBody: map[string]string{
+				"password": "NewPassword123!",
+			},
+			expectedStatus: http.StatusNoContent,
+			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
+				// Verify password was updated in database
+				var storedHash string
+				err := testDB.QueryRow("SELECT password_hash FROM users WHERE id = ?", newUserID).Scan(&storedHash)
+				require.NoError(t, err)
+
+				// Verify new password works
+				err = bcrypt.CompareHashAndPassword([]byte(storedHash), []byte("NewPassword123!"))
+				assert.NoError(t, err, "new password should match stored hash")
+
+				// Verify old password doesn't work
+				err = bcrypt.CompareHashAndPassword([]byte(storedHash), []byte("OldPassword123!"))
+				assert.Error(t, err, "old password should not match stored hash")
+			},
+		},
+		{
+			name:   "success update password for existing user",
+			userID: "1",
+			requestBody: map[string]string{
+				"password": "UpdatedPassword123!",
+			},
+			expectedStatus: http.StatusNoContent,
+			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
+				// Verify password was updated
+				var storedHash string
+				err := testDB.QueryRow("SELECT password_hash FROM users WHERE id = ?", 1).Scan(&storedHash)
+				require.NoError(t, err)
+
+				err = bcrypt.CompareHashAndPassword([]byte(storedHash), []byte("UpdatedPassword123!"))
+				assert.NoError(t, err, "updated password should match stored hash")
+			},
+		},
+		{
+			name:   "invalid user ID",
+			userID: "invalid",
+			requestBody: map[string]string{
+				"password": "NewPassword123!",
+			},
+			expectedStatus: http.StatusBadRequest,
+			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
+				var response map[string]string
+				err := json.NewDecoder(w.Body).Decode(&response)
+				require.NoError(t, err)
+				assert.Contains(t, response["error"], "invalid user ID")
+			},
+		},
+		{
+			name:   "user not found",
+			userID: "999",
+			requestBody: map[string]string{
+				"password": "NewPassword123!",
+			},
+			expectedStatus: http.StatusNotFound,
+			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
+				var response map[string]string
+				err := json.NewDecoder(w.Body).Decode(&response)
+				require.NoError(t, err)
+				assert.Contains(t, response["error"], "not found")
+			},
+		},
+		{
+			name:   "invalid request body",
+			userID: fmt.Sprintf("%d", newUserID),
+			requestBody: map[string]string{
+				"invalid": "field",
+			},
+			expectedStatus: http.StatusBadRequest,
+			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
+				var response map[string]string
+				err := json.NewDecoder(w.Body).Decode(&response)
+				require.NoError(t, err)
+				// When request body has invalid field, JSON decodes successfully but password is empty,
+				// so we get a password validation error, not "invalid request body"
+				assert.Contains(t, response["error"], "password")
+			},
+		},
+		{
+			name:   "password too short",
+			userID: fmt.Sprintf("%d", newUserID),
+			requestBody: map[string]string{
+				"password": "Short1!",
+			},
+			expectedStatus: http.StatusBadRequest,
+			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
+				var response map[string]string
+				err := json.NewDecoder(w.Body).Decode(&response)
+				require.NoError(t, err)
+				assert.Contains(t, response["error"], "password")
+			},
+		},
+		{
+			name:   "password missing uppercase",
+			userID: fmt.Sprintf("%d", newUserID),
+			requestBody: map[string]string{
+				"password": "password123!",
+			},
+			expectedStatus: http.StatusBadRequest,
+			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
+				var response map[string]string
+				err := json.NewDecoder(w.Body).Decode(&response)
+				require.NoError(t, err)
+				assert.Contains(t, response["error"], "password")
+			},
+		},
+		{
+			name:   "password missing special character",
+			userID: fmt.Sprintf("%d", newUserID),
+			requestBody: map[string]string{
+				"password": "Password123",
+			},
+			expectedStatus: http.StatusBadRequest,
+			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
+				var response map[string]string
+				err := json.NewDecoder(w.Body).Decode(&response)
+				require.NoError(t, err)
+				assert.Contains(t, response["error"], "password")
+			},
+		},
+		{
+			name:   "password contains semicolon",
+			userID: fmt.Sprintf("%d", newUserID),
+			requestBody: map[string]string{
+				"password": "Password123!;",
+			},
+			expectedStatus: http.StatusBadRequest,
+			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
+				var response map[string]string
+				err := json.NewDecoder(w.Body).Decode(&response)
+				require.NoError(t, err)
+				assert.Contains(t, response["error"], "password cannot contain ';' character")
+			},
+		},
+		{
+			name:           "empty request body",
+			userID:         fmt.Sprintf("%d", newUserID),
+			requestBody:    nil,
+			expectedStatus: http.StatusBadRequest,
+			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
+				var response map[string]string
+				err := json.NewDecoder(w.Body).Decode(&response)
+				require.NoError(t, err)
+				assert.Contains(t, response["error"], "invalid request body")
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var req *http.Request
+			if tt.requestBody != nil {
+				body, _ := json.Marshal(tt.requestBody)
+				req = httptest.NewRequest(http.MethodPatch, "/api/v6/admin/users/"+tt.userID+"/password", bytes.NewBuffer(body))
+				req.Header.Set("Content-Type", "application/json")
+			} else {
+				req = httptest.NewRequest(http.MethodPatch, "/api/v6/admin/users/"+tt.userID+"/password", nil)
+				req.Header.Set("Content-Type", "application/json")
+			}
+			w := httptest.NewRecorder()
+
+			testRouter.ServeHTTP(w, req)
+
+			assert.Equal(t, tt.expectedStatus, w.Code)
+			if tt.validateFunc != nil {
+				tt.validateFunc(t, w)
+			}
+		})
+	}
+}
+
 // NOTE: Task Scheduling Testing
 //
 // The ScheduleTasks method in admin_service.go schedules tasks via HTTP requests to the task-service.
@@ -1645,18 +1854,18 @@ func TestIntegration_TokenCleaning(t *testing.T) {
 
 	// Create expired tokens (created more than refreshExpiry ago)
 	expiredTime := time.Now().Add(-refreshExpiry).Add(-1 * time.Hour) // 1 hour older than expiry
-	_, err = testDB.Exec("INSERT INTO user_tokens (user_id, token, created_at) VALUES (?, ?, ?)", 
+	_, err = testDB.Exec("INSERT INTO user_tokens (user_id, token, created_at) VALUES (?, ?, ?)",
 		1, "expired-token-1", expiredTime)
 	require.NoError(t, err)
-	_, err = testDB.Exec("INSERT INTO user_tokens (user_id, token, created_at) VALUES (?, ?, ?)", 
+	_, err = testDB.Exec("INSERT INTO user_tokens (user_id, token, created_at) VALUES (?, ?, ?)",
 		1, "expired-token-2", expiredTime)
 	require.NoError(t, err)
 
 	// Create valid tokens (created recently)
-	_, err = testDB.Exec("INSERT INTO user_tokens (user_id, token, created_at) VALUES (?, ?, NOW())", 
+	_, err = testDB.Exec("INSERT INTO user_tokens (user_id, token, created_at) VALUES (?, ?, NOW())",
 		1, "valid-token-1")
 	require.NoError(t, err)
-	_, err = testDB.Exec("INSERT INTO user_tokens (user_id, token, created_at) VALUES (?, ?, NOW())", 
+	_, err = testDB.Exec("INSERT INTO user_tokens (user_id, token, created_at) VALUES (?, ?, NOW())",
 		1, "valid-token-2")
 	require.NoError(t, err)
 
@@ -1676,14 +1885,14 @@ func TestIntegration_TokenCleaning(t *testing.T) {
 
 				// Verify expired tokens were deleted
 				var expiredCount int
-				err = testDB.QueryRow("SELECT COUNT(*) FROM user_tokens WHERE token IN (?, ?)", 
+				err = testDB.QueryRow("SELECT COUNT(*) FROM user_tokens WHERE token IN (?, ?)",
 					"expired-token-1", "expired-token-2").Scan(&expiredCount)
 				require.NoError(t, err)
 				assert.Equal(t, 0, expiredCount, "expired tokens should be deleted")
 
 				// Verify valid tokens still exist
 				var validCount int
-				err = testDB.QueryRow("SELECT COUNT(*) FROM user_tokens WHERE token IN (?, ?)", 
+				err = testDB.QueryRow("SELECT COUNT(*) FROM user_tokens WHERE token IN (?, ?)",
 					"valid-token-1", "valid-token-2").Scan(&validCount)
 				require.NoError(t, err)
 				assert.Equal(t, 2, validCount, "valid tokens should not be deleted")
@@ -1716,10 +1925,10 @@ func TestIntegration_TokenCleaning_NoExpiredTokens(t *testing.T) {
 	defer cleanupTestData(t, testDB)
 
 	// Create only valid tokens (all recent)
-	_, err := testDB.Exec("INSERT INTO user_tokens (user_id, token, created_at) VALUES (?, ?, NOW())", 
+	_, err := testDB.Exec("INSERT INTO user_tokens (user_id, token, created_at) VALUES (?, ?, NOW())",
 		1, "valid-token-1")
 	require.NoError(t, err)
-	_, err = testDB.Exec("INSERT INTO user_tokens (user_id, token, created_at) VALUES (?, ?, NOW())", 
+	_, err = testDB.Exec("INSERT INTO user_tokens (user_id, token, created_at) VALUES (?, ?, NOW())",
 		1, "valid-token-2")
 	require.NoError(t, err)
 
@@ -1737,7 +1946,7 @@ func TestIntegration_TokenCleaning_NoExpiredTokens(t *testing.T) {
 
 	// Verify all tokens still exist (none were expired)
 	var count int
-	err = testDB.QueryRow("SELECT COUNT(*) FROM user_tokens WHERE token IN (?, ?)", 
+	err = testDB.QueryRow("SELECT COUNT(*) FROM user_tokens WHERE token IN (?, ?)",
 		"valid-token-1", "valid-token-2").Scan(&count)
 	require.NoError(t, err)
 	assert.Equal(t, 2, count, "all tokens should still exist")
@@ -1760,15 +1969,15 @@ func TestIntegration_TokenCleaning_RepositoryLayer(t *testing.T) {
 	validTime := time.Now().Add(-1 * time.Hour)        // 1 hour ago (recent)
 
 	// Insert expired tokens
-	_, err := testDB.Exec("INSERT INTO user_tokens (user_id, token, created_at) VALUES (?, ?, ?)", 
+	_, err := testDB.Exec("INSERT INTO user_tokens (user_id, token, created_at) VALUES (?, ?, ?)",
 		1, "expired-1", expiredTime)
 	require.NoError(t, err)
-	_, err = testDB.Exec("INSERT INTO user_tokens (user_id, token, created_at) VALUES (?, ?, ?)", 
+	_, err = testDB.Exec("INSERT INTO user_tokens (user_id, token, created_at) VALUES (?, ?, ?)",
 		1, "expired-2", expiredTime)
 	require.NoError(t, err)
 
 	// Insert valid tokens
-	_, err = testDB.Exec("INSERT INTO user_tokens (user_id, token, created_at) VALUES (?, ?, ?)", 
+	_, err = testDB.Exec("INSERT INTO user_tokens (user_id, token, created_at) VALUES (?, ?, ?)",
 		1, "valid-1", validTime)
 	require.NoError(t, err)
 
@@ -1788,7 +1997,7 @@ func TestIntegration_TokenCleaning_RepositoryLayer(t *testing.T) {
 
 	// Verify expired tokens were deleted
 	var expiredCount int
-	err = testDB.QueryRow("SELECT COUNT(*) FROM user_tokens WHERE token IN (?, ?)", 
+	err = testDB.QueryRow("SELECT COUNT(*) FROM user_tokens WHERE token IN (?, ?)",
 		"expired-1", "expired-2").Scan(&expiredCount)
 	require.NoError(t, err)
 	assert.Equal(t, 0, expiredCount, "expired tokens should be deleted")
@@ -1799,3 +2008,235 @@ func TestIntegration_TokenCleaning_RepositoryLayer(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, validCount, "valid token should still exist")
 }
+
+func TestIntegration_ProfileHandler(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration tests in short mode")
+	}
+
+	cleanupTestData(t, testDB)
+	seedTestData(t, testDB)
+	defer cleanupTestData(t, testDB)
+
+	// Create user settings for test user
+	_, err := testDB.Exec("INSERT INTO user_settings (user_id, new_word_count, old_word_count, alphabet_learn_count, language) VALUES (1, 20, 20, 10, 'en')")
+	require.NoError(t, err, "Failed to seed user settings")
+
+	tests := []struct {
+		name           string
+		userID         int
+		method         string
+		url            string
+		requestBody    map[string]any
+		expectedStatus int
+		validateFunc   func(*testing.T, *httptest.ResponseRecorder)
+	}{
+		{
+			name:           "success get user profile",
+			userID:         1,
+			method:         http.MethodGet,
+			url:            "/api/v6/profile",
+			requestBody:    nil,
+			expectedStatus: http.StatusOK,
+			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
+				var response models.ProfileResponse
+				err := json.NewDecoder(w.Body).Decode(&response)
+				require.NoError(t, err)
+				assert.Equal(t, "testuser", response.Username)
+				assert.Equal(t, "test@example.com", response.Email)
+			},
+		},
+		{
+			name:           "unauthorized get user profile",
+			userID:         0, // No user ID in context
+			method:         http.MethodGet,
+			url:            "/api/v6/profile",
+			requestBody:    nil,
+			expectedStatus: http.StatusUnauthorized,
+		},
+		{
+			name:   "success update user profile - username only",
+			userID: 1,
+			method: http.MethodPatch,
+			url:    "/api/v6/profile",
+			requestBody: map[string]any{
+				"username": "newusername",
+			},
+			expectedStatus: http.StatusNoContent,
+		},
+		{
+			name:   "success update user profile - email only",
+			userID: 1,
+			method: http.MethodPatch,
+			url:    "/api/v6/profile",
+			requestBody: map[string]any{
+				"email": "newemail@example.com",
+			},
+			expectedStatus: http.StatusInternalServerError, // Email update fails because TASK_BASE_URL is not configured in tests
+			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
+				// Verify email was updated in database despite email sending failure
+				var email string
+				err := testDB.QueryRow("SELECT email FROM users WHERE id = ?", 1).Scan(&email)
+				require.NoError(t, err)
+				assert.Equal(t, "newemail@example.com", email, "email should be updated in database")
+
+				// Verify user is inactive (email not verified)
+				var active bool
+				err = testDB.QueryRow("SELECT active FROM users WHERE id = ?", 1).Scan(&active)
+				require.NoError(t, err)
+				assert.False(t, active, "user should be inactive until email is verified")
+
+				// Manually reactivate user for testing purposes (in real scenario, this happens via email verification)
+				_, err = testDB.Exec("UPDATE users SET active = true WHERE id = ?", 1)
+				require.NoError(t, err, "failed to reactivate user for testing")
+			},
+		},
+		{
+			name:   "success update user profile - both fields",
+			userID: 1,
+			method: http.MethodPatch,
+			url:    "/api/v6/profile",
+			requestBody: map[string]any{
+				"username": "updateduser",
+				"email":    "updated@example.com",
+			},
+			expectedStatus: http.StatusInternalServerError, // Email update fails because TASK_BASE_URL is not configured in tests
+			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
+				// Verify both username and email were updated in database despite email sending failure
+				var username, email string
+				err := testDB.QueryRow("SELECT username, email FROM users WHERE id = ?", 1).Scan(&username, &email)
+				require.NoError(t, err)
+				assert.Equal(t, "updateduser", username, "username should be updated in database")
+				assert.Equal(t, "updated@example.com", email, "email should be updated in database")
+
+				// Verify user is inactive (email not verified)
+				var active bool
+				err = testDB.QueryRow("SELECT active FROM users WHERE id = ?", 1).Scan(&active)
+				require.NoError(t, err)
+				assert.False(t, active, "user should be inactive until email is verified")
+
+				// Manually reactivate user for testing purposes (in real scenario, this happens via email verification)
+				_, err = testDB.Exec("UPDATE users SET active = true WHERE id = ?", 1)
+				require.NoError(t, err, "failed to reactivate user for testing")
+			},
+		},
+		{
+			name:           "validation error - no fields provided",
+			userID:         1,
+			method:         http.MethodPatch,
+			url:            "/api/v6/profile",
+			requestBody:    map[string]any{},
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name:   "validation error - invalid email format",
+			userID: 1,
+			method: http.MethodPatch,
+			url:    "/api/v6/profile",
+			requestBody: map[string]any{
+				"email": "invalid-email",
+			},
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name:           "unauthorized update user profile",
+			userID:         0, // No user ID in context
+			method:         http.MethodPatch,
+			url:            "/api/v6/profile",
+			requestBody:    map[string]any{"username": "newuser"},
+			expectedStatus: http.StatusUnauthorized,
+		},
+		{
+			name:   "success update password",
+			userID: 1,
+			method: http.MethodPut,
+			url:    "/api/v6/profile/password",
+			requestBody: map[string]any{
+				"password": "NewPassword123!",
+			},
+			expectedStatus: http.StatusNoContent,
+		},
+		{
+			name:   "validation error - empty password",
+			userID: 1,
+			method: http.MethodPut,
+			url:    "/api/v6/profile/password",
+			requestBody: map[string]any{
+				"password": "",
+			},
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name:   "validation error - password too short",
+			userID: 1,
+			method: http.MethodPut,
+			url:    "/api/v6/profile/password",
+			requestBody: map[string]any{
+				"password": "Pass1!",
+			},
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name:   "validation error - password missing uppercase",
+			userID: 1,
+			method: http.MethodPut,
+			url:    "/api/v6/profile/password",
+			requestBody: map[string]any{
+				"password": "password123!",
+			},
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name:           "unauthorized update password",
+			userID:         0, // No user ID in context
+			method:         http.MethodPut,
+			url:            "/api/v6/profile/password",
+			requestBody:    map[string]any{"password": "NewPassword123!"},
+			expectedStatus: http.StatusUnauthorized,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var req *http.Request
+			if tt.requestBody != nil {
+				body, err := json.Marshal(tt.requestBody)
+				require.NoError(t, err)
+				req = httptest.NewRequest(tt.method, tt.url, bytes.NewBuffer(body))
+				req.Header.Set("Content-Type", "application/json")
+			} else {
+				req = httptest.NewRequest(tt.method, tt.url, nil)
+			}
+
+			// Set user ID in context if provided
+			if tt.userID > 0 {
+				ctx := middleware.SetUserID(req.Context(), tt.userID)
+				req = req.WithContext(ctx)
+			}
+
+			w := httptest.NewRecorder()
+			testRouter.ServeHTTP(w, req)
+
+			assert.Equal(t, tt.expectedStatus, w.Code, "Response status code should match")
+
+			if tt.validateFunc != nil {
+				tt.validateFunc(t, w)
+			}
+		})
+	}
+
+	// NOTE: Avatar update integration tests are not included here.
+	// Avatar update uses an external media service and should be tested on a live server.
+	// The media service integration involves:
+	// - HTTP communication with the media microservice
+	// - File upload and deletion through the media service
+	// - End-to-end avatar update flow
+}
+
+// NOTE: Forgot password integration tests are not included here.
+// Forgot password uses an external task service and should be tested on a live server.
+// The forgot password functionality involves:
+// - HTTP communication with the task microservice
+// - Email delivery through the task service
+// - Password generation and database update
+// - End-to-end password reset flow

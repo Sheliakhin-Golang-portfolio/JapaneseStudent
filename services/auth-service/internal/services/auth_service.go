@@ -3,6 +3,7 @@ package services
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"mime/multipart"
@@ -60,6 +61,13 @@ type UserRepository interface {
 	//
 	// If some error occurs, the error will be returned.
 	UpdateActive(ctx context.Context, userID int, active bool) error
+	// Method UpdatePasswordHash updates the password hash for a user.
+	//
+	// "userID" parameter is used to identify the user.
+	// "passwordHash" parameter is the new password hash.
+	//
+	// If some error occurs, the error will be returned.
+	UpdatePasswordHash(ctx context.Context, userID int, passwordHash string) error
 }
 
 // UserTokenRepository is the interface that wraps methods for UserToken table data access
@@ -194,7 +202,7 @@ func (s *authService) Register(ctx context.Context, req *models.RegisterRequest,
 		}
 	}()
 
-	// Generate verification token with user_id (using access token format but we'll validate it differently)
+	// Generate verification token with user_id (using access token format)
 	verificationToken, _, err := s.tokenGenerator.GenerateTokens(user.ID, int(models.RoleUser))
 	if err != nil {
 		return err
@@ -361,6 +369,10 @@ func checkRegisterCredentials(ctx context.Context, userRepo UserSharedRepository
 				return
 			}
 		}
+		if strings.Contains(password, ";") {
+			validationErrors <- fmt.Errorf("password cannot contain ';' character")
+			return
+		}
 		validationErrors <- nil
 	}()
 
@@ -522,4 +534,88 @@ func (s *authService) ResendVerificationEmail(ctx context.Context, email string)
 	}
 
 	return nil
+}
+
+// ForgotPassword generates a new password and sends it via email
+func (s *authService) ForgotPassword(ctx context.Context, email string) error {
+	// Normalize email
+	normalizedEmail := strings.TrimSpace(strings.ToLower(email))
+
+	// Get user by email
+	user, err := s.userRepo.GetByEmailOrUsername(ctx, normalizedEmail)
+	if err != nil {
+		return fmt.Errorf("user with this email does not exist")
+	}
+
+	// Generate new password
+	newPassword, err := generatePassword()
+	if err != nil {
+		return fmt.Errorf("failed to generate password: %w", err)
+	}
+
+	// Hash password
+	passwordHash, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return fmt.Errorf("failed to hash password: %w", err)
+	}
+
+	// Update password hash in database
+	if err = s.userRepo.UpdatePasswordHash(ctx, user.ID, string(passwordHash)); err != nil {
+		return err
+	}
+
+	// Build content for email: email + ';' + generated password
+	content := fmt.Sprintf("%s;%s", normalizedEmail, newPassword)
+
+	// Create immediate task to send password email
+	// UserID is set to 0 (null) as specified in the requirements
+	if err = createImmediateTask(ctx, s.taskBaseURL, s.apiKey, 0, "forgot_template", content); err != nil {
+		return fmt.Errorf("there are some issues with password sending. Please contact administrators")
+	}
+
+	return nil
+}
+
+// generatePassword generates a random password that meets the password requirements
+func generatePassword() (string, error) {
+	// Password requirements:
+	// - At least 8 characters
+	// - At least one uppercase letter
+	// - At least one lowercase letter
+	// - At least one number
+	// - At least one special character (!_?^&+-=|)
+
+	const (
+		lowercase = "abcdefghijklmnopqrstuvwxyz"
+		uppercase = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+		numbers   = "0123456789"
+		special   = "!_?^&+-=|"
+		allChars  = lowercase + uppercase + numbers + special
+	)
+
+	// Use crypto/rand for secure random generation
+	randBytes := make([]byte, 12) // 12 characters to ensure we have enough
+	if _, err := rand.Read(randBytes); err != nil {
+		return "", fmt.Errorf("failed to generate random bytes: %w", err)
+	}
+
+	// Build password ensuring we have at least one of each required character type
+	password := make([]byte, 12)
+	password[0] = lowercase[int(randBytes[0])%len(lowercase)]
+	password[1] = uppercase[int(randBytes[1])%len(uppercase)]
+	password[2] = numbers[int(randBytes[2])%len(numbers)]
+	password[3] = special[int(randBytes[3])%len(special)]
+
+	// Fill the rest with random characters from all sets
+	for i := 4; i < 12; i++ {
+		password[i] = allChars[int(randBytes[i])%len(allChars)]
+	}
+
+	// Shuffle the password to avoid predictable patterns
+	for i := len(password) - 1; i > 0; i-- {
+		j := int(randBytes[i%len(randBytes)]) % (i + 1)
+		password[i], password[j] = password[j], password[i]
+	}
+
+	return string(password), nil
 }

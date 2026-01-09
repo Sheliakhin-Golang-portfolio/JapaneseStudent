@@ -45,9 +45,10 @@ type AdminUserRepository interface {
 	// "userID" parameter is used to identify the user to update.
 	// "user" parameter contains the fields to update.
 	// "settings" parameter contains the fields to update.
+	// "active" parameter contains the active status to update.
 	//
 	// If some error occurs, the error will be returned.
-	Update(ctx context.Context, userID int, user *models.User, settings *models.UserSettings) error
+	Update(ctx context.Context, userID int, user *models.User, settings *models.UserSettings, active *bool) error
 	// Method Delete deletes a user by ID.
 	//
 	// "userID" parameter is used to identify the user to delete.
@@ -65,6 +66,13 @@ type AdminUserRepository interface {
 	//
 	// If some error occurs, the error will be returned.
 	UpdateActive(ctx context.Context, userID int, active bool) error
+	// Method UpdatePasswordHash updates the password hash for a user.
+	//
+	// "userID" parameter is used to identify the user to update.
+	// "passwordHash" parameter is the new password hash.
+	//
+	// If some error occurs, the error will be returned.
+	UpdatePasswordHash(ctx context.Context, userID int, passwordHash string) error
 }
 
 // UserTokenRepository is the interface that wraps methods for UserToken table data access
@@ -268,9 +276,9 @@ func (s *adminService) UpdateUserWithSettings(ctx context.Context, userID int, u
 	if avatarFile != nil && avatarFilename != "" {
 		// Delete old avatar if it exists
 		if currentUser.Avatar != "" && s.mediaBaseURL != "" && s.apiKey != "" {
-			fileID := s.extractFileIDFromAvatarURL(currentUser.Avatar)
+			fileID := extractFileIDFromAvatarURL(currentUser.Avatar)
 			if fileID != "" {
-				if err := s.deleteAvatarFromMediaService(ctx, fileID); err != nil {
+				if err := deleteAvatarFromMediaService(ctx, s.mediaBaseURL, s.apiKey, fileID); err != nil {
 					return fmt.Errorf("failed to delete old avatar: %w", err)
 				}
 			}
@@ -332,13 +340,7 @@ func (s *adminService) UpdateUserWithSettings(ctx context.Context, userID int, u
 			}
 		}
 
-		if err := s.userRepo.Update(ctx, userID, userDataModel, settingsData); err != nil {
-			return err
-		}
-
-		if userData.Active != nil {
-			return s.userRepo.UpdateActive(ctx, userID, *userData.Active)
-		}
+		return s.userRepo.Update(ctx, userID, userDataModel, settingsData, userData.Active)
 	}
 
 	return nil
@@ -461,9 +463,9 @@ func (s *adminService) DeleteUser(ctx context.Context, userID int) error {
 	// Delete avatar file from media service if avatar exists
 	if userWithSettings.Avatar != "" && s.mediaBaseURL != "" && s.apiKey != "" {
 		// Extract file ID from avatar URL (last part of the path)
-		fileID := s.extractFileIDFromAvatarURL(userWithSettings.Avatar)
+		fileID := extractFileIDFromAvatarURL(userWithSettings.Avatar)
 		if fileID != "" {
-			if err := s.deleteAvatarFromMediaService(ctx, fileID); err != nil {
+			if err := deleteAvatarFromMediaService(ctx, s.mediaBaseURL, s.apiKey, fileID); err != nil {
 				return fmt.Errorf("avatar file has not been deleted: %w", err)
 			}
 		}
@@ -474,7 +476,7 @@ func (s *adminService) DeleteUser(ctx context.Context, userID int) error {
 // extractFileIDFromAvatarURL extracts the file ID (filename) from the avatar URL
 // The avatar URL format is expected to be like: http://.../media/avatar/{fileID}
 // Returns the last part of the URL path as the file ID
-func (s *adminService) extractFileIDFromAvatarURL(avatarURL string) string {
+func extractFileIDFromAvatarURL(avatarURL string) string {
 	if avatarURL == "" {
 		return ""
 	}
@@ -506,13 +508,13 @@ func (s *adminService) extractFileIDFromAvatarURL(avatarURL string) string {
 }
 
 // deleteAvatarFromMediaService sends a DELETE request to media service to delete the avatar file
-func (s *adminService) deleteAvatarFromMediaService(ctx context.Context, fileID string) error {
-	if s.mediaBaseURL == "" || s.apiKey == "" {
+func deleteAvatarFromMediaService(ctx context.Context, mediaBaseURL, apiKey, fileID string) error {
+	if mediaBaseURL == "" || apiKey == "" {
 		return nil // Skip if media service is not configured
 	}
 
 	// Construct the delete URL: {mediaBaseURL}/media/avatar/{fileID}
-	deleteURL := strings.TrimSuffix(s.mediaBaseURL, "/") + "/media/avatar/" + fileID
+	deleteURL := strings.TrimSuffix(mediaBaseURL, "/") + "/media/avatar/" + fileID
 
 	// Create DELETE request
 	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, deleteURL, nil)
@@ -521,7 +523,7 @@ func (s *adminService) deleteAvatarFromMediaService(ctx context.Context, fileID 
 	}
 
 	// Set API key header
-	req.Header.Set("X-API-Key", s.apiKey)
+	req.Header.Set("X-API-Key", apiKey)
 
 	// Execute request
 	client := &http.Client{}
@@ -624,6 +626,39 @@ func uploadAvatar(ctx context.Context, mediaBaseURL, apiKey string, avatarFile m
 // GetTutorsList retrieves a list of tutors (only ID and username)
 func (s *adminService) GetTutorsList(ctx context.Context) ([]models.TutorListItem, error) {
 	return s.userRepo.GetTutorsList(ctx)
+}
+
+// UpdateUserPassword updates a user's password
+func (s *adminService) UpdateUserPassword(ctx context.Context, userID int, password string) error {
+	if userID <= 0 {
+		return fmt.Errorf("invalid user id")
+	}
+
+	// Validate password against regex (passwordRegex is from auth_service.go in the same package)
+	for _, regex := range passwordRegex {
+		if !regex.MatchString(password) {
+			return fmt.Errorf("password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character (!_?^&+-=|)")
+		}
+	}
+
+	// Check if password contains ';' character (not allowed)
+	if strings.Contains(password, ";") {
+		return fmt.Errorf("password cannot contain ';' character")
+	}
+
+	// Hash password
+	passwordHash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return fmt.Errorf("failed to hash password: %w", err)
+	}
+
+	// Update password hash
+	err = s.userRepo.UpdatePasswordHash(ctx, userID, string(passwordHash))
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // ScheduleTasks schedules tasks for admin

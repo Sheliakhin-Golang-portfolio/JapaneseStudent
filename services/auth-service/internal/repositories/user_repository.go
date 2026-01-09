@@ -193,7 +193,7 @@ func (r *userRepository) GetAll(ctx context.Context, page, count int, role *mode
 }
 
 // Update updates both user fields and settings
-func (r *userRepository) Update(ctx context.Context, userID int, user *models.User, settings *models.UserSettings) error {
+func (r *userRepository) Update(ctx context.Context, userID int, user *models.User, settings *models.UserSettings, active *bool) error {
 	// Begin transaction
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -221,14 +221,19 @@ func (r *userRepository) Update(ctx context.Context, userID int, user *models.Us
 			setClauses = append(setClauses, "avatar = ?")
 			args = append(args, user.Avatar)
 		}
+		// Update active status if provided
+		if active != nil {
+			setClauses = append(setClauses, "active = ?")
+			args = append(args, *active)
+		}
 
 		if len(setClauses) != 0 {
 			args = append(args, userID)
 			query := fmt.Sprintf(`
-		UPDATE users
-		SET %s
-		WHERE id = ?
-		`, strings.Join(setClauses, ", "))
+				UPDATE users
+				SET %s
+				WHERE id = ?
+				`, strings.Join(setClauses, ", "))
 
 			result, err := tx.ExecContext(ctx, query, args...)
 			if err != nil {
@@ -361,6 +366,31 @@ func (r *userRepository) UpdateActive(ctx context.Context, userID int, active bo
 	result, err := r.db.ExecContext(ctx, query, active, userID)
 	if err != nil {
 		return fmt.Errorf("failed to update user active status: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("user not found")
+	}
+
+	return nil
+}
+
+// UpdatePasswordHash updates the password hash for a user
+func (r *userRepository) UpdatePasswordHash(ctx context.Context, userID int, passwordHash string) error {
+	query := `
+		UPDATE users
+		SET password_hash = ?
+		WHERE id = ?
+	`
+
+	result, err := r.db.ExecContext(ctx, query, passwordHash, userID)
+	if err != nil {
+		return fmt.Errorf("failed to update password hash: %w", err)
 	}
 
 	rowsAffected, err := result.RowsAffected()

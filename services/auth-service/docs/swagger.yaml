@@ -1,5 +1,10 @@
 basePath: /api/v6
 definitions:
+  handlers.ForgotPasswordRequest:
+    properties:
+      email:
+        type: string
+    type: object
   handlers.RefreshRequest:
     properties:
       refresh_token:
@@ -8,6 +13,13 @@ definitions:
   handlers.ResendVerificationEmailRequest:
     properties:
       email:
+        type: string
+    type: object
+  handlers.UpdateUserRequest:
+    properties:
+      email:
+        type: string
+      username:
         type: string
     type: object
   models.Language:
@@ -27,6 +39,15 @@ definitions:
       password:
         type: string
     type: object
+  models.ProfileResponse:
+    properties:
+      avatar:
+        type: string
+      email:
+        type: string
+      username:
+        type: string
+    type: object
   models.Role:
     enum:
     - 1
@@ -42,6 +63,11 @@ definitions:
       id:
         type: integer
       username:
+        type: string
+    type: object
+  models.UpdatePasswordRequest:
+    properties:
+      password:
         type: string
     type: object
   models.UpdateUserSettingsRequest:
@@ -425,6 +451,49 @@ paths:
       summary: Update user with settings
       tags:
       - admin
+  /admin/users/{id}/password:
+    patch:
+      consumes:
+      - application/json
+      description: Update a user's password by user ID
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Password update request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.UpdatePasswordRequest'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Invalid request or password validation failed
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: User not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Update user password
+      tags:
+      - admin
   /admin/users/{id}/settings:
     post:
       consumes:
@@ -466,6 +535,49 @@ paths:
       summary: Create user settings
       tags:
       - admin
+  /auth/forgot-password:
+    post:
+      consumes:
+      - application/json
+      description: Generate a new password and send it via email to the user. If email
+        does not exist, returns 404.
+      parameters:
+      - description: Forgot password request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.ForgotPasswordRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Password reset email sent successfully
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Invalid request body
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: User not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error or email sending failed
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Forgot password
+      tags:
+      - auth
   /auth/login:
     post:
       consumes:
@@ -668,6 +780,159 @@ paths:
       summary: Verify user email
       tags:
       - auth
+  /profile:
+    get:
+      consumes:
+      - application/json
+      description: Get user profile information (username, email, avatar) for the
+        authenticated user. Requires authentication.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: User profile
+          schema:
+            $ref: '#/definitions/models.ProfileResponse'
+        "401":
+          description: Unauthorized - authentication required
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Get user profile
+      tags:
+      - profile
+    patch:
+      consumes:
+      - application/json
+      description: Update user profile (username and/or email) for the authenticated
+        user. Requires authentication.
+      parameters:
+      - description: User profile to update
+        in: body
+        name: profile
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.UpdateUserRequest'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad request - invalid request body or validation error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized - authentication required
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Update user profile
+      tags:
+      - profile
+  /profile/avatar:
+    put:
+      consumes:
+      - multipart/form-data
+      description: Update user avatar for the authenticated user. Requires authentication.
+      parameters:
+      - description: Avatar image file
+        in: formData
+        name: avatar
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Avatar URL
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad request - invalid file or validation error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized - authentication required
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Update user avatar
+      tags:
+      - profile
+  /profile/password:
+    put:
+      consumes:
+      - application/json
+      description: Update user password for the authenticated user. Requires authentication.
+      parameters:
+      - description: New password
+        in: body
+        name: password
+        required: true
+        schema:
+          $ref: '#/definitions/models.UpdatePasswordRequest'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad request - invalid password or validation error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized - authentication required
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Update user password
+      tags:
+      - profile
   /settings:
     get:
       consumes:
@@ -696,7 +961,7 @@ paths:
       - ApiKeyAuth: []
       summary: Get user settings
       tags:
-      - settings
+      - profile
     patch:
       consumes:
       - application/json
@@ -735,7 +1000,7 @@ paths:
       - ApiKeyAuth: []
       summary: Update user settings
       tags:
-      - settings
+      - profile
   /tokens/clean:
     get:
       consumes:
