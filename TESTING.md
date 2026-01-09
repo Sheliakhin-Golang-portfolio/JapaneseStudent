@@ -161,6 +161,7 @@ The project includes three types of tests:
 - `ExistsByEmail`: Email exists/doesn't exist, database errors, scan errors
 - `ExistsByUsername`: Username exists/doesn't exist, database errors
 - `GetTutorsList`: Success with multiple tutors, success with empty list, database errors, scan errors
+- `UpdatePasswordHash`: Success, user not found, database errors, rows affected errors
 
 **UserTokenRepository Test Coverage**:
 - `Create`: Success, database errors, foreign key constraints
@@ -281,6 +282,7 @@ The project includes three types of tests:
 - `JapaneseStudent/services/auth-service/internal/services/auth_service_test.go`
 - `JapaneseStudent/services/auth-service/internal/services/user_settings_service_test.go`
 - `JapaneseStudent/services/auth-service/internal/services/admin_service_test.go`
+- `JapaneseStudent/services/auth-service/internal/services/profile_service_test.go`
 
 **AuthService Test Coverage** (32+ test cases):
 - `Register`: Success, invalid email formats, password validation, empty username, duplicate email/username, database errors
@@ -301,6 +303,14 @@ The project includes three types of tests:
 - `GetTutorsList`: Success with tutors, success with empty list, repository errors
 - Note: Avatar upload/delete functionality requires media-service integration (tested in integration tests)
 - Note: ScheduleTasks functionality requires task-service integration (not unit tested, tested in integration tests)
+
+**ProfileService Test Coverage** (27+ test cases):
+- `NewProfileService`: Service initialization
+- `GetUser`: Success, user not found, invalid user ID, success without avatar
+- `UpdateUser`: Success update username only, success update email only, success update both, no fields provided, invalid email format, email already exists, username already exists, email/username belongs to current user (allowed), invalid user ID, update error
+- `UpdatePassword`: Success, empty password, password too short, password missing uppercase, password missing lowercase, password missing number, password missing special character, invalid user ID, update password error
+- `UpdateAvatar`: Invalid user ID, user not found, media base URL not configured
+- Note: Full avatar upload tests require HTTP client mocking (tested in integration tests)
 
 **Status**: ✅ Tests created and ready to run (password regex issue fixed - now uses array of regex patterns instead of lookahead assertions)
 
@@ -514,6 +524,11 @@ The project includes three types of tests:
 - `TestIntegration_TokenCleaning` (1 test case): Success - deletes expired tokens, verifies valid tokens remain, validates deletion count
 - `TestIntegration_TokenCleaning_NoExpiredTokens` (1 test case): Success - handles case with no expired tokens (0 deleted is not an error)
 - `TestIntegration_TokenCleaning_RepositoryLayer` (1 test case): Direct repository test with real database, verifies DeleteExpiredTokens method
+- `TestIntegration_ProfileHandler` (13 test cases): 
+  - GET `/api/v6/profile`: Success get user profile, unauthorized get user profile
+  - PATCH `/api/v6/profile`: Success update username only, success update email only (with email verification flow), success update both fields (with email verification flow), validation error (no fields provided), validation error (invalid email format), unauthorized update user profile
+  - PUT `/api/v6/profile/password`: Success update password, validation error (empty password), validation error (password too short), validation error (password missing uppercase), unauthorized update password
+  - Note: Avatar update integration tests are not included (requires external media service, should be tested on live server)
 - `TestIntegration_RepositoryLayer` (6 test suites): Direct repository method tests
 - `TestIntegration_ServiceLayer` (3 test suites): Direct service method tests
 - `TestIntegration_UserSettingsRepositoryLayer`: Direct UserSettingsRepository tests with real database
@@ -705,6 +720,7 @@ The test suite aims for comprehensive coverage across all services and layers.
 - ✅ `ExistsByEmail` - email exists/doesn't exist, errors
 - ✅ `ExistsByUsername` - username exists/doesn't exist, errors
 - ✅ `GetTutorsList` - success with multiple tutors, success with empty list, database errors, scan errors
+- ✅ `UpdatePasswordHash` - success, user not found, database errors, rows affected errors
 
 #### auth-service UserTokenRepository:
 - ✅ `Create` - success, database errors, foreign key constraints
@@ -922,6 +938,12 @@ The test suite aims for comprehensive coverage across all services and layers.
 - ✅ `DeleteUser` - success, user not found, avatar deletion from media service, repository errors
 - ✅ `GetTutorsList` - success with tutors, success with empty list, repository errors
 
+#### auth-service ProfileService:
+- ✅ `GetUser` - success, user not found, invalid user ID, success without avatar
+- ✅ `UpdateUser` - success update username only, success update email only, success update both, no fields provided, invalid email format, email already exists, username already exists, email/username belongs to current user (allowed), invalid user ID, update error
+- ✅ `UpdatePassword` - success, empty password, password too short, password missing uppercase, password missing lowercase, password missing number, password missing special character, invalid user ID, update password error
+- ✅ `UpdateAvatar` - invalid user ID, user not found, media base URL not configured
+
 #### task-service EmailTemplateService:
 - ✅ `Create` - success, slug already exists, repository errors
 - ✅ `GetByID` - success, not found
@@ -1036,6 +1058,11 @@ The test suite aims for comprehensive coverage across all services and layers.
 - ✅ `POST /api/v6/auth/refresh` - token refresh
 - ✅ `GET /api/v6/settings` - get user settings
 - ✅ `PATCH /api/v6/settings` - update user settings
+- ✅ `GET /api/v6/profile` - get user profile (username, email, avatar)
+- ✅ `PATCH /api/v6/profile` - update user profile (username and/or email with email verification flow)
+- ✅ `PUT /api/v6/profile/password` - update user password with validation
+- ✅ `GET /api/v6/profile/settings` - get user settings (via profile handler)
+- ✅ `PATCH /api/v6/profile/settings` - update user settings (via profile handler)
 - ✅ `GET /api/v6/admin/users` - get paginated list of users with filters
 - ✅ `GET /api/v6/admin/users/{id}` - get user with settings
 - ✅ `POST /api/v6/admin/users` - create user with settings
@@ -1163,7 +1190,8 @@ Integration tests automatically seed test data before each test and clean up aft
 3. `JapaneseStudent/services/auth-service/internal/repositories/user_settings_repository_test.go`
 4. `JapaneseStudent/services/auth-service/internal/services/auth_service_test.go`
 5. `JapaneseStudent/services/auth-service/internal/services/user_settings_service_test.go`
-6. `JapaneseStudent/services/auth-service/test/integration/auth_test.go`
+6. `JapaneseStudent/services/auth-service/internal/services/profile_service_test.go`
+7. `JapaneseStudent/services/auth-service/test/integration/auth_test.go`
 7. `JapaneseStudent/services/learn-service/internal/repositories/word_repository_test.go`
 8. `JapaneseStudent/services/learn-service/internal/repositories/dictionary_history_repository_test.go`
 9. `JapaneseStudent/services/learn-service/internal/services/dictionary_service_test.go`
@@ -1186,12 +1214,12 @@ Integration tests automatically seed test data before each test and clean up aft
 2. `JapaneseStudent/services/learn-service/internal/repositories/repository_test.go` - Added CharacterLearnHistoryRepository tests
 3. `JapaneseStudent/services/learn-service/internal/services/service_test.go` - Added TestResultService tests
 4. `JapaneseStudent/services/learn-service/test/integration/characters_test.go` - Added test results, history, and dictionary tests
-5. `JapaneseStudent/services/auth-service/test/integration/auth_test.go` - Added user settings endpoint tests, GetTutorsList tests, admin endpoint tests, token cleaning tests
+5. `JapaneseStudent/services/auth-service/test/integration/auth_test.go` - Added user settings endpoint tests, GetTutorsList tests, admin endpoint tests, token cleaning tests, profile handler integration tests
 6. `JapaneseStudent/services/learn-service/internal/repositories/word_repository.go` - Fixed SQL query formatting bug in GetExcludingIDs
 7. `JapaneseStudent/services/learn-service/internal/services/admin_character_service_test.go` - Fixed missing ExistsByKatakanaOrHiragana method in mock repository
 8. `JapaneseStudent/services/auth-service/internal/services/admin_service_test.go` - Added GetTutorsList unit tests
 9. `JapaneseStudent/services/auth-service/internal/repositories/user_token_repository_test.go` - Added DeleteExpiredTokens unit tests
-10. `JapaneseStudent/services/auth-service/internal/repositories/user_repository_test.go` - Added GetTutorsList unit tests
+10. `JapaneseStudent/services/auth-service/internal/repositories/user_repository_test.go` - Added GetTutorsList unit tests, UpdatePasswordHash unit tests
 
 ## Continuous Integration
 
@@ -1257,8 +1285,8 @@ Test dependencies (automatically added to `go.mod`):
 ## Conclusion
 
 The comprehensive test suite has been successfully implemented with:
-- ✅ 250+ unit test cases across all services (including AdminCharacterService, AdminWordService, MediaService, AdminService with GetTutorsList, UserTokenRepository with DeleteExpiredTokens, and all task-service services)
-- ✅ 50+ integration test cases (including token cleaning tests, GetTutorsList tests, and comprehensive admin endpoint tests)
+- ✅ 275+ unit test cases across all services (including AdminCharacterService, AdminWordService, MediaService, AdminService with GetTutorsList, ProfileService, UserTokenRepository with DeleteExpiredTokens, UserRepository with UpdatePasswordHash, and all task-service services)
+- ✅ 60+ integration test cases (including token cleaning tests, GetTutorsList tests, profile handler tests, and comprehensive admin endpoint tests)
 - ✅ ~90% code coverage (estimated)
 - ✅ Following Go best practices and existing project patterns
 - ✅ All known issues resolved (password regex, float precision, SQL formatting, regex matching, empty result handling, admin service mock methods)

@@ -91,11 +91,12 @@ func main() {
 	// Initialize services
 	authService := services.NewAuthService(userRepo, userTokenRepo, userSettingsRepo, tokenGenerator, logger.Logger, cfg.MediaBaseURL, cfg.APIKey, cfg.ImmediateTaskBaseURL, cfg.VerificationURL)
 	userSettingsService := services.NewUserSettingsService(userSettingsRepo)
+	profileService := services.NewProfileService(userRepo, tokenGenerator, cfg.MediaBaseURL, cfg.APIKey, cfg.ImmediateTaskBaseURL, cfg.VerificationURL)
 
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(authService, logger.Logger)
 	adminService := services.NewAdminService(userRepo, userTokenRepo, userSettingsRepo, tokenGenerator, logger.Logger, cfg.MediaBaseURL, cfg.APIKey, cfg.ScheduledTaskBaseURL)
-	userSettingsHandler := handlers.NewUserSettingsHandler(userSettingsService, logger.Logger)
+	profileHandler := handlers.NewProfileHandler(profileService, userSettingsService, logger.Logger)
 	adminHandler := handlers.NewAdminHandler(adminService, logger.Logger, cfg.MediaBaseURL, cfg.IsDockerContainer, cfg.AuthServiceBaseURL)
 	tokenCleaningHandler := handlers.NewTokenCleaningHandler(userTokenRepo, logger.Logger, cfg.JWT.RefreshTokenExpiry)
 
@@ -124,8 +125,8 @@ func main() {
 	r.Route("/api/v6", func(r chi.Router) {
 		// Register auth routes
 		authHandler.RegisterRoutes(r)
-		// Register user settings routes
-		userSettingsHandler.RegisterRoutes(r, authMiddleware)
+		// Register profile routes
+		profileHandler.RegisterRoutes(r, authMiddleware)
 		// Register token cleaning routes with API key middleware
 		r.Group(func(r chi.Router) {
 			r.Use(apiKeyMiddleware)

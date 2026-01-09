@@ -51,7 +51,7 @@ func (m *mockAdminUserRepository) GetAll(ctx context.Context, page, count int, r
 	return m.users, nil
 }
 
-func (m *mockAdminUserRepository) Update(ctx context.Context, userID int, user *models.User, settings *models.UserSettings) error {
+func (m *mockAdminUserRepository) Update(ctx context.Context, userID int, user *models.User, settings *models.UserSettings, active *bool) error {
 	if m.updateErr != nil {
 		return m.updateErr
 	}
@@ -73,6 +73,13 @@ func (m *mockAdminUserRepository) GetTutorsList(ctx context.Context) ([]models.T
 }
 
 func (m *mockAdminUserRepository) UpdateActive(ctx context.Context, userID int, active bool) error {
+	return m.err
+}
+
+func (m *mockAdminUserRepository) UpdatePasswordHash(ctx context.Context, userID int, passwordHash string) error {
+	if m.updateErr != nil {
+		return m.updateErr
+	}
 	return m.err
 }
 
@@ -729,6 +736,130 @@ func TestAdminService_GetTutorsList(t *testing.T) {
 				assert.NotNil(t, result)
 				assert.Len(t, result, tt.expectedCount)
 				assert.Equal(t, tt.expectedTutors, result)
+			}
+		})
+	}
+}
+
+func TestAdminService_UpdateUserPassword(t *testing.T) {
+	tests := []struct {
+		name          string
+		userID        int
+		password      string
+		mockUserRepo  *mockAdminUserRepository
+		expectedError bool
+		errorContains string
+	}{
+		{
+			name:     "success",
+			userID:   1,
+			password: "Password123!",
+			mockUserRepo: &mockAdminUserRepository{
+				err: nil,
+			},
+			expectedError: false,
+		},
+		{
+			name:          "invalid user id zero",
+			userID:        0,
+			password:      "Password123!",
+			mockUserRepo:  &mockAdminUserRepository{},
+			expectedError: true,
+			errorContains: "invalid user id",
+		},
+		{
+			name:          "invalid user id negative",
+			userID:        -1,
+			password:      "Password123!",
+			mockUserRepo:  &mockAdminUserRepository{},
+			expectedError: true,
+			errorContains: "invalid user id",
+		},
+		{
+			name:          "password too short",
+			userID:        1,
+			password:      "Pass1!",
+			mockUserRepo:  &mockAdminUserRepository{},
+			expectedError: true,
+			errorContains: "password must be at least 8 characters",
+		},
+		{
+			name:          "password missing uppercase",
+			userID:        1,
+			password:      "password123!",
+			mockUserRepo:  &mockAdminUserRepository{},
+			expectedError: true,
+			errorContains: "password must be at least 8 characters",
+		},
+		{
+			name:          "password missing lowercase",
+			userID:        1,
+			password:      "PASSWORD123!",
+			mockUserRepo:  &mockAdminUserRepository{},
+			expectedError: true,
+			errorContains: "password must be at least 8 characters",
+		},
+		{
+			name:          "password missing number",
+			userID:        1,
+			password:      "Password!",
+			mockUserRepo:  &mockAdminUserRepository{},
+			expectedError: true,
+			errorContains: "password must be at least 8 characters",
+		},
+		{
+			name:          "password missing special character",
+			userID:        1,
+			password:      "Password123",
+			mockUserRepo:  &mockAdminUserRepository{},
+			expectedError: true,
+			errorContains: "password must be at least 8 characters",
+		},
+		{
+			name:          "password contains semicolon",
+			userID:        1,
+			password:      "Password123!;",
+			mockUserRepo:  &mockAdminUserRepository{},
+			expectedError: true,
+			errorContains: "password cannot contain ';' character",
+		},
+		{
+			name:     "repository error",
+			userID:   1,
+			password: "Password123!",
+			mockUserRepo: &mockAdminUserRepository{
+				updateErr: errors.New("database error"),
+			},
+			expectedError: true,
+		},
+		{
+			name:     "user not found",
+			userID:   1,
+			password: "Password123!",
+			mockUserRepo: &mockAdminUserRepository{
+				updateErr: errors.New("user not found"),
+			},
+			expectedError: true,
+			errorContains: "user not found",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tokenGen := service.NewTokenGenerator("test-secret", 3600, 604800)
+			logger := zaptest.NewLogger(t)
+			svc := NewAdminService(tt.mockUserRepo, &mockAdminUserTokenRepository{}, &mockUserSettingsRepository{}, tokenGen, logger, "", "", "")
+			ctx := context.Background()
+
+			err := svc.UpdateUserPassword(ctx, tt.userID, tt.password)
+
+			if tt.expectedError {
+				assert.Error(t, err)
+				if tt.errorContains != "" {
+					assert.Contains(t, err.Error(), tt.errorContains)
+				}
+			} else {
+				assert.NoError(t, err)
 			}
 		})
 	}

@@ -75,3 +75,15 @@ type TutorListItem struct {
 	ID       int    `json:"id"`
 	Username string `json:"username"`
 }
+
+// ProfileResponse represents a user profile in the response
+type ProfileResponse struct {
+	Username string `json:"username"`
+	Email    string `json:"email"`
+	Avatar   string `json:"avatar,omitempty"`
+}
+
+// UpdatePasswordRequest represents a request to update password
+type UpdatePasswordRequest struct {
+	Password string `json:"password"`
+}

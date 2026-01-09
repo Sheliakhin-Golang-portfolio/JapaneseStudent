@@ -47,6 +47,12 @@ type AuthService interface {
 	//
 	// If user does not exist, user already verified, or email sending fails, the error will be returned.
 	ResendVerificationEmail(ctx context.Context, email string) error
+	// Method ForgotPassword generates a new password and sends it via email.
+	//
+	// "email" parameter is the user's email address.
+	//
+	// If user does not exist, password generation fails, or email sending fails, the error will be returned.
+	ForgotPassword(ctx context.Context, email string) error
 }
 
 // AuthHandler handles authentication-related HTTP requests
@@ -75,6 +81,7 @@ func (h *AuthHandler) RegisterRoutes(r chi.Router) {
 		r.Post("/refresh", h.Refresh)
 		r.Get("/verify-email", h.VerifyEmail)
 		r.Post("/resend-verification", h.ResendVerificationEmail)
+		r.Post("/forgot-password", h.ForgotPassword)
 	})
 }
 
@@ -347,4 +354,51 @@ func (h *AuthHandler) ResendVerificationEmail(w http.ResponseWriter, r *http.Req
 
 	// Return success response
 	h.RespondJSON(w, http.StatusOK, map[string]string{"message": "verification email sent successfully"})
+}
+
+// ForgotPasswordRequest represents a forgot password request
+type ForgotPasswordRequest struct {
+	Email string `json:"email"`
+}
+
+// ForgotPassword handles POST /auth/forgot-password
+// @Summary Forgot password
+// @Description Generate a new password and send it via email to the user. If email does not exist, returns 404.
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param request body ForgotPasswordRequest true "Forgot password request"
+// @Success 200 {object} map[string]string "Password reset email sent successfully"
+// @Failure 400 {object} map[string]string "Invalid request body"
+// @Failure 404 {object} map[string]string "User not found"
+// @Failure 500 {object} map[string]string "Internal server error or email sending failed"
+// @Router /auth/forgot-password [post]
+func (h *AuthHandler) ForgotPassword(w http.ResponseWriter, r *http.Request) {
+	var req ForgotPasswordRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.RespondError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	if req.Email == "" {
+		h.RespondError(w, http.StatusBadRequest, "email is required")
+		return
+	}
+
+	// Process forgot password
+	err := h.authService.ForgotPassword(r.Context(), req.Email)
+	if err != nil {
+		h.Logger.Error("failed to process forgot password", zap.Error(err))
+		errStatus := http.StatusInternalServerError
+		if strings.Contains(err.Error(), "does not exist") {
+			errStatus = http.StatusNotFound // 404 Not Found
+		} else if strings.Contains(err.Error(), "contact administrators") {
+			errStatus = http.StatusInternalServerError // 500 - email sending failed
+		}
+		h.RespondError(w, errStatus, err.Error())
+		return
+	}
+
+	// Return success response
+	h.RespondJSON(w, http.StatusOK, map[string]string{"message": "password reset email sent successfully"})
 }

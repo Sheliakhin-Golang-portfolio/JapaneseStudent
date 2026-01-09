@@ -104,7 +104,7 @@ services:
       JWT_REFRESH_TOKEN_EXPIRY: ${JWT_REFRESH_TOKEN_EXPIRY:-168h}
       API_KEY: ${API_KEY}
       MEDIA_BASE_PATH: ${MEDIA_BASE_PATH:-/app/media}
-      BASE_URL: ${BASE_URL:-http://media-service:8082}
+      BASE_URL: ${MEDIA_ACCESS_BASE_URL:-http://localhost:8082}
     ports:
       - "${MEDIA_SERVICE_PORT:-8082}:8082"
     depends_on:

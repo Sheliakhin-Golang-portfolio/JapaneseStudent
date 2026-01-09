@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"mime/multipart"
 	"net/http"
@@ -71,6 +72,13 @@ type AdminService interface {
 	//
 	// If some other error occurs, the error will be returned.
 	ScheduleTasks(ctx context.Context, tokenCleaningURL string) error
+	// Method UpdateUserPassword updates a user's password.
+	//
+	// "userID" parameter is used to specify the user ID.
+	// "password" parameter is the new password.
+	//
+	// If some other error occurs, the error will be returned.
+	UpdateUserPassword(ctx context.Context, userID int, password string) error
 }
 
 // AdminHandler handles admin-related HTTP requests
@@ -108,6 +116,7 @@ func (h *AdminHandler) RegisterRoutes(r chi.Router) {
 		r.Post("/users", h.CreateUser)
 		r.Post("/users/{id}/settings", h.CreateUserSettings)
 		r.Patch("/users/{id}", h.UpdateUserWithSettings)
+		r.Patch("/users/{id}/password", h.UpdateUserPassword)
 		r.Delete("/users/{id}", h.DeleteUser)
 		r.Get("/tutors", h.GetTutorsList)
 		r.Post("/tasks/schedule-token-cleaning", h.ScheduleTokenCleaningTask)
@@ -486,6 +495,54 @@ func (h *AdminHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 		}
 		if err.Error() == "invalid user id" || err.Error() == "user not found" {
 			errStatus = http.StatusNotFound
+		}
+		h.RespondError(w, errStatus, err.Error())
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// UpdateUserPassword handles PATCH /admin/users/{id}/password
+// @Summary Update user password
+// @Description Update a user's password by user ID
+// @Tags admin
+// @Accept json
+// @Produce json
+// @Param id path int true "User ID"
+// @Param request body models.UpdatePasswordRequest true "Password update request"
+// @Success 204 "No Content"
+// @Failure 400 {object} map[string]string "Invalid request or password validation failed"
+// @Failure 404 {object} map[string]string "User not found"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Router /admin/users/{id}/password [patch]
+func (h *AdminHandler) UpdateUserPassword(w http.ResponseWriter, r *http.Request) {
+	// Parse user ID
+	userIDStr := chi.URLParam(r, "id")
+	userID, err := strconv.Atoi(userIDStr)
+	if err != nil {
+		h.Logger.Error("failed to parse user ID", zap.Error(err))
+		h.RespondError(w, http.StatusBadRequest, "invalid user ID")
+		return
+	}
+
+	// Parse request body
+	var req models.UpdatePasswordRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.Logger.Error("failed to decode request body", zap.Error(err))
+		h.RespondError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	// Update user password
+	err = h.adminService.UpdateUserPassword(r.Context(), userID, req.Password)
+	if err != nil {
+		h.Logger.Error("failed to update user password", zap.Error(err))
+		errStatus := http.StatusInternalServerError
+		if err.Error() == "invalid user id" || err.Error() == "user not found" {
+			errStatus = http.StatusNotFound
+		} else if strings.Contains(err.Error(), "password") || strings.Contains(err.Error(), "invalid") {
+			errStatus = http.StatusBadRequest
 		}
 		h.RespondError(w, errStatus, err.Error())
 		return

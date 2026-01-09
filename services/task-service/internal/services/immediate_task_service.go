@@ -94,9 +94,9 @@ func (s *immediateTaskService) checkCreateImmediateTaskValidation(ctx context.Co
 		templateIDChan <- templateID
 	}()
 
-	// Check if user ID is provided and is positive
+	// Check if user ID is provided and is not negative
 	go func() {
-		if req.UserID <= 0 {
+		if req.UserID < 0 {
 			errChan <- fmt.Errorf("user ID is required")
 			return
 		}
@@ -177,9 +177,9 @@ func (s *immediateTaskService) checkCreateAdminImmediateTaskValidation(ctx conte
 		errChan <- nil
 	}()
 
-	// Check if user ID is provided and is positive
+	// Check if user ID is provided and is not negative
 	go func() {
-		if req.UserID <= 0 {
+		if req.UserID < 0 {
 			errChan <- fmt.Errorf("user ID is required")
 			return
 		}
@@ -259,9 +259,9 @@ func (s *immediateTaskService) Update(ctx context.Context, id int, req *models.U
 func (s *immediateTaskService) checkUpdateImmediateTaskValidation(ctx context.Context, req *models.UpdateImmediateTaskRequest) error {
 	errChan := make(chan error, 4)
 
-	// Check if user ID is provided and is positive
+	// Check if user ID is provided and is not negative
 	go func() {
-		if req.UserID != nil && *req.UserID <= 0 {
+		if req.UserID != nil && *req.UserID < 0 {
 			errChan <- fmt.Errorf("user ID is invalid")
 			return
 		}

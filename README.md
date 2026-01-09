@@ -17,7 +17,7 @@ JapaneseStudent is a Go microservices-based application to help people learn hir
 
 The project follows a **microservices architecture** with the following services:
 
-1. **auth-service** - User authentication and authorization (Port: 8081)
+1. **auth-service** - User authentication, authorization, and profile management (Port: 8081)
 2. **learn-service** - Character learning, word dictionary, and test management (Port: 8080)
 3. **media-service** - Media file management (upload, download, metadata) (Port: 8082)
 4. **task-service** - Task queue and scheduler for immediate and scheduled tasks (Port: 8083)
@@ -53,6 +53,7 @@ JapaneseStudent/
 │   │   │   ├── handlers/          # HTTP handlers
 │   │   │   │   ├── auth_handler.go
 │   │   │   │   ├── admin_handler.go
+│   │   │   │   ├── profile_handler.go
 │   │   │   │   ├── user_settings_handler.go
 │   │   │   │   └── token_cleaning_handler.go
 │   │   │   ├── models/           # Domain models
@@ -71,6 +72,8 @@ JapaneseStudent/
 │   │   │       ├── auth_service_test.go
 │   │   │       ├── admin_service.go
 │   │   │       ├── admin_service_test.go
+│   │   │       ├── profile_service.go
+│   │   │       ├── profile_service_test.go
 │   │   │       ├── user_settings_service.go
 │   │   │       └── user_settings_service_test.go
 │   │   ├── migrations/            # Database migrations
@@ -292,11 +295,13 @@ BASE_URL=http://localhost:8082
 # Media service base URL (required for auth-service avatar upload/delete functionality)
 MEDIA_BASE_URL=http://localhost:8082
 
-# Auth Service Configuration (required for auth-service email verification and token cleaning)
-# Verification URL for email verification links (required for registration flow)
+# Auth Service Configuration (required for auth-service email verification, profile updates, and token cleaning)
+# Verification URL for email verification links (required for registration flow and email updates)
 VERIFICATION_URL=http://localhost:8081/api/v6/auth/verify-email
-# Task service base URL for creating immediate tasks (required for sending verification emails)
+# Task service base URL for creating immediate tasks (required for sending verification emails and profile email updates)
+# Can use either IMMEDIATE_TASK_BASE_URL or TASK_BASE_URL (TASK_BASE_URL is used as fallback)
 IMMEDIATE_TASK_BASE_URL=http://localhost:8083/api/v6/tasks/immediate
+TASK_BASE_URL=http://localhost:8083/api/v6/tasks/immediate
 # Task service base URL for creating scheduled tasks (required for token cleaning task scheduling)
 SCHEDULED_TASK_BASE_URL=http://localhost:8083/api/v6/tasks/scheduled
 
@@ -373,8 +378,8 @@ migrate -path services/task-service/migrations -database "mysql://user:password@
 1. `000001_create_users_table` - Creates users table with email, username, password_hash, and role
 2. `000002_create_user_tokens_table` - Creates user_tokens table for refresh token storage with `created_at` timestamp for expiration tracking (used for token cleaning)
 3. `000003_create_user_settings_table` - Creates user_settings table for user preferences
-4. `000004_add_avatar_to_users_table` - Adds avatar column to users table
-5. `000005_add_active_to_users_table` - Adds active column to users table (default: FALSE)
+4. `000004_add_avatar_to_users_table` - Adds avatar column to users table (VARCHAR(500), nullable)
+5. `000005_add_active_to_users_table` - Adds active column to users table (BOOLEAN, default: FALSE) for email verification
 
 **Learn Service Migrations:**
 1. `000001_create_characters_table` - Creates characters table for hiragana/katakana characters
@@ -454,7 +459,8 @@ The task API will be available at `http://localhost:8083`
 **Note**: 
 - media-service requires `MEDIA_BASE_PATH` environment variable to be set for file storage.
 - auth-service requires `MEDIA_BASE_URL` and `API_KEY` environment variables to be set for avatar upload/delete functionality.
-- auth-service requires `IMMEDIATE_TASK_BASE_URL` for sending verification emails and `SCHEDULED_TASK_BASE_URL` with `API_KEY` for token cleaning task scheduling functionality.
+- auth-service requires `IMMEDIATE_TASK_BASE_URL` (or `TASK_BASE_URL`) for sending verification emails and profile email updates, and `SCHEDULED_TASK_BASE_URL` with `API_KEY` for token cleaning task scheduling functionality.
+- auth-service requires `VERIFICATION_URL` environment variable for email verification links.
 - task-service requires Redis to be running and configured via `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD`, and `REDIS_DB` environment variables.
 
 ## Docker Deployment
@@ -542,10 +548,36 @@ docker-compose down -v
   - Errors:
     - 400 Bad Request: Invalid token or email not verified
 
+#### Profile Management (Requires Authentication)
+- `GET /api/v6/profile` - Get user profile information
+  - Returns: User profile including username, email, and avatar URL
+- `PATCH /api/v6/profile` - Update user profile (username and/or email)
+  - Body: `{ "username": "newusername", "email": "newemail@example.com" }`
+  - At least one field (username or email) must be provided
+  - Email updates require email verification (user account becomes inactive until verified)
+  - Returns: 204 No Content on success
+  - Note: Email updates trigger a verification email via task-service
+- `PUT /api/v6/profile/avatar` - Update user avatar
+  - Content-Type: `multipart/form-data`
+  - Form Fields:
+    - `avatar` (required): Avatar image file
+  - Returns: Avatar URL
+  - Note: Avatar file is uploaded to media-service and old avatar is automatically deleted
+- `PUT /api/v6/profile/password` - Update user password
+  - Body: `{ "password": "NewPassword123!" }`
+  - Password must meet password requirements (see Password Requirements section)
+  - Returns: 204 No Content on success
+
 #### User Settings (Requires Authentication)
 - `GET /api/v6/settings` - Get user settings for the authenticated user
   - Returns: User settings including word counts, alphabet learn count, and language preference
 - `PATCH /api/v6/settings` - Update user settings
+  - Body: `{ "newWordCount": 20, "oldWordCount": 20, "alphabetLearnCount": 10, "language": "en" }`
+  - At least one field must be provided
+  - Returns: 204 No Content on success
+- `GET /api/v6/profile/settings` - Get user settings (via profile handler)
+  - Returns: User settings including word counts, alphabet learn count, and language preference
+- `PATCH /api/v6/profile/settings` - Update user settings (via profile handler)
   - Body: `{ "newWordCount": 20, "oldWordCount": 20, "alphabetLearnCount": 10, "language": "en" }`
   - At least one field must be provided
   - Returns: 204 No Content on success
@@ -1043,7 +1075,7 @@ go test ./services/.../test/integration/... -v -cover
 ```
 
 **Integration Test Coverage:**
-- ✅ **auth-service**: Full end-to-end API tests, repository layer tests, service layer tests (40+ test cases)
+- ✅ **auth-service**: Full end-to-end API tests, repository layer tests, service layer tests, profile handler tests (60+ test cases)
 - ✅ **learn-service**: Character tests, dictionary tests, course/lesson tests, repository and service layer tests (60+ test cases)
 - ✅ **task-service**: Repository and service layer tests with Redis and Asynq integration (10+ test cases)
 - ⚠️ **media-service**: Integration tests not yet implemented

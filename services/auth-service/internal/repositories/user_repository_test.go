@@ -836,7 +836,7 @@ func TestUserRepository_Update(t *testing.T) {
 
 			tt.setupMock(mock)
 
-			err := repo.Update(context.Background(), tt.userID, tt.user, tt.settings)
+			err := repo.Update(context.Background(), tt.userID, tt.user, tt.settings, nil)
 
 			if tt.expectedError {
 				assert.Error(t, err)
@@ -951,8 +951,8 @@ func TestUserRepository_GetTutorsList(t *testing.T) {
 				mock.ExpectQuery(`SELECT id, username FROM users WHERE role = 2`).
 					WillReturnRows(rows)
 			},
-			expectedError: false,
-			expectedCount: 0,
+			expectedError:  false,
+			expectedCount:  0,
 			expectedTutors: nil, // nil slice is equivalent to empty slice in Go
 		},
 		{
@@ -961,8 +961,8 @@ func TestUserRepository_GetTutorsList(t *testing.T) {
 				mock.ExpectQuery(`SELECT id, username FROM users WHERE role = 2`).
 					WillReturnError(errors.New("database error"))
 			},
-			expectedError: true,
-			expectedCount: 0,
+			expectedError:  true,
+			expectedCount:  0,
 			expectedTutors: nil,
 		},
 		{
@@ -973,8 +973,8 @@ func TestUserRepository_GetTutorsList(t *testing.T) {
 				mock.ExpectQuery(`SELECT id, username FROM users WHERE role = 2`).
 					WillReturnRows(rows)
 			},
-			expectedError: true,
-			expectedCount: 0,
+			expectedError:  true,
+			expectedCount:  0,
 			expectedTutors: nil,
 		},
 		{
@@ -986,8 +986,8 @@ func TestUserRepository_GetTutorsList(t *testing.T) {
 				mock.ExpectQuery(`SELECT id, username FROM users WHERE role = 2`).
 					WillReturnRows(rows)
 			},
-			expectedError: true,
-			expectedCount: 0,
+			expectedError:  true,
+			expectedCount:  0,
 			expectedTutors: nil,
 		},
 	}
@@ -1012,6 +1012,80 @@ func TestUserRepository_GetTutorsList(t *testing.T) {
 					assert.Equal(t, tt.expectedTutors, result)
 				}
 				// For empty list (expectedTutors == nil), assert.Len already validates length
+			}
+
+			assert.NoError(t, mock.ExpectationsWereMet())
+		})
+	}
+}
+
+func TestUserRepository_UpdatePasswordHash(t *testing.T) {
+	tests := []struct {
+		name          string
+		userID        int
+		passwordHash  string
+		setupMock     func(sqlmock.Sqlmock)
+		expectedError bool
+	}{
+		{
+			name:         "success",
+			userID:       1,
+			passwordHash: "$2a$10$hashedpassword",
+			setupMock: func(mock sqlmock.Sqlmock) {
+				mock.ExpectExec(`UPDATE users SET password_hash = \? WHERE id = \?`).
+					WithArgs("$2a$10$hashedpassword", 1).
+					WillReturnResult(sqlmock.NewResult(0, 1))
+			},
+			expectedError: false,
+		},
+		{
+			name:         "user not found",
+			userID:       999,
+			passwordHash: "$2a$10$hashedpassword",
+			setupMock: func(mock sqlmock.Sqlmock) {
+				mock.ExpectExec(`UPDATE users SET password_hash = \? WHERE id = \?`).
+					WithArgs("$2a$10$hashedpassword", 999).
+					WillReturnResult(sqlmock.NewResult(0, 0))
+			},
+			expectedError: true,
+		},
+		{
+			name:         "database error",
+			userID:       1,
+			passwordHash: "$2a$10$hashedpassword",
+			setupMock: func(mock sqlmock.Sqlmock) {
+				mock.ExpectExec(`UPDATE users SET password_hash = \? WHERE id = \?`).
+					WithArgs("$2a$10$hashedpassword", 1).
+					WillReturnError(errors.New("database error"))
+			},
+			expectedError: true,
+		},
+		{
+			name:         "error getting rows affected",
+			userID:       1,
+			passwordHash: "$2a$10$hashedpassword",
+			setupMock: func(mock sqlmock.Sqlmock) {
+				mock.ExpectExec(`UPDATE users SET password_hash = \? WHERE id = \?`).
+					WithArgs("$2a$10$hashedpassword", 1).
+					WillReturnResult(sqlmock.NewErrorResult(errors.New("rows affected error")))
+			},
+			expectedError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo, mock, cleanup := setupUserTestRepository(t)
+			defer cleanup()
+
+			tt.setupMock(mock)
+
+			err := repo.UpdatePasswordHash(context.Background(), tt.userID, tt.passwordHash)
+
+			if tt.expectedError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
 			}
 
 			assert.NoError(t, mock.ExpectationsWereMet())
