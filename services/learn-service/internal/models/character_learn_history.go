@@ -32,3 +32,8 @@ type TestResultItem struct {
 	CharacterID int  `json:"characterId"`
 	Passed      bool `json:"passed"`
 }
+
+// SubmitTestResultsResult represents the result of submitting test results
+type SubmitTestResultsResult struct {
+	AskForRepeat bool `json:"askForRepeat"`
+}

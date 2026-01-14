@@ -28,6 +28,12 @@ type UserSettingsRepository interface {
 	//
 	// If some error occurs during user settings update, the error will be returned together with "nil" value.
 	Update(ctx context.Context, userId int, settings *models.UserSettings) error
+	// Method ExistsByUserId checks if user settings exist for a given user ID
+	//
+	// "userId" parameter is used to check if user settings exist by user ID.
+	//
+	// If some error occurs during user settings existence check, the error will be returned together with "false" value.
+	ExistsByUserId(ctx context.Context, userId int) (bool, error)
 }
 
 // userSettingsService implements UserSettingsService
@@ -54,6 +60,7 @@ func (s *userSettingsService) GetUserSettings(ctx context.Context, userId int) (
 		OldWordCount:       settings.OldWordCount,
 		AlphabetLearnCount: settings.AlphabetLearnCount,
 		Language:           settings.Language,
+		AlphabetRepeat:     settings.AlphabetRepeat,
 	}, nil
 }
 
@@ -72,12 +79,54 @@ func (s *userSettingsService) GetUserSettings(ctx context.Context, userId int) (
 //
 // If some error occurs during user settings update, the error will be returned together with "nil" value.
 func (s *userSettingsService) UpdateUserSettings(ctx context.Context, userId int, updateRequest *models.UpdateUserSettingsRequest) error {
+	// Validate update request
+	if err := s.validateUpdateUserSettingsData(ctx, userId, updateRequest); err != nil {
+		return err
+	}
+
+	// Update settings
+	settings := &models.UserSettings{
+		UserID:         userId,
+		AlphabetRepeat: models.RepeatTypeInQuestion,
+		Language:       models.LanguageEnglish,
+	}
+	if updateRequest.NewWordCount != nil {
+		settings.NewWordCount = *updateRequest.NewWordCount
+	}
+	if updateRequest.OldWordCount != nil {
+		settings.OldWordCount = *updateRequest.OldWordCount
+	}
+	if updateRequest.AlphabetLearnCount != nil {
+		settings.AlphabetLearnCount = *updateRequest.AlphabetLearnCount
+	}
+
+	err := s.repo.Update(ctx, userId, settings)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// validateUpdateUserSettingsData validates the update request data
+//
+// For successful results:
+//
+// - newWordCount and oldWordCount must be between 10 and 40
+//
+// - alphabetLearnCount must be between 5 and 15
+//
+// - language must be "en", "ru", or "de"
+func (s *userSettingsService) validateUpdateUserSettingsData(ctx context.Context, userId int, updateRequest *models.UpdateUserSettingsRequest) error {
+	// Validate that at least one field is provided
+	if updateRequest.NewWordCount == nil && updateRequest.OldWordCount == nil && updateRequest.AlphabetLearnCount == nil && updateRequest.Language == "" && updateRequest.AlphabetRepeat == "" {
+		return fmt.Errorf("at least one field must be provided")
+	}
+
 	if userId <= 0 {
 		return fmt.Errorf("invalid user id")
 	}
 
-	errorChan := make(chan error, 5)
-	settingsChan := make(chan *models.UserSettings, 1)
+	errorChan := make(chan error, 6)
 
 	go func() {
 		if updateRequest.NewWordCount != nil && (*updateRequest.NewWordCount < 10 || *updateRequest.NewWordCount > 40) {
@@ -107,13 +156,17 @@ func (s *userSettingsService) UpdateUserSettings(ctx context.Context, userId int
 
 	// Validate language
 	go func() {
-		if updateRequest.Language == nil {
-			errorChan <- nil
+		if updateRequest.Language != "" && updateRequest.Language != models.LanguageEnglish && updateRequest.Language != models.LanguageRussian && updateRequest.Language != models.LanguageGerman {
+			errorChan <- fmt.Errorf("invalid language: %s, must be 'en', 'ru', or 'de'", updateRequest.Language)
 			return
 		}
-		language := models.Language(string(*updateRequest.Language))
-		if language != models.LanguageEnglish && language != models.LanguageRussian && language != models.LanguageGerman {
-			errorChan <- fmt.Errorf("invalid language: %s, must be 'en', 'ru', or 'de'", language)
+		errorChan <- nil
+	}()
+
+	// Validate alphabetRepeat
+	go func() {
+		if updateRequest.AlphabetRepeat != "" && updateRequest.AlphabetRepeat != "in question" && updateRequest.AlphabetRepeat != "ignore" && updateRequest.AlphabetRepeat != "repeat" {
+			errorChan <- fmt.Errorf("invalid alphabetRepeat: %s, must be 'in question', 'ignore', or 'repeat'", updateRequest.AlphabetRepeat)
 			return
 		}
 		errorChan <- nil
@@ -121,42 +174,25 @@ func (s *userSettingsService) UpdateUserSettings(ctx context.Context, userId int
 
 	// Get existing settings to preserve unchanged fields
 	go func() {
-		existingSettings, err := s.repo.GetByUserId(ctx, userId)
+		exists, err := s.repo.ExistsByUserId(ctx, userId)
 		if err != nil {
 			errorChan <- err
-			settingsChan <- nil
 			return
 		}
-		settingsChan <- existingSettings
+		if !exists {
+			errorChan <- fmt.Errorf("user settings not found")
+			return
+		}
 		errorChan <- nil
 	}()
 
 	// Wait for all validations to complete
-	for range 5 {
+	for range 6 {
 		err := <-errorChan
 		if err != nil {
 			return err
 		}
 	}
 
-	// Update settings
-	settings := <-settingsChan
-	if updateRequest.NewWordCount != nil {
-		settings.NewWordCount = *updateRequest.NewWordCount
-	}
-	if updateRequest.OldWordCount != nil {
-		settings.OldWordCount = *updateRequest.OldWordCount
-	}
-	if updateRequest.AlphabetLearnCount != nil {
-		settings.AlphabetLearnCount = *updateRequest.AlphabetLearnCount
-	}
-	if updateRequest.Language != nil {
-		settings.Language = *updateRequest.Language
-	}
-
-	err := s.repo.Update(ctx, userId, settings)
-	if err != nil {
-		return err
-	}
 	return nil
 }

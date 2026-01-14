@@ -49,6 +49,7 @@ type UserWithSettingsResponse struct {
 	Email    string        `json:"email"`
 	Role     Role          `json:"role"`
 	Avatar   string        `json:"avatar,omitempty"`
+	Active   bool          `json:"active"`
 	Settings *UserSettings `json:"settings,omitempty"`
 	Message  string        `json:"message,omitempty"`
 }

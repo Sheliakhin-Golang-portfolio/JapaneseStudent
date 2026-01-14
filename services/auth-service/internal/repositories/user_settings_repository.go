@@ -37,7 +37,7 @@ func (r *userSettingsRepository) Create(ctx context.Context, userId int) error {
 // GetByUserId retrieves user settings by user ID
 func (r *userSettingsRepository) GetByUserId(ctx context.Context, userId int) (*models.UserSettings, error) {
 	query := `
-		SELECT id, user_id, new_word_count, old_word_count, alphabet_learn_count, language
+		SELECT id, user_id, new_word_count, old_word_count, alphabet_learn_count, language, alphabet_repeat
 		FROM user_settings
 		WHERE user_id = ?
 		LIMIT 1
@@ -52,6 +52,7 @@ func (r *userSettingsRepository) GetByUserId(ctx context.Context, userId int) (*
 		&userSettings.OldWordCount,
 		&userSettings.AlphabetLearnCount,
 		&languageStr,
+		&userSettings.AlphabetRepeat,
 	)
 
 	if err == sql.ErrNoRows {
@@ -86,6 +87,10 @@ func (r *userSettingsRepository) Update(ctx context.Context, userId int, setting
 		setClauses = append(setClauses, "language = ?")
 		args = append(args, string(settings.Language))
 	}
+	if settings.AlphabetRepeat != "" {
+		setClauses = append(setClauses, "alphabet_repeat = ?")
+		args = append(args, settings.AlphabetRepeat)
+	}
 	if len(setClauses) == 0 {
 		return fmt.Errorf("no fields to update")
 	}
@@ -112,4 +117,17 @@ func (r *userSettingsRepository) Update(ctx context.Context, userId int, setting
 	}
 
 	return nil
+}
+
+// ExistsByUserId checks if user settings exist for a given user ID
+func (r *userSettingsRepository) ExistsByUserId(ctx context.Context, userId int) (bool, error) {
+	query := "SELECT EXISTS(SELECT * FROM user_settings WHERE user_id = ?)"
+
+	var exists bool
+	err := r.db.QueryRowContext(ctx, query, userId).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("failed to check if user settings exists: %w", err)
+	}
+
+	return exists, nil
 }

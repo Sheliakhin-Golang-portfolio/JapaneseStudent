@@ -57,7 +57,7 @@ type AdminService interface {
 	//
 	// We cannot ignore error about settings not exists forever, so that`s where we will signal admin that it is not good.
 	// If some other error occurs, the error will be returned.
-	UpdateUserWithSettings(ctx context.Context, userID int, userData *models.UpdateUserWithSettingsRequest, avatarFile multipart.File, avatarFilename string) error
+	UpdateUserWithSettings(r *http.Request, userID int, userData *models.UpdateUserWithSettingsRequest, avatarFile multipart.File, avatarFilename string) error
 	// Method DeleteUser deletes a user by ID.
 	//
 	// If some other error occurs, the error will be returned.
@@ -353,6 +353,7 @@ func (h *AdminHandler) CreateUserSettings(w http.ResponseWriter, r *http.Request
 // @Param oldWordCount formData int false "Old word count"
 // @Param alphabetLearnCount formData int false "Alphabet learn count"
 // @Param language formData string false "Language (en, ru, de)"
+// @Param alphabetRepeat formData string false "Alphabet repeat (in question, ignore, repeat)"
 // @Param avatar formData file false "Avatar image (optional)"
 // @Success 204 "No Content"
 // @Failure 400 {object} map[string]string "Invalid request"
@@ -395,9 +396,15 @@ func (h *AdminHandler) UpdateUserWithSettings(w http.ResponseWriter, r *http.Req
 	oldWordCountStr := r.FormValue("oldWordCount")
 	alphabetLearnCountStr := r.FormValue("alphabetLearnCount")
 	languageStr := r.FormValue("language")
+	alphabetRepeatStr := r.FormValue("alphabetRepeat")
 
-	if newWordCountStr != "" || oldWordCountStr != "" || alphabetLearnCountStr != "" || languageStr != "" {
-		settings = &models.UpdateUserSettingsRequest{}
+	if newWordCountStr != "" || oldWordCountStr != "" ||
+		alphabetLearnCountStr != "" || languageStr != "" ||
+		alphabetRepeatStr != "" {
+		settings = &models.UpdateUserSettingsRequest{
+			Language:       models.Language(languageStr),
+			AlphabetRepeat: models.RepeatType(alphabetRepeatStr),
+		}
 
 		if newWordCountStr != "" {
 			if val, err := strconv.Atoi(newWordCountStr); err == nil {
@@ -415,11 +422,6 @@ func (h *AdminHandler) UpdateUserWithSettings(w http.ResponseWriter, r *http.Req
 			if val, err := strconv.Atoi(alphabetLearnCountStr); err == nil {
 				settings.AlphabetLearnCount = &val
 			}
-		}
-
-		if languageStr != "" {
-			language := models.Language(languageStr)
-			settings.Language = &language
 		}
 
 		req.Settings = settings
@@ -444,7 +446,7 @@ func (h *AdminHandler) UpdateUserWithSettings(w http.ResponseWriter, r *http.Req
 	}
 
 	// Update user and settings
-	err = h.adminService.UpdateUserWithSettings(r.Context(), userID, req, avatarFile, avatarFilename)
+	err = h.adminService.UpdateUserWithSettings(r, userID, req, avatarFile, avatarFilename)
 	if err != nil {
 		h.Logger.Error("failed to update user with settings", zap.Error(err))
 		errStatus := http.StatusBadRequest

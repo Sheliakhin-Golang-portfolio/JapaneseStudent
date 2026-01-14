@@ -134,6 +134,10 @@ func (m *mockUserSettingsRepositoryForAuth) Update(ctx context.Context, userId i
 	return m.err
 }
 
+func (m *mockUserSettingsRepositoryForAuth) ExistsByUserId(ctx context.Context, userId int) (bool, error) {
+	return false, m.err
+}
+
 func TestNewAuthService(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 	userRepo := &mockUserRepository{}

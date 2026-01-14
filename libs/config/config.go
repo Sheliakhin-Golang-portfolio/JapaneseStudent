@@ -26,6 +26,7 @@ type Config struct {
 	VerificationURL      string
 	ImmediateTaskBaseURL string
 	ScheduledTaskBaseURL string
+	LearnServiceBaseURL  string
 	IsDockerContainer    bool
 	AuthServiceBaseURL   string
 }
@@ -269,8 +270,8 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("invalid IS_DOCKER_CONTAINER: %w", err)
 	}
 
-	// Auth Service Base URL configuration (optional, for auth service to use inner bridge network)
-	cfg.AuthServiceBaseURL = os.Getenv("AUTH_SERVICE_BASE_URL")
+	// Learn Service Base URL configuration (optional, for learn service to use inner bridge network)
+	cfg.LearnServiceBaseURL = os.Getenv("LEARN_SERVICE_BASE_URL")
 
 	return cfg, nil
 }

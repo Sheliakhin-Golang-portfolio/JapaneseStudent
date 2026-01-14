@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS immediate_tasks (
     content TEXT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     `status` VARCHAR(20) NOT NULL DEFAULT 'Enqueued',
-    error TEXT NOT NULL DEFAULT '',
+    error TEXT NULL,
     FOREIGN KEY (template_id) REFERENCES email_templates(id) ON DELETE SET NULL,
     INDEX idx_user_id (user_id),
     INDEX idx_template_id (template_id),

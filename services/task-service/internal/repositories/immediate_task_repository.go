@@ -42,7 +42,7 @@ func (r *immediateTaskRepository) Create(ctx context.Context, task *models.Immed
 // GetByID retrieves an immediate task by ID
 func (r *immediateTaskRepository) GetByID(ctx context.Context, id int) (*models.ImmediateTask, error) {
 	query := `
-		SELECT id, user_id, template_id, content, created_at, ` + "`status`" + `, error
+		SELECT id, user_id, template_id, content, created_at, ` + "`status`" + `, COALESCE(error, '')
 		FROM immediate_tasks
 		WHERE id = ?
 		LIMIT 1

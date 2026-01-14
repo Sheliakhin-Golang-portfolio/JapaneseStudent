@@ -14,12 +14,14 @@ import (
 
 // mockScheduledTaskRepository is a mock implementation of ScheduledTaskRepository
 type mockScheduledTaskRepository struct {
-	task  *models.ScheduledTask
-	tasks []models.ScheduledTaskListItem
-	url   string
-	content string
-	templateID *int
-	err   error
+	task         *models.ScheduledTask
+	tasks        []models.ScheduledTaskListItem
+	url          string
+	content      string
+	templateID   *int
+	exists       bool
+	taskIDs      []int
+	err          error
 }
 
 func (m *mockScheduledTaskRepository) Create(ctx context.Context, task *models.ScheduledTask) error {
@@ -77,6 +79,20 @@ func (m *mockScheduledTaskRepository) GetContentByID(ctx context.Context, id int
 		return "", m.err
 	}
 	return m.content, nil
+}
+
+func (m *mockScheduledTaskRepository) ExistsByUserIDAndURL(ctx context.Context, userID int, url string) (bool, error) {
+	if m.err != nil {
+		return false, m.err
+	}
+	return m.exists, nil
+}
+
+func (m *mockScheduledTaskRepository) DeleteByUserID(ctx context.Context, userID int) ([]int, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	return m.taskIDs, nil
 }
 
 // Note: redis.Client is a concrete struct, so we can't easily mock it.
@@ -187,6 +203,35 @@ func TestScheduledTaskService_Create(t *testing.T) {
 			},
 			templateRepo:  &mockEmailTemplateRepositoryForImmediateTask{},
 			redisClient:   nil, // Will be tested in integration tests
+			expectedError: true,
+		},
+		{
+			name: "duplicate task exists",
+			req: &models.CreateScheduledTaskRequest{
+				UserID: &userID,
+				URL:    "http://example.com",
+				Cron:   "0 0 * * *",
+			},
+			repo: &mockScheduledTaskRepository{
+				exists: true,
+			},
+			templateRepo:  &mockEmailTemplateRepositoryForImmediateTask{},
+			redisClient:   nil,
+			expectedError: false,
+			expectedID:    0, // Returns 0 when duplicate exists
+		},
+		{
+			name: "exists check error",
+			req: &models.CreateScheduledTaskRequest{
+				UserID: &userID,
+				URL:    "http://example.com",
+				Cron:   "0 0 * * *",
+			},
+			repo: &mockScheduledTaskRepository{
+				err: errors.New("database error"),
+			},
+			templateRepo:  &mockEmailTemplateRepositoryForImmediateTask{},
+			redisClient:   nil,
 			expectedError: true,
 		},
 		// Note: redis error test is skipped - will be tested in integration tests
@@ -334,6 +379,331 @@ func TestScheduledTaskService_GetAll(t *testing.T) {
 	}
 }
 
+func TestScheduledTaskService_CreateAdmin(t *testing.T) {
+	userID := 100
+	templateID := 1
+	tests := []struct {
+		name          string
+		req           *models.AdminCreateScheduledTaskRequest
+		repo          *mockScheduledTaskRepository
+		templateRepo  *mockEmailTemplateRepositoryForImmediateTask
+		redisClient   *redis.Client
+		expectedError bool
+		expectedID    int
+	}{
+		{
+			name: "success with URL",
+			req: &models.AdminCreateScheduledTaskRequest{
+				UserID: &userID,
+				URL:    "http://example.com",
+				Cron:   "0 0 * * *",
+			},
+			repo:          &mockScheduledTaskRepository{},
+			templateRepo:  &mockEmailTemplateRepositoryForImmediateTask{},
+			redisClient:   nil, // Will be tested in integration tests
+			expectedError: false,
+			expectedID:    1,
+		},
+		{
+			name: "success with template ID",
+			req: &models.AdminCreateScheduledTaskRequest{
+				UserID:     &userID,
+				TemplateID: &templateID,
+				Content:    "test@example.com;John",
+				Cron:       "0 0 * * *",
+			},
+			repo: &mockScheduledTaskRepository{},
+			templateRepo: &mockEmailTemplateRepositoryForImmediateTask{
+				exists: true,
+			},
+			redisClient:   nil, // Will be tested in integration tests
+			expectedError: false,
+			expectedID:    1,
+		},
+		{
+			name: "missing URL and template ID",
+			req: &models.AdminCreateScheduledTaskRequest{
+				UserID: &userID,
+				Cron:   "0 0 * * *",
+			},
+			repo:          &mockScheduledTaskRepository{},
+			templateRepo:  &mockEmailTemplateRepositoryForImmediateTask{},
+			redisClient:   nil,
+			expectedError: true,
+		},
+		{
+			name: "invalid cron expression",
+			req: &models.AdminCreateScheduledTaskRequest{
+				UserID: &userID,
+				URL:    "http://example.com",
+				Cron:   "invalid-cron",
+			},
+			repo:          &mockScheduledTaskRepository{},
+			templateRepo:  &mockEmailTemplateRepositoryForImmediateTask{},
+			redisClient:   nil,
+			expectedError: true,
+		},
+		{
+			name: "template not found",
+			req: &models.AdminCreateScheduledTaskRequest{
+				UserID:     &userID,
+				TemplateID: &templateID,
+				Content:    "test@example.com;John",
+				Cron:       "0 0 * * *",
+			},
+			repo: &mockScheduledTaskRepository{},
+			templateRepo: &mockEmailTemplateRepositoryForImmediateTask{
+				exists: false,
+			},
+			redisClient:   nil,
+			expectedError: true,
+		},
+		{
+			name: "missing content with template ID",
+			req: &models.AdminCreateScheduledTaskRequest{
+				UserID:     &userID,
+				TemplateID: &templateID,
+				Cron:       "0 0 * * *",
+			},
+			repo: &mockScheduledTaskRepository{},
+			templateRepo: &mockEmailTemplateRepositoryForImmediateTask{
+				exists: true,
+			},
+			redisClient:   nil,
+			expectedError: true,
+		},
+		{
+			name: "invalid email in content",
+			req: &models.AdminCreateScheduledTaskRequest{
+				UserID:     &userID,
+				TemplateID: &templateID,
+				Content:    "invalid-email;John",
+				Cron:       "0 0 * * *",
+			},
+			repo: &mockScheduledTaskRepository{},
+			templateRepo: &mockEmailTemplateRepositoryForImmediateTask{
+				exists: true,
+			},
+			redisClient:   nil,
+			expectedError: true,
+		},
+		{
+			name: "repository error",
+			req: &models.AdminCreateScheduledTaskRequest{
+				UserID: &userID,
+				URL:    "http://example.com",
+				Cron:   "0 0 * * *",
+			},
+			repo: &mockScheduledTaskRepository{
+				err: errors.New("database error"),
+			},
+			templateRepo:  &mockEmailTemplateRepositoryForImmediateTask{},
+			redisClient:   nil,
+			expectedError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.redisClient == nil && !tt.expectedError {
+				// Skip tests that require Redis client - will be tested in integration tests
+				t.Skip("Skipping test that requires Redis client - test in integration tests")
+				return
+			}
+			logger := zap.NewNop()
+			svc := NewScheduledTaskService(tt.repo, tt.templateRepo, tt.redisClient, logger)
+
+			ctx := context.Background()
+			id, err := svc.CreateAdmin(ctx, tt.req)
+
+			if tt.expectedError {
+				assert.Error(t, err)
+				assert.Equal(t, 0, id)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.expectedID, id)
+			}
+		})
+	}
+}
+
+func TestScheduledTaskService_Update(t *testing.T) {
+	templateID := 1
+	nextRun := time.Now().Add(1 * time.Hour)
+	active := true
+	url := "http://example.com"
+	tests := []struct {
+		name          string
+		id            int
+		req           *models.UpdateScheduledTaskRequest
+		repo          *mockScheduledTaskRepository
+		templateRepo  *mockEmailTemplateRepositoryForImmediateTask
+		redisClient   *redis.Client
+		expectedError bool
+	}{
+		{
+			name: "success - update URL",
+			id:   1,
+			req: &models.UpdateScheduledTaskRequest{
+				URL: &url,
+			},
+			repo: &mockScheduledTaskRepository{
+				templateID: nil,
+				url:        "http://old.com",
+			},
+			templateRepo:  &mockEmailTemplateRepositoryForImmediateTask{},
+			redisClient:   nil, // Will be tested in integration tests
+			expectedError: false,
+		},
+		{
+			name: "success - update active status",
+			id:   1,
+			req: &models.UpdateScheduledTaskRequest{
+				Active: &active,
+			},
+			repo: &mockScheduledTaskRepository{
+				task: &models.ScheduledTask{
+					ID:      1,
+					NextRun: nextRun,
+				},
+			},
+			templateRepo:  &mockEmailTemplateRepositoryForImmediateTask{},
+			redisClient:   nil, // Will be tested in integration tests
+			expectedError: false,
+		},
+		{
+			name: "success - update next run",
+			id:   1,
+			req: &models.UpdateScheduledTaskRequest{
+				NextRun: &nextRun,
+			},
+			repo:          &mockScheduledTaskRepository{},
+			templateRepo:  &mockEmailTemplateRepositoryForImmediateTask{},
+			redisClient:   nil, // Will be tested in integration tests
+			expectedError: false,
+		},
+		{
+			name: "success - update cron",
+			id:   1,
+			req: &models.UpdateScheduledTaskRequest{
+				Cron: "0 1 * * *",
+			},
+			repo:          &mockScheduledTaskRepository{},
+			templateRepo:  &mockEmailTemplateRepositoryForImmediateTask{},
+			redisClient:   nil,
+			expectedError: false,
+		},
+		{
+			name: "invalid cron expression",
+			id:   1,
+			req: &models.UpdateScheduledTaskRequest{
+				Cron: "invalid-cron",
+			},
+			repo:          &mockScheduledTaskRepository{},
+			templateRepo:  &mockEmailTemplateRepositoryForImmediateTask{},
+			redisClient:   nil,
+			expectedError: true,
+		},
+		{
+			name: "invalid user id",
+			id:   1,
+			req: &models.UpdateScheduledTaskRequest{
+				UserID: func() *int { v := -1; return &v }(),
+			},
+			repo:          &mockScheduledTaskRepository{},
+			templateRepo:  &mockEmailTemplateRepositoryForImmediateTask{},
+			redisClient:   nil,
+			expectedError: true,
+		},
+		{
+			name: "template not found",
+			id:   1,
+			req: &models.UpdateScheduledTaskRequest{
+				TemplateID: &templateID,
+			},
+			repo: &mockScheduledTaskRepository{},
+			templateRepo: &mockEmailTemplateRepositoryForImmediateTask{
+				exists: false,
+			},
+			redisClient:   nil,
+			expectedError: true,
+		},
+		{
+			name: "missing URL when template ID is removed",
+			id:   1,
+			req: &models.UpdateScheduledTaskRequest{
+				TemplateID: func() *int { v := 0; return &v }(),
+			},
+			repo: &mockScheduledTaskRepository{
+				url: "",
+			},
+			templateRepo:  &mockEmailTemplateRepositoryForImmediateTask{},
+			redisClient:   nil,
+			expectedError: true,
+		},
+		{
+			name: "missing content when template ID is set",
+			id:   1,
+			req: &models.UpdateScheduledTaskRequest{
+				TemplateID: &templateID,
+			},
+			repo: &mockScheduledTaskRepository{
+				content: "",
+			},
+			templateRepo: &mockEmailTemplateRepositoryForImmediateTask{
+				exists: true,
+			},
+			redisClient:   nil,
+			expectedError: true,
+		},
+		{
+			name: "invalid email in content",
+			id:   1,
+			req: &models.UpdateScheduledTaskRequest{
+				Content: func() *string { s := "invalid-email;John"; return &s }(),
+			},
+			repo:          &mockScheduledTaskRepository{},
+			templateRepo:  &mockEmailTemplateRepositoryForImmediateTask{},
+			redisClient:   nil,
+			expectedError: true,
+		},
+		{
+			name: "repository error",
+			id:   1,
+			req: &models.UpdateScheduledTaskRequest{
+				URL: &url,
+			},
+			repo: &mockScheduledTaskRepository{
+				err: errors.New("database error"),
+			},
+			templateRepo:  &mockEmailTemplateRepositoryForImmediateTask{},
+			redisClient:   nil,
+			expectedError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.redisClient == nil && !tt.expectedError {
+				// Skip tests that require Redis client - will be tested in integration tests
+				t.Skip("Skipping test that requires Redis client - test in integration tests")
+				return
+			}
+			logger := zap.NewNop()
+			svc := NewScheduledTaskService(tt.repo, tt.templateRepo, tt.redisClient, logger)
+
+			ctx := context.Background()
+			err := svc.Update(ctx, tt.id, tt.req)
+
+			if tt.expectedError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
 func TestScheduledTaskService_Delete(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -375,6 +745,69 @@ func TestScheduledTaskService_Delete(t *testing.T) {
 
 			ctx := context.Background()
 			err := svc.Delete(ctx, tt.id)
+
+			if tt.expectedError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestScheduledTaskService_DeleteByUserID(t *testing.T) {
+	userID := 100
+	tests := []struct {
+		name          string
+		userID        int
+		repo          *mockScheduledTaskRepository
+		redisClient   *redis.Client
+		expectedError bool
+	}{
+		{
+			name:   "success",
+			userID: userID,
+			repo: &mockScheduledTaskRepository{
+				taskIDs: []int{1, 2, 3},
+			},
+			redisClient:   nil, // Will be tested in integration tests
+			expectedError: false,
+		},
+		{
+			name:   "no tasks to delete",
+			userID: userID,
+			repo: &mockScheduledTaskRepository{
+				taskIDs: []int{},
+			},
+			redisClient:   nil, // Will be tested in integration tests
+			expectedError: false,
+		},
+		{
+			name:   "repository error",
+			userID: userID,
+			repo: &mockScheduledTaskRepository{
+				err: errors.New("database error"),
+			},
+			redisClient:   nil,
+			expectedError: true,
+		},
+		// Note: redis error test is skipped - will be tested in integration tests
+		// since redis.Client is a concrete struct and can't be easily mocked
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.redisClient == nil && !tt.expectedError {
+				// Skip tests that require Redis client - will be tested in integration tests
+				t.Skip("Skipping test that requires Redis client - test in integration tests")
+				return
+			}
+			logger := zap.NewNop()
+			templateRepo := &mockEmailTemplateRepositoryForImmediateTask{}
+			svc := NewScheduledTaskService(tt.repo, templateRepo, tt.redisClient, logger)
+
+			ctx := context.Background()
+			err := svc.DeleteByUserID(ctx, tt.userID)
 
 			if tt.expectedError {
 				assert.Error(t, err)

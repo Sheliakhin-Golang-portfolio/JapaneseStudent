@@ -1255,9 +1255,71 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/tasks/scheduled/by-user": {
+            "delete": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Delete all scheduled tasks for a specific user. Requires API key authentication.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tasks"
+                ],
+                "summary": "Delete scheduled tasks by user ID",
+                "parameters": [
+                    {
+                        "description": "Delete scheduled tasks request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.DeleteScheduledTaskByUserIdRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad request - invalid request body",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
+        "handlers.DeleteScheduledTaskByUserIdRequest": {
+            "type": "object",
+            "properties": {
+                "userId": {
+                    "type": "integer"
+                }
+            }
+        },
         "models.AdminCreateImmediateTaskRequest": {
             "type": "object",
             "properties": {

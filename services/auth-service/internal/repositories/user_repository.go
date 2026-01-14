@@ -271,6 +271,10 @@ func (r *userRepository) Update(ctx context.Context, userID int, user *models.Us
 			setClauses = append(setClauses, "alphabet_learn_count = ?")
 			args = append(args, settings.AlphabetLearnCount)
 		}
+		if settings.AlphabetRepeat != "" {
+			setClauses = append(setClauses, "alphabet_repeat = ?")
+			args = append(args, settings.AlphabetRepeat)
+		}
 
 		if len(setClauses) != 0 {
 			args = append(args, userID)

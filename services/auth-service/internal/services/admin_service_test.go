@@ -136,6 +136,10 @@ func (m *mockUserSettingsRepository) Update(ctx context.Context, userID int, set
 	return m.err
 }
 
+func (m *mockUserSettingsRepository) ExistsByUserId(ctx context.Context, userID int) (bool, error) {
+	return m.settings != nil, m.err
+}
+
 func TestNewAdminService(t *testing.T) {
 	mockUserRepo := &mockAdminUserRepository{}
 	mockTokenRepo := &mockAdminUserTokenRepository{}
@@ -143,7 +147,7 @@ func TestNewAdminService(t *testing.T) {
 	tokenGen := service.NewTokenGenerator("test-secret", 3600, 604800)
 	logger := zaptest.NewLogger(t)
 
-	svc := NewAdminService(mockUserRepo, mockTokenRepo, mockSettingsRepo, tokenGen, logger, "", "", "")
+	svc := NewAdminService(mockUserRepo, mockTokenRepo, mockSettingsRepo, tokenGen, logger, "", "", "", "", false, "")
 
 	assert.NotNil(t, svc)
 	assert.Equal(t, mockUserRepo, svc.userRepo)
@@ -269,7 +273,7 @@ func TestAdminService_GetUsersList(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tokenGen := service.NewTokenGenerator("test-secret", 3600, 604800)
 			logger := zaptest.NewLogger(t)
-			svc := NewAdminService(tt.mockRepo, &mockAdminUserTokenRepository{}, &mockUserSettingsRepository{}, tokenGen, logger, "", "", "")
+			svc := NewAdminService(tt.mockRepo, &mockAdminUserTokenRepository{}, &mockUserSettingsRepository{}, tokenGen, logger, "", "", "", "", false, "")
 			ctx := context.Background()
 
 			result, err := svc.GetUsersList(ctx, tt.page, tt.count, tt.role, tt.search)
@@ -369,7 +373,7 @@ func TestAdminService_GetUserWithSettings(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tokenGen := service.NewTokenGenerator("test-secret", 3600, 604800)
 			logger := zaptest.NewLogger(t)
-			svc := NewAdminService(tt.mockUserRepo, &mockAdminUserTokenRepository{}, tt.mockSettingsRepo, tokenGen, logger, "", "", "")
+			svc := NewAdminService(tt.mockUserRepo, &mockAdminUserTokenRepository{}, tt.mockSettingsRepo, tokenGen, logger, "", "", "", "", false, "")
 			ctx := context.Background()
 
 			result, err := svc.GetUserWithSettings(ctx, tt.userID)
@@ -522,7 +526,7 @@ func TestAdminService_CreateUser(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tokenGen := service.NewTokenGenerator("test-secret", 3600, 604800)
 			logger := zaptest.NewLogger(t)
-			svc := NewAdminService(tt.mockUserRepo, &mockAdminUserTokenRepository{}, tt.mockSettingsRepo, tokenGen, logger, "", "", "")
+			svc := NewAdminService(tt.mockUserRepo, &mockAdminUserTokenRepository{}, tt.mockSettingsRepo, tokenGen, logger, "", "", "", "", false, "")
 			ctx := context.Background()
 
 			result, err := svc.CreateUser(ctx, tt.request, nil, "")
@@ -584,7 +588,7 @@ func TestAdminService_CreateUserSettings(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tokenGen := service.NewTokenGenerator("test-secret", 3600, 604800)
 			logger := zaptest.NewLogger(t)
-			svc := NewAdminService(&mockAdminUserRepository{}, &mockAdminUserTokenRepository{}, tt.mockSettingsRepo, tokenGen, logger, "", "", "")
+			svc := NewAdminService(&mockAdminUserRepository{}, &mockAdminUserTokenRepository{}, tt.mockSettingsRepo, tokenGen, logger, "", "", "", "", false, "")
 			ctx := context.Background()
 
 			result, err := svc.CreateUserSettings(ctx, tt.userID)
@@ -657,7 +661,7 @@ func TestAdminService_DeleteUser(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tokenGen := service.NewTokenGenerator("test-secret", 3600, 604800)
 			logger := zaptest.NewLogger(t)
-			svc := NewAdminService(tt.mockUserRepo, &mockAdminUserTokenRepository{}, &mockUserSettingsRepository{}, tokenGen, logger, "", "", "")
+			svc := NewAdminService(tt.mockUserRepo, &mockAdminUserTokenRepository{}, &mockUserSettingsRepository{}, tokenGen, logger, "", "", "", "", false, "")
 			ctx := context.Background()
 
 			err := svc.DeleteUser(ctx, tt.userID)
@@ -723,7 +727,7 @@ func TestAdminService_GetTutorsList(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tokenGen := service.NewTokenGenerator("test-secret", 3600, 604800)
 			logger := zaptest.NewLogger(t)
-			svc := NewAdminService(tt.mockUserRepo, &mockAdminUserTokenRepository{}, &mockUserSettingsRepository{}, tokenGen, logger, "", "", "")
+			svc := NewAdminService(tt.mockUserRepo, &mockAdminUserTokenRepository{}, &mockUserSettingsRepository{}, tokenGen, logger, "", "", "", "", false, "")
 			ctx := context.Background()
 
 			result, err := svc.GetTutorsList(ctx)
@@ -848,7 +852,7 @@ func TestAdminService_UpdateUserPassword(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tokenGen := service.NewTokenGenerator("test-secret", 3600, 604800)
 			logger := zaptest.NewLogger(t)
-			svc := NewAdminService(tt.mockUserRepo, &mockAdminUserTokenRepository{}, &mockUserSettingsRepository{}, tokenGen, logger, "", "", "")
+			svc := NewAdminService(tt.mockUserRepo, &mockAdminUserTokenRepository{}, &mockUserSettingsRepository{}, tokenGen, logger, "", "", "", "", false, "")
 			ctx := context.Background()
 
 			err := svc.UpdateUserPassword(ctx, tt.userID, tt.password)

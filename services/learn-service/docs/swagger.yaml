@@ -9,6 +9,8 @@ definitions:
     type: object
   handlers.TestResultRequest:
     properties:
+      repeat:
+        type: string
       results:
         items:
           $ref: '#/definitions/models.TestResultItem'
@@ -1980,6 +1982,50 @@ paths:
       security:
       - ApiKeyAuth: []
       summary: Submit test results
+      tags:
+      - tests
+  /test-results/drop-marks/{userId}:
+    get:
+      consumes:
+      - application/json
+      description: Lowers all CharacterLearnHistory results by 0.01 for a user. Requires
+        API key authentication.
+      parameters:
+      - description: User ID
+        in: path
+        name: userId
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Marks dropped successfully
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad request - invalid user ID
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized - invalid or missing API key
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Drop user marks
       tags:
       - tests
   /test-results/history:

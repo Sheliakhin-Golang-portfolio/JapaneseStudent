@@ -780,3 +780,16 @@ func (r *charactersRepository) GetCharactersWithLowestResults(ctx context.Contex
 
 	return characterIDs, nil
 }
+
+// GetTotalCount returns the total number of characters in the database
+func (r *charactersRepository) GetTotalCount(ctx context.Context) (int, error) {
+	query := "SELECT COUNT(*) FROM characters"
+
+	var count int
+	err := r.db.QueryRowContext(ctx, query).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get total count: %w", err)
+	}
+
+	return count, nil
+}

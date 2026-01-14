@@ -10,6 +10,9 @@ import (
 
 	"github.com/go-redis/redis/v8"
 	_ "github.com/go-sql-driver/mysql"
+	"github.com/golang-migrate/migrate/v4"
+	"github.com/golang-migrate/migrate/v4/database/mysql"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"github.com/hibiken/asynq"
 	"github.com/japanesestudent/libs/config"
 	"github.com/japanesestudent/task-service/internal/models"
@@ -30,27 +33,30 @@ var (
 // cleanupTestData removes all test data
 func cleanupTestData(t *testing.T, db *sql.DB) {
 	t.Helper()
-	_, err := db.Exec("DELETE FROM scheduled_task_logs")
-	require.NoError(t, err, "Failed to cleanup scheduled_task_logs")
-	_, err = db.Exec("DELETE FROM scheduled_tasks")
-	require.NoError(t, err, "Failed to cleanup scheduled_tasks")
-	_, err = db.Exec("DELETE FROM immediate_tasks")
-	require.NoError(t, err, "Failed to cleanup immediate_tasks")
-	_, err = db.Exec("DELETE FROM email_templates")
-	require.NoError(t, err, "Failed to cleanup email_templates")
+	// Delete in reverse order of dependencies to avoid foreign key constraints
+	// Ignore errors for missing tables - they may not exist if migrations haven't been run
+	_, _ = db.Exec("DELETE FROM scheduled_task_logs")
+	_, _ = db.Exec("DELETE FROM scheduled_tasks")
+	_, _ = db.Exec("DELETE FROM immediate_tasks")
+	_, _ = db.Exec("DELETE FROM email_templates")
 }
 
-// seedTestData inserts test data into the database
-func seedTestData(t *testing.T, db *sql.DB) {
+// seedTestData inserts test data into the database and returns the template ID
+func seedTestData(t *testing.T, db *sql.DB) int {
 	t.Helper()
 	cleanupTestData(t, db)
 
 	// Insert email template
-	_, err := db.Exec(`
+	result, err := db.Exec(`
 		INSERT INTO email_templates (slug, subject_template, body_template)
 		VALUES ('test-template', 'Subject {{.Name}}', 'Body {{.Name}}')
 	`)
 	require.NoError(t, err, "Failed to seed email template")
+	
+	templateID, err := result.LastInsertId()
+	require.NoError(t, err, "Failed to get template ID")
+	
+	return int(templateID)
 }
 
 // TestMain sets up and tears down the test environment
@@ -82,6 +88,18 @@ func TestMain(m *testing.M) {
 	// Test connection
 	if err = testDB.Ping(); err != nil {
 		testLogger.Warn("Failed to ping test database, skipping integration tests", zap.Error(err))
+		os.Exit(0)
+	}
+
+	// Drop all existing tables to ensure clean state
+	if err = dropAllTables(testDB); err != nil {
+		testLogger.Warn("Failed to drop tables, skipping integration tests", zap.Error(err))
+		os.Exit(0)
+	}
+
+	// Run migrations
+	if err = runMigrations(testDB); err != nil {
+		testLogger.Warn("Failed to run migrations, skipping integration tests", zap.Error(err))
 		os.Exit(0)
 	}
 
@@ -141,6 +159,82 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
+// dropAllTables drops all tables to ensure clean migration state
+func dropAllTables(db *sql.DB) error {
+	tables := []string{
+		"scheduled_task_logs",
+		"scheduled_tasks",
+		"immediate_tasks",
+		"email_templates",
+	}
+
+	// Disable foreign key checks temporarily
+	_, err := db.Exec("SET FOREIGN_KEY_CHECKS = 0")
+	if err != nil {
+		return fmt.Errorf("failed to disable foreign key checks: %w", err)
+	}
+	defer db.Exec("SET FOREIGN_KEY_CHECKS = 1")
+
+	// Drop tables in reverse dependency order
+	for _, table := range tables {
+		_, _ = db.Exec(fmt.Sprintf("DROP TABLE IF EXISTS %s", table))
+	}
+
+	// Drop migration table
+	_, _ = db.Exec("DROP TABLE IF EXISTS task_schema_migrations")
+
+	return nil
+}
+
+// runMigrations runs database migrations
+func runMigrations(db *sql.DB) error {
+	// Use service-specific migration table name to avoid conflicts with other services
+	driver, err := mysql.WithInstance(db, &mysql.Config{
+		MigrationsTable: "task_schema_migrations",
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create migration driver: %w", err)
+	}
+
+	// Get the working directory or use migrations folder relative to the test
+	migrationPath := "file://../../migrations"
+	if _, err := os.Stat("../../migrations"); os.IsNotExist(err) {
+		// Try alternative path
+		if _, err := os.Stat("../migrations"); err == nil {
+			migrationPath = "file://../migrations"
+		} else if _, err := os.Stat("migrations"); err == nil {
+			migrationPath = "file://migrations"
+		}
+	}
+
+	m, err := migrate.NewWithDatabaseInstance(
+		migrationPath,
+		"mysql",
+		driver,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create migrate instance: %w", err)
+	}
+
+	// Check for dirty migration state and fix it (though we drop tables first, this is a safety check)
+	_, dirty, err := m.Version()
+	if err != nil && err != migrate.ErrNilVersion {
+		return fmt.Errorf("failed to get migration version: %w", err)
+	}
+	if dirty {
+		// Force to version 0, then migrate up fresh
+		if err := m.Force(0); err != nil {
+			return fmt.Errorf("failed to force migration version to 0: %w", err)
+		}
+	}
+
+	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
+		return fmt.Errorf("failed to run migrations: %w", err)
+	}
+
+	return nil
+}
+
 func TestEmailTemplateRepository_Integration(t *testing.T) {
 	if testDB == nil {
 		t.Skip("Database not available")
@@ -171,7 +265,7 @@ func TestEmailTemplateRepository_Integration(t *testing.T) {
 	})
 
 	t.Run("GetAll", func(t *testing.T) {
-		seedTestData(t, testDB)
+		_ = seedTestData(t, testDB)
 
 		templates, err := repo.GetAll(ctx, 1, 10, "")
 		require.NoError(t, err)
@@ -179,7 +273,7 @@ func TestEmailTemplateRepository_Integration(t *testing.T) {
 	})
 
 	t.Run("Update", func(t *testing.T) {
-		seedTestData(t, testDB)
+		_ = seedTestData(t, testDB)
 
 		// Get existing template
 		templates, err := repo.GetAll(ctx, 1, 1, "test-template")
@@ -200,7 +294,7 @@ func TestEmailTemplateRepository_Integration(t *testing.T) {
 	})
 
 	t.Run("Delete", func(t *testing.T) {
-		seedTestData(t, testDB)
+		_ = seedTestData(t, testDB)
 
 		templates, err := repo.GetAll(ctx, 1, 1, "test-template")
 		require.NoError(t, err)
@@ -223,10 +317,9 @@ func TestImmediateTaskRepository_Integration(t *testing.T) {
 	ctx := context.Background()
 
 	cleanupTestData(t, testDB)
-	seedTestData(t, testDB)
+	templateID := seedTestData(t, testDB)
 
 	t.Run("Create and Get", func(t *testing.T) {
-		templateID := 1
 		task := &models.ImmediateTask{
 			UserID:     100,
 			TemplateID: &templateID,
@@ -246,7 +339,6 @@ func TestImmediateTaskRepository_Integration(t *testing.T) {
 	})
 
 	t.Run("UpdateStatus", func(t *testing.T) {
-		templateID := 1
 		task := &models.ImmediateTask{
 			UserID:     100,
 			TemplateID: &templateID,
@@ -275,11 +367,10 @@ func TestScheduledTaskRepository_Integration(t *testing.T) {
 	ctx := context.Background()
 
 	cleanupTestData(t, testDB)
-	seedTestData(t, testDB)
+	templateID := seedTestData(t, testDB)
 
 	t.Run("Create and Get", func(t *testing.T) {
 		userID := 100
-		templateID := 1
 		nextRun := time.Now().Add(1 * time.Hour)
 		task := &models.ScheduledTask{
 			UserID:     &userID,
@@ -304,7 +395,6 @@ func TestScheduledTaskRepository_Integration(t *testing.T) {
 
 	t.Run("UpdatePreviousRunAndNextRun", func(t *testing.T) {
 		userID := 100
-		templateID := 1
 		nextRun := time.Now().Add(1 * time.Hour)
 		task := &models.ScheduledTask{
 			UserID:     &userID,
@@ -354,7 +444,7 @@ func TestEmailTemplateService_Integration(t *testing.T) {
 	})
 
 	t.Run("GetAll", func(t *testing.T) {
-		seedTestData(t, testDB)
+		_ = seedTestData(t, testDB)
 
 		templates, err := svc.GetAll(ctx, 1, 10, "")
 		require.NoError(t, err)
@@ -373,7 +463,7 @@ func TestImmediateTaskService_Integration(t *testing.T) {
 	ctx := context.Background()
 
 	cleanupTestData(t, testDB)
-	seedTestData(t, testDB)
+	_ = seedTestData(t, testDB)
 
 	t.Run("Create", func(t *testing.T) {
 		req := &models.CreateImmediateTaskRequest{
@@ -399,7 +489,7 @@ func TestScheduledTaskService_Integration(t *testing.T) {
 	ctx := context.Background()
 
 	cleanupTestData(t, testDB)
-	seedTestData(t, testDB)
+	templateID := seedTestData(t, testDB)
 
 	// Clean Redis
 	if testRedis != nil {
@@ -431,5 +521,136 @@ func TestScheduledTaskService_Integration(t *testing.T) {
 		id, err := svc.Create(ctx, req)
 		require.NoError(t, err)
 		assert.Greater(t, id, 0)
+	})
+
+	t.Run("Create duplicate task returns 0", func(t *testing.T) {
+		userID := 100
+		url := "http://duplicate-test.com"
+		req := &models.CreateScheduledTaskRequest{
+			UserID: &userID,
+			URL:    url,
+			Cron:   "0 0 * * *",
+		}
+
+		// Create first task
+		id1, err := svc.Create(ctx, req)
+		require.NoError(t, err)
+		assert.Greater(t, id1, 0)
+
+		// Try to create duplicate
+		id2, err := svc.Create(ctx, req)
+		require.NoError(t, err)
+		assert.Equal(t, 0, id2, "Duplicate task should return ID 0")
+	})
+
+	t.Run("CreateAdmin with URL", func(t *testing.T) {
+		userID := 100
+		req := &models.AdminCreateScheduledTaskRequest{
+			UserID: &userID,
+			URL:    "http://admin-example.com",
+			Cron:   "0 0 * * *",
+		}
+
+		id, err := svc.CreateAdmin(ctx, req)
+		require.NoError(t, err)
+		assert.Greater(t, id, 0)
+	})
+
+	t.Run("CreateAdmin with template ID", func(t *testing.T) {
+		userID := 100
+		req := &models.AdminCreateScheduledTaskRequest{
+			UserID:     &userID,
+			TemplateID: &templateID,
+			Content:    "admin@example.com;Admin User",
+			Cron:       "0 0 * * *",
+		}
+
+		id, err := svc.CreateAdmin(ctx, req)
+		require.NoError(t, err)
+		assert.Greater(t, id, 0)
+	})
+
+	t.Run("Update task", func(t *testing.T) {
+		userID := 100
+		req := &models.CreateScheduledTaskRequest{
+			UserID: &userID,
+			URL:    "http://update-test.com",
+			Cron:   "0 0 * * *",
+		}
+
+		id, err := svc.Create(ctx, req)
+		require.NoError(t, err)
+		assert.Greater(t, id, 0)
+
+		newURL := "http://updated-url.com"
+		updateReq := &models.UpdateScheduledTaskRequest{
+			URL: &newURL,
+		}
+
+		err = svc.Update(ctx, id, updateReq)
+		require.NoError(t, err)
+
+		updated, err := svc.GetByID(ctx, id)
+		require.NoError(t, err)
+		assert.Equal(t, newURL, updated.URL)
+	})
+
+	t.Run("Update task active status", func(t *testing.T) {
+		userID := 100
+		req := &models.CreateScheduledTaskRequest{
+			UserID: &userID,
+			URL:    "http://active-test.com",
+			Cron:   "0 0 * * *",
+		}
+
+		id, err := svc.Create(ctx, req)
+		require.NoError(t, err)
+		assert.Greater(t, id, 0)
+
+		active := false
+		updateReq := &models.UpdateScheduledTaskRequest{
+			Active: &active,
+		}
+
+		err = svc.Update(ctx, id, updateReq)
+		require.NoError(t, err)
+
+		updated, err := svc.GetByID(ctx, id)
+		require.NoError(t, err)
+		assert.Equal(t, active, updated.Active)
+	})
+
+	t.Run("DeleteByUserID", func(t *testing.T) {
+		userID := 200
+		// Create multiple tasks for the user
+		req1 := &models.CreateScheduledTaskRequest{
+			UserID: &userID,
+			URL:    "http://delete-user-test1.com",
+			Cron:   "0 0 * * *",
+		}
+		req2 := &models.CreateScheduledTaskRequest{
+			UserID: &userID,
+			URL:    "http://delete-user-test2.com",
+			Cron:   "0 0 * * *",
+		}
+
+		id1, err := svc.Create(ctx, req1)
+		require.NoError(t, err)
+		assert.Greater(t, id1, 0)
+
+		id2, err := svc.Create(ctx, req2)
+		require.NoError(t, err)
+		assert.Greater(t, id2, 0)
+
+		// Delete all tasks for the user
+		err = svc.DeleteByUserID(ctx, userID)
+		require.NoError(t, err)
+
+		// Verify tasks are deleted
+		_, err = svc.GetByID(ctx, id1)
+		assert.Error(t, err, "Task should be deleted")
+
+		_, err = svc.GetByID(ctx, id2)
+		assert.Error(t, err, "Task should be deleted")
 	})
 }

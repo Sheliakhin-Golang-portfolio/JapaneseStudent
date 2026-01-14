@@ -87,14 +87,17 @@ type AdminUserTokenRepository interface {
 
 // authService implements AuthService
 type adminService struct {
-	userRepo         AdminUserRepository
-	userTokenRepo    AdminUserTokenRepository
-	userSettingsRepo UserSettingsRepository
-	tokenGenerator   *service.TokenGenerator
-	logger           *zap.Logger
-	mediaBaseURL     string
-	apiKey           string
-	taskBaseURL      string
+	userRepo             AdminUserRepository
+	userTokenRepo        AdminUserTokenRepository
+	userSettingsRepo     UserSettingsRepository
+	tokenGenerator       *service.TokenGenerator
+	logger               *zap.Logger
+	mediaBaseURL         string
+	apiKey               string
+	taskBaseURL          string
+	learnServiceBaseURL  string
+	isDockerContainer    bool
+	scheduledTaskBaseURL string
 }
 
 // NewAuthService creates a new auth service
@@ -107,16 +110,22 @@ func NewAdminService(
 	mediaBaseURL string,
 	apiKey string,
 	taskBaseURL string,
+	learnServiceBaseURL string,
+	isDockerContainer bool,
+	scheduledTaskBaseURL string,
 ) *adminService {
 	return &adminService{
-		userRepo:         userRepo,
-		userTokenRepo:    userTokenRepo,
-		userSettingsRepo: userSettingsRepo,
-		tokenGenerator:   tokenGenerator,
-		logger:           logger,
-		mediaBaseURL:     mediaBaseURL,
-		apiKey:           apiKey,
-		taskBaseURL:      taskBaseURL,
+		userRepo:             userRepo,
+		userTokenRepo:        userTokenRepo,
+		userSettingsRepo:     userSettingsRepo,
+		tokenGenerator:       tokenGenerator,
+		logger:               logger,
+		mediaBaseURL:         mediaBaseURL,
+		apiKey:               apiKey,
+		taskBaseURL:          taskBaseURL,
+		learnServiceBaseURL:  learnServiceBaseURL,
+		isDockerContainer:    isDockerContainer,
+		scheduledTaskBaseURL: scheduledTaskBaseURL,
 	}
 }
 
@@ -178,6 +187,7 @@ func (s *adminService) GetUserWithSettings(ctx context.Context, userID int) (*mo
 			Email:    user.Email,
 			Role:     user.Role,
 			Avatar:   user.Avatar,
+			Active:   user.Active,
 			Settings: nil,
 			Message:  "Settings was not created",
 		}, nil
@@ -188,6 +198,7 @@ func (s *adminService) GetUserWithSettings(ctx context.Context, userID int) (*mo
 		Username: user.Username,
 		Email:    user.Email,
 		Role:     user.Role,
+		Active:   user.Active,
 		Settings: settings,
 		Avatar:   user.Avatar,
 		Message:  "",
@@ -260,13 +271,13 @@ func (s *adminService) CreateUserSettings(ctx context.Context, userID int) (stri
 // UpdateUserWithSettings updates a user and their settings
 //
 // We cannot ignore error about settings not exists forever, so that`s where we will signal admin that it is not good.
-func (s *adminService) UpdateUserWithSettings(ctx context.Context, userID int, userData *models.UpdateUserWithSettingsRequest, avatarFile multipart.File, avatarFilename string) error {
+func (s *adminService) UpdateUserWithSettings(r *http.Request, userID int, userData *models.UpdateUserWithSettingsRequest, avatarFile multipart.File, avatarFilename string) error {
 	if userID <= 0 {
 		return fmt.Errorf("invalid user id")
 	}
 
 	// Get current user to check for existing avatar
-	currentUser, err := s.userRepo.GetByID(ctx, userID)
+	currentUser, err := s.userRepo.GetByID(r.Context(), userID)
 	if err != nil {
 		return fmt.Errorf("user not found")
 	}
@@ -278,14 +289,14 @@ func (s *adminService) UpdateUserWithSettings(ctx context.Context, userID int, u
 		if currentUser.Avatar != "" && s.mediaBaseURL != "" && s.apiKey != "" {
 			fileID := extractFileIDFromAvatarURL(currentUser.Avatar)
 			if fileID != "" {
-				if err := deleteAvatarFromMediaService(ctx, s.mediaBaseURL, s.apiKey, fileID); err != nil {
+				if err := deleteAvatarFromMediaService(r.Context(), s.mediaBaseURL, s.apiKey, fileID); err != nil {
 					return fmt.Errorf("failed to delete old avatar: %w", err)
 				}
 			}
 		}
 
 		// Upload new avatar
-		uploadedURL, err := uploadAvatar(ctx, s.mediaBaseURL, s.apiKey, avatarFile, avatarFilename)
+		uploadedURL, err := uploadAvatar(r.Context(), s.mediaBaseURL, s.apiKey, avatarFile, avatarFilename)
 		if err != nil {
 			return fmt.Errorf("failed to upload avatar: %w", err)
 		}
@@ -293,7 +304,7 @@ func (s *adminService) UpdateUserWithSettings(ctx context.Context, userID int, u
 	}
 
 	// Check user credentials
-	normalizedEmail, normalizedUsername, err := s.checkUpdateUserCredentials(ctx, userID, userData.Email, userData.Username, userData.Role, userData.Settings)
+	normalizedEmail, normalizedUsername, err := s.checkUpdateUserCredentials(r.Context(), userID, userData.Email, userData.Username, userData.Role, userData.Settings)
 	if err != nil {
 		return err
 	}
@@ -301,8 +312,8 @@ func (s *adminService) UpdateUserWithSettings(ctx context.Context, userID int, u
 	// Update user and settings if any data provided
 	hasUserUpdate := normalizedUsername != "" || normalizedEmail != "" || userData.Role != nil || newAvatarURL != "" || userData.Active != nil
 	hasSettingsUpdate := userData.Settings != nil &&
-		(userData.Settings.Language != nil || userData.Settings.NewWordCount != nil ||
-			userData.Settings.OldWordCount != nil || userData.Settings.AlphabetLearnCount != nil)
+		(userData.Settings.Language != "" || userData.Settings.NewWordCount != nil ||
+			userData.Settings.OldWordCount != nil || userData.Settings.AlphabetLearnCount != nil || userData.Settings.AlphabetRepeat != "")
 
 	if hasUserUpdate || hasSettingsUpdate {
 		// Create user model for update
@@ -325,9 +336,8 @@ func (s *adminService) UpdateUserWithSettings(ctx context.Context, userID int, u
 				UserID: userID,
 			}
 			if userData.Settings != nil {
-				if userData.Settings.Language != nil {
-					settingsData.Language = *userData.Settings.Language
-				}
+				settingsData.Language = userData.Settings.Language
+				settingsData.AlphabetRepeat = userData.Settings.AlphabetRepeat
 				if userData.Settings.NewWordCount != nil {
 					settingsData.NewWordCount = *userData.Settings.NewWordCount
 				}
@@ -340,7 +350,23 @@ func (s *adminService) UpdateUserWithSettings(ctx context.Context, userID int, u
 			}
 		}
 
-		return s.userRepo.Update(ctx, userID, userDataModel, settingsData, userData.Active)
+		if err := s.userRepo.Update(r.Context(), userID, userDataModel, settingsData, userData.Active); err != nil {
+			return err
+		}
+
+		if hasSettingsUpdate && settingsData.AlphabetRepeat != "" {
+			// If new flag is "repeat", create scheduled task
+			if settingsData.AlphabetRepeat == "repeat" {
+				// Construct URL to drop marks endpoint
+				dropMarksURL := fmt.Sprintf("%s/api/v6/test-results/drop-marks/%d", s.learnServiceBaseURL, userID)
+
+				// Call task-service to create scheduled task
+				return createScheduledTask(r.Context(), s.scheduledTaskBaseURL, s.apiKey, userID, "notify_alphabet", currentUser.Email, dropMarksURL, "0 0 * * *")
+			} else {
+				// If new flag is NOT "repeat", delete scheduled task
+				return deleteScheduledTaskByUserID(r.Context(), s.scheduledTaskBaseURL, s.apiKey, userID)
+			}
+		}
 	}
 
 	return nil
@@ -351,7 +377,7 @@ func (s *adminService) UpdateUserWithSettings(ctx context.Context, userID int, u
 // Almost the same as checkRegisterCredentials, but with optional fields, and role and settings checks.
 func (s *adminService) checkUpdateUserCredentials(ctx context.Context, userID int, email, username string, role *models.Role, settings *models.UpdateUserSettingsRequest) (string, string, error) {
 	// Validation errors objects
-	validationErrors := make(chan error, 5)
+	validationErrors := make(chan error, 6)
 	// Normalize email and username
 	normalizedEmail := strings.TrimSpace(strings.ToLower(email))
 	normalizedUsername := strings.TrimSpace(username)
@@ -404,8 +430,8 @@ func (s *adminService) checkUpdateUserCredentials(ctx context.Context, userID in
 	// Check settings validity
 	go func() {
 		if settings != nil {
-			if settings.Language != nil && *settings.Language != models.LanguageEnglish &&
-				*settings.Language != models.LanguageRussian && *settings.Language != models.LanguageGerman {
+			if settings.Language != "" && settings.Language != models.LanguageEnglish &&
+				settings.Language != models.LanguageRussian && settings.Language != models.LanguageGerman {
 				validationErrors <- fmt.Errorf("invalid language")
 				return
 			}
@@ -421,6 +447,12 @@ func (s *adminService) checkUpdateUserCredentials(ctx context.Context, userID in
 				validationErrors <- fmt.Errorf("invalid alphabet learn count")
 				return
 			}
+			if settings.AlphabetRepeat != "" && settings.AlphabetRepeat != models.RepeatTypeInQuestion &&
+				settings.AlphabetRepeat != models.RepeatTypeIgnore &&
+				settings.AlphabetRepeat != models.RepeatTypeRepeat {
+				validationErrors <- fmt.Errorf("invalid alphabet repeat")
+				return
+			}
 		}
 		validationErrors <- nil
 	}()
@@ -434,7 +466,17 @@ func (s *adminService) checkUpdateUserCredentials(ctx context.Context, userID in
 		validationErrors <- nil
 	}()
 
-	for range 5 {
+	go func() {
+		if settings.AlphabetRepeat != "" {
+			if settings.AlphabetRepeat != "in question" && settings.AlphabetRepeat != "ignore" && settings.AlphabetRepeat != "repeat" {
+				validationErrors <- fmt.Errorf("invalid alphabet repeat")
+				return
+			}
+		}
+		validationErrors <- nil
+	}()
+
+	for range 6 {
 		err := <-validationErrors
 		if err != nil {
 			return "", "", fmt.Errorf("failed to check user credentials: %w", err)
