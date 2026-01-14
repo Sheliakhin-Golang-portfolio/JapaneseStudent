@@ -380,3 +380,54 @@ func (r *scheduledTaskRepository) GetContentByID(ctx context.Context, id int) (s
 
 	return content, nil
 }
+
+// ExistsByUserIDAndURL checks if an active scheduled task exists with the given user ID and URL
+func (r *scheduledTaskRepository) ExistsByUserIDAndURL(ctx context.Context, userID int, url string) (bool, error) {
+	query := `SELECT EXISTS(SELECT 1 FROM scheduled_tasks WHERE user_id = ? AND url = ?)`
+
+	var exists bool
+	err := r.db.QueryRowContext(ctx, query, userID, url).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("failed to check task existence: %w", err)
+	}
+
+	return exists, nil
+}
+
+// DeleteByUserID deletes all scheduled tasks for a user and returns their IDs for Redis cleanup
+func (r *scheduledTaskRepository) DeleteByUserID(ctx context.Context, userID int) ([]int, error) {
+	// First, get all task IDs for this user (for Redis cleanup)
+	selectQuery := `SELECT id FROM scheduled_tasks WHERE user_id = ?`
+	rows, err := r.db.QueryContext(ctx, selectQuery, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query task IDs: %w", err)
+	}
+	defer rows.Close()
+
+	var taskIDs []int
+	for rows.Next() {
+		var id int
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("failed to scan task ID: %w", err)
+		}
+		taskIDs = append(taskIDs, id)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating rows: %w", err)
+	}
+
+	// If no tasks found, return empty slice (not an error)
+	if len(taskIDs) == 0 {
+		return []int{}, nil
+	}
+
+	// Delete all tasks for this user
+	deleteQuery := `DELETE FROM scheduled_tasks WHERE user_id = ?`
+	_, err = r.db.ExecContext(ctx, deleteQuery, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to delete scheduled tasks: %w", err)
+	}
+
+	return taskIDs, nil
+}

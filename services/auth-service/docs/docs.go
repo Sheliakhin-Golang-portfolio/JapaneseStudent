@@ -434,6 +434,12 @@ const docTemplate = `{
                         "in": "formData"
                     },
                     {
+                        "type": "string",
+                        "description": "Alphabet repeat (in question, ignore, repeat)",
+                        "name": "alphabetRepeat",
+                        "in": "formData"
+                    },
+                    {
                         "type": "file",
                         "description": "Avatar image (optional)",
                         "name": "avatar",
@@ -1192,6 +1198,69 @@ const docTemplate = `{
                 }
             }
         },
+        "/profile/repeat-flag": {
+            "put": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Update alphabet repeat flag for the authenticated user. Requires authentication.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "profile"
+                ],
+                "summary": "Update repeat flag",
+                "parameters": [
+                    {
+                        "description": "Repeat flag: 'in question', 'ignore', or 'repeat'",
+                        "name": "flag",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.UpdateRepeatFlagRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad request - invalid flag value",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized - authentication required",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/settings": {
             "get": {
                 "security": [
@@ -1365,6 +1434,14 @@ const docTemplate = `{
                 }
             }
         },
+        "handlers.UpdateRepeatFlagRequest": {
+            "type": "object",
+            "properties": {
+                "flag": {
+                    "type": "string"
+                }
+            }
+        },
         "handlers.UpdateUserRequest": {
             "type": "object",
             "properties": {
@@ -1414,6 +1491,19 @@ const docTemplate = `{
                 }
             }
         },
+        "models.RepeatType": {
+            "type": "string",
+            "enum": [
+                "in question",
+                "ignore",
+                "repeat"
+            ],
+            "x-enum-varnames": [
+                "RepeatTypeInQuestion",
+                "RepeatTypeIgnore",
+                "RepeatTypeRepeat"
+            ]
+        },
         "models.Role": {
             "type": "integer",
             "enum": [
@@ -1451,6 +1541,9 @@ const docTemplate = `{
             "properties": {
                 "alphabetLearnCount": {
                     "type": "integer"
+                },
+                "alphabetRepeat": {
+                    "$ref": "#/definitions/models.RepeatType"
                 },
                 "language": {
                     "$ref": "#/definitions/models.Language"
@@ -1490,6 +1583,14 @@ const docTemplate = `{
                     "description": "Default: 10",
                     "type": "integer"
                 },
+                "alphabetRepeat": {
+                    "description": "Default: \"in question\"",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.RepeatType"
+                        }
+                    ]
+                },
                 "id": {
                     "type": "integer"
                 },
@@ -1520,6 +1621,9 @@ const docTemplate = `{
                 "alphabetLearnCount": {
                     "type": "integer"
                 },
+                "alphabetRepeat": {
+                    "$ref": "#/definitions/models.RepeatType"
+                },
                 "language": {
                     "$ref": "#/definitions/models.Language"
                 },
@@ -1534,6 +1638,9 @@ const docTemplate = `{
         "models.UserWithSettingsResponse": {
             "type": "object",
             "properties": {
+                "active": {
+                    "type": "boolean"
+                },
                 "avatar": {
                     "type": "string"
                 },

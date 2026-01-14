@@ -117,9 +117,9 @@ func TestUserSettingsRepository_GetByUserId(t *testing.T) {
 			name:   "success",
 			userId: 1,
 			setupMock: func(mock sqlmock.Sqlmock) {
-				rows := sqlmock.NewRows([]string{"id", "user_id", "new_word_count", "old_word_count", "alphabet_learn_count", "language"}).
-					AddRow(1, 1, 20, 20, 10, "en")
-				mock.ExpectQuery(`SELECT id, user_id, new_word_count, old_word_count, alphabet_learn_count, language FROM user_settings WHERE user_id = \? LIMIT 1`).
+				rows := sqlmock.NewRows([]string{"id", "user_id", "new_word_count", "old_word_count", "alphabet_learn_count", "language", "alphabet_repeat"}).
+					AddRow(1, 1, 20, 20, 10, "en", "in question")
+				mock.ExpectQuery(`SELECT id, user_id, new_word_count, old_word_count, alphabet_learn_count, language, alphabet_repeat FROM user_settings WHERE user_id = \? LIMIT 1`).
 					WithArgs(1).
 					WillReturnRows(rows)
 			},
@@ -130,7 +130,7 @@ func TestUserSettingsRepository_GetByUserId(t *testing.T) {
 			name:   "not found",
 			userId: 999,
 			setupMock: func(mock sqlmock.Sqlmock) {
-				mock.ExpectQuery(`SELECT id, user_id, new_word_count, old_word_count, alphabet_learn_count, language FROM user_settings WHERE user_id = \? LIMIT 1`).
+				mock.ExpectQuery(`SELECT id, user_id, new_word_count, old_word_count, alphabet_learn_count, language, alphabet_repeat FROM user_settings WHERE user_id = \? LIMIT 1`).
 					WithArgs(999).
 					WillReturnError(sql.ErrNoRows)
 			},
@@ -141,7 +141,7 @@ func TestUserSettingsRepository_GetByUserId(t *testing.T) {
 			name:   "database error",
 			userId: 1,
 			setupMock: func(mock sqlmock.Sqlmock) {
-				mock.ExpectQuery(`SELECT id, user_id, new_word_count, old_word_count, alphabet_learn_count, language FROM user_settings WHERE user_id = \? LIMIT 1`).
+				mock.ExpectQuery(`SELECT id, user_id, new_word_count, old_word_count, alphabet_learn_count, language, alphabet_repeat FROM user_settings WHERE user_id = \? LIMIT 1`).
 					WithArgs(1).
 					WillReturnError(errors.New("database error"))
 			},
@@ -152,9 +152,9 @@ func TestUserSettingsRepository_GetByUserId(t *testing.T) {
 			name:   "scan error - invalid data types",
 			userId: 1,
 			setupMock: func(mock sqlmock.Sqlmock) {
-				rows := sqlmock.NewRows([]string{"id", "user_id", "new_word_count", "old_word_count", "alphabet_learn_count", "language"}).
-					AddRow("invalid", 1, 20, 20, 10, "en")
-				mock.ExpectQuery(`SELECT id, user_id, new_word_count, old_word_count, alphabet_learn_count, language FROM user_settings WHERE user_id = \? LIMIT 1`).
+				rows := sqlmock.NewRows([]string{"id", "user_id", "new_word_count", "old_word_count", "alphabet_learn_count", "language", "alphabet_repeat"}).
+					AddRow("invalid", 1, 20, 20, 10, "en", "in question")
+				mock.ExpectQuery(`SELECT id, user_id, new_word_count, old_word_count, alphabet_learn_count, language, alphabet_repeat FROM user_settings WHERE user_id = \? LIMIT 1`).
 					WithArgs(1).
 					WillReturnRows(rows)
 			},
@@ -165,9 +165,9 @@ func TestUserSettingsRepository_GetByUserId(t *testing.T) {
 			name:   "success with all language types",
 			userId: 2,
 			setupMock: func(mock sqlmock.Sqlmock) {
-				rows := sqlmock.NewRows([]string{"id", "user_id", "new_word_count", "old_word_count", "alphabet_learn_count", "language"}).
-					AddRow(2, 2, 30, 25, 15, "ru")
-				mock.ExpectQuery(`SELECT id, user_id, new_word_count, old_word_count, alphabet_learn_count, language FROM user_settings WHERE user_id = \? LIMIT 1`).
+				rows := sqlmock.NewRows([]string{"id", "user_id", "new_word_count", "old_word_count", "alphabet_learn_count", "language", "alphabet_repeat"}).
+					AddRow(2, 2, 30, 25, 15, "ru", "in question")
+				mock.ExpectQuery(`SELECT id, user_id, new_word_count, old_word_count, alphabet_learn_count, language, alphabet_repeat FROM user_settings WHERE user_id = \? LIMIT 1`).
 					WithArgs(2).
 					WillReturnRows(rows)
 			},

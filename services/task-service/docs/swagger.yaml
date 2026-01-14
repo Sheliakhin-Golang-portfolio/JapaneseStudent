@@ -1,5 +1,10 @@
 basePath: /api/v6
 definitions:
+  handlers.DeleteScheduledTaskByUserIdRequest:
+    properties:
+      userId:
+        type: integer
+    type: object
   models.AdminCreateImmediateTaskRequest:
     properties:
       content:
@@ -1044,6 +1049,41 @@ paths:
       security:
       - ApiKeyAuth: []
       summary: Create scheduled task
+      tags:
+      - tasks
+  /tasks/scheduled/by-user:
+    delete:
+      consumes:
+      - application/json
+      description: Delete all scheduled tasks for a specific user. Requires API key
+        authentication.
+      parameters:
+      - description: Delete scheduled tasks request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.DeleteScheduledTaskByUserIdRequest'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad request - invalid request body
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Delete scheduled tasks by user ID
       tags:
       - tasks
 securityDefinitions:

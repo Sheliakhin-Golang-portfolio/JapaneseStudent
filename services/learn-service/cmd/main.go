@@ -94,7 +94,7 @@ func main() {
 	adminCharHandler := handlers.NewAdminCharactersHandler(adminCharService, logger.Logger)
 
 	// Initialize test result layers
-	testResultService := services.NewTestResultService(historyRepo)
+	testResultService := services.NewTestResultService(historyRepo, repo)
 	testResultHandler := handlers.NewTestResultHandler(testResultService, logger.Logger)
 
 	// Initialize dictionary layers
@@ -153,12 +153,15 @@ func main() {
 
 	// Scope router to /api/v6
 	r.Route("/api/v6", func(r chi.Router) {
-		// Register character routes
+		// Initialize auth middleware
 		authMw := authMiddleware.AuthMiddleware(tokenGenerator)
+		apiKeyMw := authMiddleware.APIKeyMiddleware(cfg.APIKey)
+
+		// Register character routes
 		charHandler.RegisterRoutes(r, authMw)
 
-		// Register test result routes with auth middleware
-		testResultHandler.RegisterRoutes(r, authMw)
+		// Register test result routes with auth middleware and API key middleware
+		testResultHandler.RegisterRoutes(r, authMw, apiKeyMw)
 
 		// Register dictionary routes with auth middleware
 		dictionaryHandler.RegisterRoutes(r, authMw)

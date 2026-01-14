@@ -34,6 +34,10 @@ func (m *mockUserSettingsRepositoryForService) Update(ctx context.Context, userI
 	return m.err
 }
 
+func (m *mockUserSettingsRepositoryForService) ExistsByUserId(ctx context.Context, userId int) (bool, error) {
+	return m.settings != nil, m.err
+}
+
 func TestNewUserSettingsService(t *testing.T) {
 	mockRepo := &mockUserSettingsRepositoryForService{}
 
@@ -62,6 +66,7 @@ func TestUserSettingsService_GetUserSettings(t *testing.T) {
 					OldWordCount:       20,
 					AlphabetLearnCount: 10,
 					Language:           models.LanguageEnglish,
+					AlphabetRepeat:     models.RepeatTypeInQuestion,
 				},
 			},
 			expectedError: false,
@@ -93,6 +98,7 @@ func TestUserSettingsService_GetUserSettings(t *testing.T) {
 					OldWordCount:       25,
 					AlphabetLearnCount: 15,
 					Language:           models.LanguageRussian,
+					AlphabetRepeat:     models.RepeatTypeInQuestion,
 				},
 			},
 			expectedError: false,
@@ -115,6 +121,7 @@ func TestUserSettingsService_GetUserSettings(t *testing.T) {
 				assert.Equal(t, tt.mockRepo.settings.OldWordCount, result.OldWordCount)
 				assert.Equal(t, tt.mockRepo.settings.AlphabetLearnCount, result.AlphabetLearnCount)
 				assert.Equal(t, tt.mockRepo.settings.Language, result.Language)
+				assert.Equal(t, tt.mockRepo.settings.AlphabetRepeat, result.AlphabetRepeat)
 				// Verify IDs are not included in response
 				assert.Zero(t, result.NewWordCount == 0 && tt.mockRepo.settings.NewWordCount != 0) // Just check they match
 			}
@@ -138,7 +145,7 @@ func TestUserSettingsService_UpdateUserSettings(t *testing.T) {
 				NewWordCount:       intPtr(25),
 				OldWordCount:       intPtr(30),
 				AlphabetLearnCount: intPtr(12),
-				Language:           languagePtr(models.LanguageEnglish),
+				Language:           models.LanguageEnglish,
 			},
 			mockRepo: &mockUserSettingsRepositoryForService{
 				settings: &models.UserSettings{
@@ -148,6 +155,7 @@ func TestUserSettingsService_UpdateUserSettings(t *testing.T) {
 					OldWordCount:       20,
 					AlphabetLearnCount: 10,
 					Language:           models.LanguageEnglish,
+					AlphabetRepeat:     models.RepeatTypeInQuestion,
 				},
 			},
 			expectedError: false,
@@ -166,6 +174,7 @@ func TestUserSettingsService_UpdateUserSettings(t *testing.T) {
 					OldWordCount:       20,
 					AlphabetLearnCount: 10,
 					Language:           models.LanguageEnglish,
+					AlphabetRepeat:     models.RepeatTypeInQuestion,
 				},
 			},
 			expectedError: false,
@@ -184,6 +193,7 @@ func TestUserSettingsService_UpdateUserSettings(t *testing.T) {
 					OldWordCount:       20,
 					AlphabetLearnCount: 10,
 					Language:           models.LanguageEnglish,
+					AlphabetRepeat:     models.RepeatTypeInQuestion,
 				},
 			},
 			expectedError: true,
@@ -203,6 +213,7 @@ func TestUserSettingsService_UpdateUserSettings(t *testing.T) {
 					OldWordCount:       20,
 					AlphabetLearnCount: 10,
 					Language:           models.LanguageEnglish,
+					AlphabetRepeat:     models.RepeatTypeInQuestion,
 				},
 			},
 			expectedError: true,
@@ -222,6 +233,7 @@ func TestUserSettingsService_UpdateUserSettings(t *testing.T) {
 					OldWordCount:       20,
 					AlphabetLearnCount: 10,
 					Language:           models.LanguageEnglish,
+					AlphabetRepeat:     models.RepeatTypeInQuestion,
 				},
 			},
 			expectedError: true,
@@ -241,6 +253,7 @@ func TestUserSettingsService_UpdateUserSettings(t *testing.T) {
 					OldWordCount:       20,
 					AlphabetLearnCount: 10,
 					Language:           models.LanguageEnglish,
+					AlphabetRepeat:     models.RepeatTypeInQuestion,
 				},
 			},
 			expectedError: true,
@@ -260,6 +273,7 @@ func TestUserSettingsService_UpdateUserSettings(t *testing.T) {
 					OldWordCount:       20,
 					AlphabetLearnCount: 10,
 					Language:           models.LanguageEnglish,
+					AlphabetRepeat:     models.RepeatTypeInQuestion,
 				},
 			},
 			expectedError: true,
@@ -279,6 +293,7 @@ func TestUserSettingsService_UpdateUserSettings(t *testing.T) {
 					OldWordCount:       20,
 					AlphabetLearnCount: 10,
 					Language:           models.LanguageEnglish,
+					AlphabetRepeat:     models.RepeatTypeInQuestion,
 				},
 			},
 			expectedError: true,
@@ -288,7 +303,7 @@ func TestUserSettingsService_UpdateUserSettings(t *testing.T) {
 			name:   "invalid language",
 			userId: 1,
 			updateRequest: &models.UpdateUserSettingsRequest{
-				Language: languagePtr(models.Language("fr")),
+				Language: models.Language("fr"),
 			},
 			mockRepo: &mockUserSettingsRepositoryForService{
 				settings: &models.UserSettings{
@@ -298,6 +313,7 @@ func TestUserSettingsService_UpdateUserSettings(t *testing.T) {
 					OldWordCount:       20,
 					AlphabetLearnCount: 10,
 					Language:           models.LanguageEnglish,
+					AlphabetRepeat:     models.RepeatTypeInQuestion,
 				},
 			},
 			expectedError: true,
@@ -307,7 +323,7 @@ func TestUserSettingsService_UpdateUserSettings(t *testing.T) {
 			name:   "success with valid language - english",
 			userId: 1,
 			updateRequest: &models.UpdateUserSettingsRequest{
-				Language: languagePtr(models.LanguageEnglish),
+				Language: models.LanguageEnglish,
 			},
 			mockRepo: &mockUserSettingsRepositoryForService{
 				settings: &models.UserSettings{
@@ -317,6 +333,7 @@ func TestUserSettingsService_UpdateUserSettings(t *testing.T) {
 					OldWordCount:       20,
 					AlphabetLearnCount: 10,
 					Language:           models.LanguageEnglish,
+					AlphabetRepeat:     models.RepeatTypeInQuestion,
 				},
 			},
 			expectedError: false,
@@ -325,7 +342,7 @@ func TestUserSettingsService_UpdateUserSettings(t *testing.T) {
 			name:   "success with valid language - russian",
 			userId: 1,
 			updateRequest: &models.UpdateUserSettingsRequest{
-				Language: languagePtr(models.LanguageRussian),
+				Language: models.LanguageRussian,
 			},
 			mockRepo: &mockUserSettingsRepositoryForService{
 				settings: &models.UserSettings{
@@ -335,6 +352,7 @@ func TestUserSettingsService_UpdateUserSettings(t *testing.T) {
 					OldWordCount:       20,
 					AlphabetLearnCount: 10,
 					Language:           models.LanguageEnglish,
+					AlphabetRepeat:     models.RepeatTypeInQuestion,
 				},
 			},
 			expectedError: false,
@@ -343,7 +361,7 @@ func TestUserSettingsService_UpdateUserSettings(t *testing.T) {
 			name:   "success with valid language - german",
 			userId: 1,
 			updateRequest: &models.UpdateUserSettingsRequest{
-				Language: languagePtr(models.LanguageGerman),
+				Language: models.LanguageGerman,
 			},
 			mockRepo: &mockUserSettingsRepositoryForService{
 				settings: &models.UserSettings{
@@ -353,6 +371,7 @@ func TestUserSettingsService_UpdateUserSettings(t *testing.T) {
 					OldWordCount:       20,
 					AlphabetLearnCount: 10,
 					Language:           models.LanguageEnglish,
+					AlphabetRepeat:     models.RepeatTypeInQuestion,
 				},
 			},
 			expectedError: false,
@@ -371,6 +390,7 @@ func TestUserSettingsService_UpdateUserSettings(t *testing.T) {
 					OldWordCount:       20,
 					AlphabetLearnCount: 10,
 					Language:           models.LanguageEnglish,
+					AlphabetRepeat:     models.RepeatTypeInQuestion,
 				},
 			},
 			expectedError: false,
@@ -389,6 +409,7 @@ func TestUserSettingsService_UpdateUserSettings(t *testing.T) {
 					OldWordCount:       20,
 					AlphabetLearnCount: 10,
 					Language:           models.LanguageEnglish,
+					AlphabetRepeat:     models.RepeatTypeInQuestion,
 				},
 			},
 			expectedError: false,
@@ -407,6 +428,7 @@ func TestUserSettingsService_UpdateUserSettings(t *testing.T) {
 					OldWordCount:       20,
 					AlphabetLearnCount: 10,
 					Language:           models.LanguageEnglish,
+					AlphabetRepeat:     models.RepeatTypeInQuestion,
 				},
 			},
 			expectedError: false,
@@ -425,6 +447,7 @@ func TestUserSettingsService_UpdateUserSettings(t *testing.T) {
 					OldWordCount:       20,
 					AlphabetLearnCount: 10,
 					Language:           models.LanguageEnglish,
+					AlphabetRepeat:     models.RepeatTypeInQuestion,
 				},
 			},
 			expectedError: false,
@@ -455,6 +478,7 @@ func TestUserSettingsService_UpdateUserSettings(t *testing.T) {
 					OldWordCount:       20,
 					AlphabetLearnCount: 10,
 					Language:           models.LanguageEnglish,
+					AlphabetRepeat:     models.RepeatTypeInQuestion,
 				},
 				updateErr: errors.New("update error"),
 			},
@@ -475,6 +499,7 @@ func TestUserSettingsService_UpdateUserSettings(t *testing.T) {
 					OldWordCount:       20,
 					AlphabetLearnCount: 10,
 					Language:           models.LanguageEnglish,
+					AlphabetRepeat:     models.RepeatTypeInQuestion,
 				},
 			},
 			expectedError: true,

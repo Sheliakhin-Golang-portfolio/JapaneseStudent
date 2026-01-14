@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"mime/multipart"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -22,6 +24,35 @@ type mockProfileUserRepository struct {
 	existsByEmailErr error
 	existsByUsername bool
 	existsByUsernameErr error
+}
+
+// mockUserSettingsRepositoryForProfile is a mock implementation of UserSettingsRepository for profile service tests
+type mockUserSettingsRepositoryForProfile struct {
+	settings  *models.UserSettings
+	err       error
+	updateErr error
+}
+
+func (m *mockUserSettingsRepositoryForProfile) Create(ctx context.Context, userId int) error {
+	return m.err
+}
+
+func (m *mockUserSettingsRepositoryForProfile) GetByUserId(ctx context.Context, userId int) (*models.UserSettings, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	return m.settings, nil
+}
+
+func (m *mockUserSettingsRepositoryForProfile) Update(ctx context.Context, userId int, settings *models.UserSettings) error {
+	if m.updateErr != nil {
+		return m.updateErr
+	}
+	return m.err
+}
+
+func (m *mockUserSettingsRepositoryForProfile) ExistsByUserId(ctx context.Context, userId int) (bool, error) {
+	return m.settings != nil, m.err
 }
 
 func (m *mockProfileUserRepository) GetByID(ctx context.Context, userID int) (*models.User, error) {
@@ -62,9 +93,10 @@ func (m *mockProfileUserRepository) UpdateActive(ctx context.Context, userID int
 
 func TestNewProfileService(t *testing.T) {
 	mockRepo := &mockProfileUserRepository{}
+	mockSettingsRepo := &mockUserSettingsRepositoryForProfile{}
 	tokenGen := service.NewTokenGenerator("test-secret", 1*time.Hour, 7*24*time.Hour)
 
-	svc := NewProfileService(mockRepo, tokenGen, "", "", "", "")
+	svc := NewProfileService(mockRepo, mockSettingsRepo, tokenGen, "", "", "", "", "", "", false)
 
 	assert.NotNil(t, svc)
 }
@@ -134,7 +166,8 @@ func TestProfileService_GetUser(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tokenGen := service.NewTokenGenerator("test-secret", 1*time.Hour, 7*24*time.Hour)
-			svc := NewProfileService(tt.mockRepo, tokenGen, "", "", "", "")
+			mockSettingsRepo := &mockUserSettingsRepositoryForProfile{}
+			svc := NewProfileService(tt.mockRepo, mockSettingsRepo, tokenGen, "", "", "", "", "", "", false)
 
 			result, err := svc.GetUser(context.Background(), tt.userId)
 
@@ -331,7 +364,8 @@ func TestProfileService_UpdateUser(t *testing.T) {
 			// Tests that need task service functionality should expect the error
 			taskBaseURL := ""
 			apiKey := ""
-			svc := NewProfileService(tt.mockRepo, tokenGen, "", apiKey, taskBaseURL, "http://localhost:8080")
+			mockSettingsRepo := &mockUserSettingsRepositoryForProfile{}
+			svc := NewProfileService(tt.mockRepo, mockSettingsRepo, tokenGen, "", apiKey, taskBaseURL, "http://localhost:8080", "", "", false)
 
 			err := svc.UpdateUser(context.Background(), tt.userId, tt.username, tt.email)
 
@@ -450,7 +484,8 @@ func TestProfileService_UpdatePassword(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tokenGen := service.NewTokenGenerator("test-secret", 1*time.Hour, 7*24*time.Hour)
-			svc := NewProfileService(tt.mockRepo, tokenGen, "", "", "", "")
+			mockSettingsRepo := &mockUserSettingsRepositoryForProfile{}
+			svc := NewProfileService(tt.mockRepo, mockSettingsRepo, tokenGen, "", "", "", "", "", "", false)
 
 			err := svc.UpdatePassword(context.Background(), tt.userId, tt.password)
 
@@ -525,7 +560,8 @@ func TestProfileService_UpdateAvatar(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tokenGen := service.NewTokenGenerator("test-secret", 1*time.Hour, 7*24*time.Hour)
-			svc := NewProfileService(tt.mockRepo, tokenGen, tt.mediaBaseURL, tt.apiKey, "", "")
+			mockSettingsRepo := &mockUserSettingsRepositoryForProfile{}
+			svc := NewProfileService(tt.mockRepo, mockSettingsRepo, tokenGen, tt.mediaBaseURL, tt.apiKey, "", "", "", "", false)
 
 			_, err := svc.UpdateAvatar(context.Background(), tt.userId, tt.avatarFile, tt.avatarFilename)
 
@@ -534,6 +570,201 @@ func TestProfileService_UpdateAvatar(t *testing.T) {
 				if tt.errorContains != "" {
 					assert.Contains(t, err.Error(), tt.errorContains)
 				}
+			}
+		})
+	}
+}
+
+// TestProfileService_UpdateRepeatFlag tests the UpdateRepeatFlag method.
+// NOTE: This test avoids calling task-service by using empty scheduledTaskBaseURL.
+// The actual task-service integration (creating/deleting scheduled tasks) should be tested
+// on a live server with the task-service running.
+func TestProfileService_UpdateRepeatFlag(t *testing.T) {
+	tests := []struct {
+		name              string
+		userId            int
+		flag              string
+		previousFlag      models.RepeatType
+		mockUserRepo      *mockProfileUserRepository
+		mockSettingsRepo  *mockUserSettingsRepositoryForProfile
+		expectedError     bool
+		errorContains     string
+	}{
+		{
+			name:   "success update to 'in question'",
+			userId:  1,
+			flag:    "in question",
+			previousFlag: models.RepeatTypeIgnore,
+			mockUserRepo: &mockProfileUserRepository{
+				user: &models.User{
+					ID:    1,
+					Email: "test@example.com",
+				},
+			},
+			mockSettingsRepo: &mockUserSettingsRepositoryForProfile{
+				settings: &models.UserSettings{
+					UserID:         1,
+					AlphabetRepeat: models.RepeatTypeIgnore,
+				},
+			},
+			expectedError: false,
+		},
+		{
+			name:   "success update to 'ignore'",
+			userId:  1,
+			flag:    "ignore",
+			previousFlag: models.RepeatTypeInQuestion,
+			mockUserRepo: &mockProfileUserRepository{
+				user: &models.User{
+					ID:    1,
+					Email: "test@example.com",
+				},
+			},
+			mockSettingsRepo: &mockUserSettingsRepositoryForProfile{
+				settings: &models.UserSettings{
+					UserID:         1,
+					AlphabetRepeat: models.RepeatTypeInQuestion,
+				},
+			},
+			expectedError: false,
+		},
+		{
+			name:   "success update to 'repeat' - will fail due to empty scheduledTaskBaseURL",
+			userId:  1,
+			flag:    "repeat",
+			previousFlag: models.RepeatTypeInQuestion,
+			mockUserRepo: &mockProfileUserRepository{
+				user: &models.User{
+					ID:    1,
+					Email: "test@example.com",
+				},
+			},
+			mockSettingsRepo: &mockUserSettingsRepositoryForProfile{
+				settings: &models.UserSettings{
+					UserID:         1,
+					AlphabetRepeat: models.RepeatTypeInQuestion,
+				},
+			},
+			expectedError: true,
+			errorContains: "SCHEDULED_TASK_BASE_URL is not configured",
+		},
+		{
+			name:   "success update from 'repeat' to 'ignore' - will fail due to empty scheduledTaskBaseURL",
+			userId:  1,
+			flag:    "ignore",
+			previousFlag: models.RepeatTypeRepeat,
+			mockUserRepo: &mockProfileUserRepository{
+				user: &models.User{
+					ID:    1,
+					Email: "test@example.com",
+				},
+			},
+			mockSettingsRepo: &mockUserSettingsRepositoryForProfile{
+				settings: &models.UserSettings{
+					UserID:         1,
+					AlphabetRepeat: models.RepeatTypeRepeat,
+				},
+			},
+			expectedError: true,
+			errorContains: "SCHEDULED_TASK_BASE_URL is not configured",
+		},
+		{
+			name:   "invalid flag value",
+			userId:  1,
+			flag:    "invalid",
+			previousFlag: models.RepeatTypeInQuestion,
+			mockUserRepo: &mockProfileUserRepository{
+				user: &models.User{
+					ID:    1,
+					Email: "test@example.com",
+				},
+			},
+			mockSettingsRepo: &mockUserSettingsRepositoryForProfile{
+				settings: &models.UserSettings{
+					UserID:         1,
+					AlphabetRepeat: models.RepeatTypeInQuestion,
+				},
+			},
+			expectedError: true,
+			errorContains: "flag must be 'in question', 'ignore', or 'repeat'",
+		},
+		{
+			name:   "invalid user id",
+			userId:  0,
+			flag:    "in question",
+			previousFlag: models.RepeatTypeInQuestion,
+			mockUserRepo: &mockProfileUserRepository{
+				user: &models.User{ID: 0},
+			},
+			mockSettingsRepo: &mockUserSettingsRepositoryForProfile{
+				settings: &models.UserSettings{
+					UserID:         0,
+					AlphabetRepeat: models.RepeatTypeInQuestion,
+				},
+			},
+			expectedError: true,
+			errorContains: "invalid user id",
+		},
+		{
+			name:   "user settings not found",
+			userId:  1,
+			flag:    "in question",
+			previousFlag: models.RepeatTypeInQuestion,
+			mockUserRepo: &mockProfileUserRepository{
+				user: &models.User{
+					ID:    1,
+					Email: "test@example.com",
+				},
+			},
+			mockSettingsRepo: &mockUserSettingsRepositoryForProfile{
+				err: errors.New("user settings not found"),
+			},
+			expectedError: true,
+			errorContains: "user settings not found",
+		},
+		{
+			name:   "update settings error",
+			userId:  1,
+			flag:    "in question",
+			previousFlag: models.RepeatTypeInQuestion,
+			mockUserRepo: &mockProfileUserRepository{
+				user: &models.User{
+					ID:    1,
+					Email: "test@example.com",
+				},
+			},
+			mockSettingsRepo: &mockUserSettingsRepositoryForProfile{
+				settings: &models.UserSettings{
+					UserID:         1,
+					AlphabetRepeat: models.RepeatTypeInQuestion,
+				},
+				updateErr: errors.New("database error"),
+			},
+			expectedError: true,
+			errorContains: "database error",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tokenGen := service.NewTokenGenerator("test-secret", 1*time.Hour, 7*24*time.Hour)
+			// Use empty scheduledTaskBaseURL to avoid calling task-service
+			// NOTE: Task-service integration (creating/deleting scheduled tasks) should be tested
+			// on a live server with the task-service running.
+			svc := NewProfileService(tt.mockUserRepo, tt.mockSettingsRepo, tokenGen, "", "", "", "", "", "", false)
+
+			// Create a mock HTTP request
+			req := httptest.NewRequest(http.MethodPut, "/api/v6/profile/repeat-flag", nil)
+
+			err := svc.UpdateRepeatFlag(context.Background(), tt.userId, tt.flag, req)
+
+			if tt.expectedError {
+				assert.Error(t, err)
+				if tt.errorContains != "" && err != nil {
+					assert.Contains(t, err.Error(), tt.errorContains)
+				}
+			} else {
+				assert.NoError(t, err)
 			}
 		})
 	}

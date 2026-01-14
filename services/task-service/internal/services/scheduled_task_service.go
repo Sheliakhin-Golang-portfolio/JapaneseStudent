@@ -26,6 +26,8 @@ type ScheduledTaskRepository interface {
 	GetURLByID(ctx context.Context, id int) (string, error)
 	GetTemplateIDByID(ctx context.Context, id int) (*int, error)
 	GetContentByID(ctx context.Context, id int) (string, error)
+	ExistsByUserIDAndURL(ctx context.Context, userID int, url string) (bool, error)
+	DeleteByUserID(ctx context.Context, userID int) ([]int, error)
 }
 
 type scheduledTaskService struct {
@@ -50,6 +52,18 @@ func (s *scheduledTaskService) Create(ctx context.Context, req *models.CreateSch
 	templateID, nextRun, err := s.checkCreateScheduledTaskValidation(ctx, req)
 	if err != nil {
 		return 0, err
+	}
+
+	// Check if task with same UserID and URL already exists
+	if req.UserID != nil && req.URL != "" {
+		exists, err := s.repo.ExistsByUserIDAndURL(ctx, *req.UserID, req.URL)
+		if err != nil {
+			return 0, err
+		}
+		if exists {
+			// Task already exists, return success (task ID 0 indicates no new task created)
+			return 0, nil
+		}
 	}
 
 	task := &models.ScheduledTask{
@@ -454,4 +468,26 @@ func (s *scheduledTaskService) addToRedisZSet(ctx context.Context, nextRun *time
 		Score:  score,
 		Member: member,
 	}).Err()
+}
+
+// DeleteByUserID deletes all scheduled tasks for a user from database and Redis ZSET
+func (s *scheduledTaskService) DeleteByUserID(ctx context.Context, userID int) error {
+	// Get task IDs before deletion for Redis cleanup
+	taskIDs, err := s.repo.DeleteByUserID(ctx, userID)
+	if err != nil {
+		return err
+	}
+
+	// Remove all matching tasks from Redis ZSET (using goroutines to improve performance)
+	go func() {
+		for _, taskID := range taskIDs {
+			member := strconv.Itoa(taskID)
+			if err := s.redis.ZRem(ctx, scheduledTasksZSet, member).Err(); err != nil {
+				// Log error but continue with other deletions
+				s.logger.Warn("failed to remove task from Redis ZSET", zap.Int("taskID", taskID), zap.Error(err))
+			}
+		}
+	}()
+
+	return nil
 }

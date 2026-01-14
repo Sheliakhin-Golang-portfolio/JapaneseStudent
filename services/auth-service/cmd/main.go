@@ -91,11 +91,11 @@ func main() {
 	// Initialize services
 	authService := services.NewAuthService(userRepo, userTokenRepo, userSettingsRepo, tokenGenerator, logger.Logger, cfg.MediaBaseURL, cfg.APIKey, cfg.ImmediateTaskBaseURL, cfg.VerificationURL)
 	userSettingsService := services.NewUserSettingsService(userSettingsRepo)
-	profileService := services.NewProfileService(userRepo, tokenGenerator, cfg.MediaBaseURL, cfg.APIKey, cfg.ImmediateTaskBaseURL, cfg.VerificationURL)
+	profileService := services.NewProfileService(userRepo, userSettingsRepo, tokenGenerator, cfg.MediaBaseURL, cfg.APIKey, cfg.ImmediateTaskBaseURL, cfg.VerificationURL, cfg.ScheduledTaskBaseURL, cfg.LearnServiceBaseURL, cfg.IsDockerContainer)
 
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(authService, logger.Logger)
-	adminService := services.NewAdminService(userRepo, userTokenRepo, userSettingsRepo, tokenGenerator, logger.Logger, cfg.MediaBaseURL, cfg.APIKey, cfg.ScheduledTaskBaseURL)
+	adminService := services.NewAdminService(userRepo, userTokenRepo, userSettingsRepo, tokenGenerator, logger.Logger, cfg.MediaBaseURL, cfg.APIKey, cfg.ScheduledTaskBaseURL, cfg.LearnServiceBaseURL, cfg.IsDockerContainer, cfg.ScheduledTaskBaseURL)
 	profileHandler := handlers.NewProfileHandler(profileService, userSettingsService, logger.Logger)
 	adminHandler := handlers.NewAdminHandler(adminService, logger.Logger, cfg.MediaBaseURL, cfg.IsDockerContainer, cfg.AuthServiceBaseURL)
 	tokenCleaningHandler := handlers.NewTokenCleaningHandler(userTokenRepo, logger.Logger, cfg.JWT.RefreshTokenExpiry)

@@ -176,3 +176,28 @@ func (r *characterLearnHistoryRepository) Upsert(ctx context.Context, histories 
 
 	return nil
 }
+
+// LowerResultsByUserID lowers all result values by 0.01 for all CharacterLearnHistory records for a user
+//
+// It allows to sort provided test data by mark in specified category.
+func (r *characterLearnHistoryRepository) LowerResultsByUserID(ctx context.Context, userID int) error {
+	query := `
+		UPDATE character_learn_history 
+		SET 
+			hiragana_reading_result = GREATEST(0, hiragana_reading_result - 0.01),
+			hiragana_writing_result = GREATEST(0, hiragana_writing_result - 0.01),
+			hiragana_listening_result = GREATEST(0, hiragana_listening_result - 0.01),
+			katakana_reading_result = GREATEST(0, katakana_reading_result - 0.01),
+			katakana_writing_result = GREATEST(0, katakana_writing_result - 0.01),
+			katakana_listening_result = GREATEST(0, katakana_listening_result - 0.01)
+		WHERE user_id = ?
+	`
+
+	_, err := r.db.ExecContext(ctx, query, userID)
+	if err != nil {
+		return fmt.Errorf("failed to lower results: %w", err)
+	}
+
+	// Return nil even if no rows affected (user has no history - not an error)
+	return nil
+}

@@ -142,10 +142,15 @@ func setupTestRouter(db *sql.DB, logger *zap.Logger, cfg *config.Config) chi.Rou
 	authHandler := handlers.NewAuthHandler(authSvc, logger)
 
 	userSettingsSvc := services.NewUserSettingsService(userSettingsRepo)
-	profileSvc := services.NewProfileService(userRepo, tokenGen, "", "", "", "")
+	// Using empty scheduledTaskBaseURL to avoid calling task-service in tests
+	// NOTE: Task-service integration (creating/deleting scheduled tasks) should be tested
+	// on a live server with the task-service running.
+	profileSvc := services.NewProfileService(userRepo, userSettingsRepo, tokenGen, "", "", "", "", "", "", false)
 	profileHandler := handlers.NewProfileHandler(profileSvc, userSettingsSvc, logger)
 
-	adminSvc := services.NewAdminService(userRepo, tokenRepo, userSettingsRepo, tokenGen, logger, "", "", "")
+	// Using empty scheduledTaskBaseURL and learnServiceBaseURL to avoid calling external services in tests
+	// NOTE: External service integration should be tested on a live server with the services running.
+	adminSvc := services.NewAdminService(userRepo, tokenRepo, userSettingsRepo, tokenGen, logger, "", "", "", "", false, "")
 	adminHandler := handlers.NewAdminHandler(adminSvc, logger, "", false, "")
 
 	tokenCleaningHandler := handlers.NewTokenCleaningHandler(tokenRepo, logger, refreshExpiry)
@@ -262,6 +267,7 @@ func setupTestSchemaForMain(db *sql.DB) {
 			old_word_count INT NOT NULL DEFAULT 20,
 			alphabet_learn_count INT NOT NULL DEFAULT 10,
 			language VARCHAR(10) NOT NULL DEFAULT 'en',
+			alphabet_repeat VARCHAR(20) NOT NULL DEFAULT 'in question',
 			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 			FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -773,7 +779,7 @@ func TestIntegration_UserSettings(t *testing.T) {
 	defer cleanupTestData(t, testDB)
 
 	// Create user settings for test user
-	_, err := testDB.Exec("INSERT INTO user_settings (user_id, new_word_count, old_word_count, alphabet_learn_count, language) VALUES (1, 20, 20, 10, 'en')")
+	_, err := testDB.Exec("INSERT INTO user_settings (user_id, new_word_count, old_word_count, alphabet_learn_count, language, alphabet_repeat) VALUES (1, 20, 20, 10, 'en', 'in question')")
 	require.NoError(t, err, "Failed to seed user settings")
 
 	tests := []struct {
@@ -800,6 +806,7 @@ func TestIntegration_UserSettings(t *testing.T) {
 				assert.Equal(t, 20, response.OldWordCount)
 				assert.Equal(t, 10, response.AlphabetLearnCount)
 				assert.Equal(t, models.LanguageEnglish, response.Language)
+				assert.Equal(t, models.RepeatTypeInQuestion, response.AlphabetRepeat)
 			},
 		},
 		{
@@ -1139,7 +1146,7 @@ func TestIntegration_AdminGetUserWithSettings(t *testing.T) {
 	defer cleanupTestData(t, testDB)
 
 	// Create user settings for test user
-	_, err := testDB.Exec("INSERT INTO user_settings (user_id, new_word_count, old_word_count, alphabet_learn_count, language) VALUES (1, 20, 20, 10, 'en')")
+	_, err := testDB.Exec("INSERT INTO user_settings (user_id, new_word_count, old_word_count, alphabet_learn_count, language, alphabet_repeat) VALUES (1, 20, 20, 10, 'en', 'in question')")
 	require.NoError(t, err, "Failed to seed user settings")
 
 	tests := []struct {
@@ -1420,7 +1427,7 @@ func TestIntegration_AdminUpdateUserWithSettings(t *testing.T) {
 	defer cleanupTestData(t, testDB)
 
 	// Create user settings for test user
-	_, err := testDB.Exec("INSERT INTO user_settings (user_id, new_word_count, old_word_count, alphabet_learn_count, language) VALUES (1, 20, 20, 10, 'en')")
+	_, err := testDB.Exec("INSERT INTO user_settings (user_id, new_word_count, old_word_count, alphabet_learn_count, language, alphabet_repeat) VALUES (1, 20, 20, 10, 'en', 'in question')")
 	require.NoError(t, err, "Failed to seed user settings")
 
 	tests := []struct {
@@ -2019,7 +2026,7 @@ func TestIntegration_ProfileHandler(t *testing.T) {
 	defer cleanupTestData(t, testDB)
 
 	// Create user settings for test user
-	_, err := testDB.Exec("INSERT INTO user_settings (user_id, new_word_count, old_word_count, alphabet_learn_count, language) VALUES (1, 20, 20, 10, 'en')")
+	_, err := testDB.Exec("INSERT INTO user_settings (user_id, new_word_count, old_word_count, alphabet_learn_count, language, alphabet_repeat) VALUES (1, 20, 20, 10, 'en', 'in question')")
 	require.NoError(t, err, "Failed to seed user settings")
 
 	tests := []struct {
@@ -2240,3 +2247,179 @@ func TestIntegration_ProfileHandler(t *testing.T) {
 // - Email delivery through the task service
 // - Password generation and database update
 // - End-to-end password reset flow
+
+// NOTE: UpdateRepeatFlag Integration Testing
+//
+// The UpdateRepeatFlag method in profile_service.go calls task-service endpoints
+// (CreateScheduledTask and DeleteScheduledTaskByUserID) when the flag is set to "repeat"
+// or changed from "repeat" to another value. This functionality requires the task-service
+// to be running and properly configured.
+// Task-service integration should be tested in a live environment with the task-service running, as it involves:
+// - HTTP communication with the task microservice
+// - Scheduled task creation and deletion through the task service
+// - End-to-end task scheduling flow
+//
+// In these tests, we focus ONLY on the flag update logic itself, not the task-service integration.
+// Tests that would trigger task-service calls will fail with appropriate error messages indicating
+// that SCHEDULED_TASK_BASE_URL is not configured.
+
+func TestIntegration_UpdateRepeatFlag(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration tests in short mode")
+	}
+
+	cleanupTestData(t, testDB)
+	seedTestData(t, testDB)
+	defer cleanupTestData(t, testDB)
+
+	// Create user settings for test user
+	_, err := testDB.Exec("INSERT INTO user_settings (user_id, new_word_count, old_word_count, alphabet_learn_count, language, alphabet_repeat) VALUES (1, 20, 20, 10, 'en', 'in question')")
+	require.NoError(t, err, "Failed to seed user settings")
+
+	tests := []struct {
+		name           string
+		userID         int
+		requestBody    map[string]string
+		expectedStatus int
+		validateFunc   func(*testing.T, *httptest.ResponseRecorder)
+	}{
+		{
+			name:   "success update to 'ignore'",
+			userID: 1,
+			requestBody: map[string]string{
+				"flag": "ignore",
+			},
+			expectedStatus: http.StatusNoContent,
+			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
+				// Verify database was updated
+				var alphabetRepeat string
+				err := testDB.QueryRow("SELECT alphabet_repeat FROM user_settings WHERE user_id = ?", 1).Scan(&alphabetRepeat)
+				require.NoError(t, err)
+				assert.Equal(t, "ignore", alphabetRepeat)
+			},
+		},
+		{
+			name:   "success update to 'in question'",
+			userID: 1,
+			requestBody: map[string]string{
+				"flag": "in question",
+			},
+			expectedStatus: http.StatusNoContent,
+			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
+				// Verify database was updated
+				var alphabetRepeat string
+				err := testDB.QueryRow("SELECT alphabet_repeat FROM user_settings WHERE user_id = ?", 1).Scan(&alphabetRepeat)
+				require.NoError(t, err)
+				assert.Equal(t, "in question", alphabetRepeat)
+			},
+		},
+		{
+			name:   "update to 'repeat' - will fail due to empty scheduledTaskBaseURL",
+			userID: 1,
+			requestBody: map[string]string{
+				"flag": "repeat",
+			},
+			expectedStatus: http.StatusInternalServerError,
+			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
+				var response map[string]string
+				err := json.NewDecoder(w.Body).Decode(&response)
+				require.NoError(t, err)
+				assert.Contains(t, response["error"], "SCHEDULED_TASK_BASE_URL is not configured")
+
+				// Verify flag was still updated in database despite task-service failure
+				var alphabetRepeat string
+				err = testDB.QueryRow("SELECT alphabet_repeat FROM user_settings WHERE user_id = ?", 1).Scan(&alphabetRepeat)
+				require.NoError(t, err)
+				assert.Equal(t, "repeat", alphabetRepeat, "flag should be updated in database even if task-service call fails")
+			},
+		},
+		{
+			name:   "update from 'repeat' to 'ignore' - will fail due to empty scheduledTaskBaseURL",
+			userID: 1,
+			requestBody: map[string]string{
+				"flag": "ignore",
+			},
+			expectedStatus: http.StatusInternalServerError,
+			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
+				var response map[string]string
+				err := json.NewDecoder(w.Body).Decode(&response)
+				require.NoError(t, err)
+				assert.Contains(t, response["error"], "SCHEDULED_TASK_BASE_URL is not configured")
+
+				// Verify flag was still updated in database despite task-service failure
+				var alphabetRepeat string
+				err = testDB.QueryRow("SELECT alphabet_repeat FROM user_settings WHERE user_id = ?", 1).Scan(&alphabetRepeat)
+				require.NoError(t, err)
+				assert.Equal(t, "ignore", alphabetRepeat, "flag should be updated in database even if task-service call fails")
+			},
+		},
+		{
+			name:   "invalid flag value",
+			userID: 1,
+			requestBody: map[string]string{
+				"flag": "invalid",
+			},
+			expectedStatus: http.StatusBadRequest,
+			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
+				var response map[string]string
+				err := json.NewDecoder(w.Body).Decode(&response)
+				require.NoError(t, err)
+				assert.Contains(t, response["error"], "flag must be 'in question', 'ignore', or 'repeat'")
+			},
+		},
+		{
+			name:           "empty request body",
+			userID:         1,
+			requestBody:    nil,
+			expectedStatus: http.StatusBadRequest,
+			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
+				var response map[string]string
+				err := json.NewDecoder(w.Body).Decode(&response)
+				require.NoError(t, err)
+				assert.Contains(t, response["error"], "invalid request body")
+			},
+		},
+		{
+			name:           "unauthorized - no user ID",
+			userID:         0,
+			requestBody:    map[string]string{"flag": "ignore"},
+			expectedStatus: http.StatusUnauthorized,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// For the "update from 'repeat' to 'ignore'" test, set flag to 'repeat' first
+			if tt.name == "update from 'repeat' to 'ignore' - will fail due to empty scheduledTaskBaseURL" {
+				_, err := testDB.Exec("UPDATE user_settings SET alphabet_repeat = 'repeat' WHERE user_id = ?", 1)
+				require.NoError(t, err)
+			}
+
+			var req *http.Request
+			if tt.requestBody != nil {
+				body, err := json.Marshal(tt.requestBody)
+				require.NoError(t, err)
+				req = httptest.NewRequest(http.MethodPut, "/api/v6/profile/repeat-flag", bytes.NewBuffer(body))
+				req.Header.Set("Content-Type", "application/json")
+			} else {
+				req = httptest.NewRequest(http.MethodPut, "/api/v6/profile/repeat-flag", nil)
+				req.Header.Set("Content-Type", "application/json")
+			}
+
+			// Set user ID in context if provided
+			if tt.userID > 0 {
+				ctx := middleware.SetUserID(req.Context(), tt.userID)
+				req = req.WithContext(ctx)
+			}
+
+			w := httptest.NewRecorder()
+			testRouter.ServeHTTP(w, req)
+
+			assert.Equal(t, tt.expectedStatus, w.Code, "Response status code should match")
+
+			if tt.validateFunc != nil {
+				tt.validateFunc(t, w)
+			}
+		})
+	}
+}

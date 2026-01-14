@@ -1,9 +1,12 @@
 package services
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"mime/multipart"
+	"net/http"
 	"strings"
 
 	"github.com/japanesestudent/auth-service/internal/models"
@@ -56,32 +59,54 @@ type ProfileUserRepository interface {
 	UpdateActive(ctx context.Context, userID int, active bool) error
 }
 
+// UserEmailRepository is the interface that wraps methods for User table data access needed for getUserEmail function
+type UserEmailRepository interface {
+	// GetEmail retrieves user email by user ID
+	//
+	// "userID" parameter is used to retrieve user email by user ID.
+	//
+	// If user with such ID does not exist, the error will be returned together with "nil" value.
+	GetEmail(ctx context.Context, userID int) (string, error)
+}
+
 // profileService implements ProfileService
 type profileService struct {
-	userRepo        ProfileUserRepository
-	tokenGenerator  *service.TokenGenerator
-	mediaBaseURL    string
-	apiKey          string
-	taskBaseURL     string
-	verificationURL string
+	userRepo             ProfileUserRepository
+	userSettingsRepo     UserSettingsRepository
+	tokenGenerator       *service.TokenGenerator
+	mediaBaseURL         string
+	apiKey               string
+	taskBaseURL          string
+	scheduledTaskBaseURL string
+	verificationURL      string
+	learnServiceBaseURL  string
+	isDockerContainer    bool
 }
 
 // NewProfileService creates a new profile service
 func NewProfileService(
 	userRepo ProfileUserRepository,
+	userSettingsRepo UserSettingsRepository,
 	tokenGenerator *service.TokenGenerator,
 	mediaBaseURL string,
 	apiKey string,
 	taskBaseURL string,
 	verificationURL string,
+	scheduledTaskBaseURL string,
+	learnServiceBaseURL string,
+	isDockerContainer bool,
 ) *profileService {
 	return &profileService{
-		userRepo:        userRepo,
-		tokenGenerator:  tokenGenerator,
-		mediaBaseURL:    mediaBaseURL,
-		apiKey:          apiKey,
-		taskBaseURL:     taskBaseURL,
-		verificationURL: verificationURL,
+		userRepo:             userRepo,
+		userSettingsRepo:     userSettingsRepo,
+		tokenGenerator:       tokenGenerator,
+		mediaBaseURL:         mediaBaseURL,
+		apiKey:               apiKey,
+		taskBaseURL:          taskBaseURL,
+		scheduledTaskBaseURL: scheduledTaskBaseURL,
+		verificationURL:      verificationURL,
+		learnServiceBaseURL:  learnServiceBaseURL,
+		isDockerContainer:    isDockerContainer,
 	}
 }
 
@@ -281,6 +306,166 @@ func (s *profileService) UpdatePassword(ctx context.Context, userId int, passwor
 	err = s.userRepo.UpdatePasswordHash(ctx, userId, string(passwordHash))
 	if err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func (s *profileService) UpdateRepeatFlag(ctx context.Context, userId int, flag string, r *http.Request) error {
+	// Validate user ID
+	if userId <= 0 {
+		return fmt.Errorf("invalid user id")
+	}
+
+	// Validate flag value
+	if flag != "in question" && flag != "ignore" && flag != "repeat" {
+		return fmt.Errorf("flag must be 'in question', 'ignore', or 'repeat'")
+	}
+
+	// Get current user settings to retrieve previous flag value
+	currentSettings, err := s.userSettingsRepo.GetByUserId(ctx, userId)
+	if err != nil {
+		return err
+	}
+
+	previousFlag := currentSettings.AlphabetRepeat
+
+	// Update the flag
+	updateReq := &models.UserSettings{
+		UserID:         userId,
+		AlphabetRepeat: models.RepeatType(flag),
+	}
+	if err := s.userSettingsRepo.Update(ctx, userId, updateReq); err != nil {
+		return err
+	}
+
+	// If new flag is "repeat", create scheduled task
+	if flag == "repeat" {
+		// Get user email
+		userEmail, err := getUserEmail(ctx, s.userRepo, userId)
+		if err != nil {
+			return err
+		}
+
+		// Construct URL to drop marks endpoint
+		dropMarksURL := fmt.Sprintf("%s/api/v6/test-results/drop-marks/%d", s.learnServiceBaseURL, userId)
+
+		// Call task-service to create scheduled task
+		return createScheduledTask(r.Context(), s.scheduledTaskBaseURL, s.apiKey, userId, "notify_alphabet", userEmail, dropMarksURL, "0 0 * * *")
+	} else if previousFlag == "repeat" {
+		// If new flag is NOT "repeat" AND previous flag was "repeat", delete scheduled task
+		return deleteScheduledTaskByUserID(r.Context(), s.scheduledTaskBaseURL, s.apiKey, userId)
+	}
+	return nil
+}
+
+// getUserEmail retrieves user email by user ID
+func getUserEmail(ctx context.Context, userRepo ProfileUserRepository, userID int) (string, error) {
+	if userID <= 0 {
+		return "", fmt.Errorf("invalid user id")
+	}
+
+	user, err := userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return "", err
+	}
+
+	return user.Email, nil
+}
+
+// createScheduledTask creates a scheduled task in task-service
+func createScheduledTask(ctx context.Context, scheduledTaskBaseURL, apiKey string, userID int, emailSlug, content, url, cron string) error {
+	if scheduledTaskBaseURL == "" {
+		return fmt.Errorf("SCHEDULED_TASK_BASE_URL is not configured")
+	}
+	if apiKey == "" {
+		return fmt.Errorf("API_KEY is not configured")
+	}
+
+	// Create request body
+	reqBody := map[string]any{
+		"user_id":    userID,
+		"email_slug": emailSlug,
+		"content":    content,
+		"url":        url,
+		"cron":       cron,
+	}
+
+	jsonBody, err := json.Marshal(reqBody)
+	if err != nil {
+		return fmt.Errorf("failed to marshal request body: %w", err)
+	}
+
+	// Create HTTP request
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, scheduledTaskBaseURL, bytes.NewBuffer(jsonBody))
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	// Set headers
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-API-Key", apiKey)
+
+	// Make HTTP request
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to create scheduled task: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Check response status
+	if resp.StatusCode != http.StatusCreated {
+		return fmt.Errorf("task service returned status %d", resp.StatusCode)
+	}
+
+	return nil
+}
+
+// deleteScheduledTaskByUserID deletes scheduled tasks by user ID in task-service
+func deleteScheduledTaskByUserID(ctx context.Context, scheduledTaskBaseURL, apiKey string, userID int) error {
+	if scheduledTaskBaseURL == "" {
+		return fmt.Errorf("SCHEDULED_TASK_BASE_URL is not configured")
+	}
+	if apiKey == "" {
+		return fmt.Errorf("API_KEY is not configured")
+	}
+
+	// Create request body
+	reqBody := map[string]int{
+		"userId": userID,
+	}
+
+	jsonBody, err := json.Marshal(reqBody)
+	if err != nil {
+		return fmt.Errorf("failed to marshal request body: %w", err)
+	}
+
+	// Build task service URL
+	taskBaseURL := strings.TrimSuffix(scheduledTaskBaseURL, "/")
+	urlPath := fmt.Sprintf("%s/by-user", taskBaseURL)
+
+	// Create HTTP request
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, urlPath, bytes.NewBuffer(jsonBody))
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	// Set headers
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-API-Key", apiKey)
+
+	// Make HTTP request
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to delete scheduled task: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Check response status (204 No Content for successful deletion)
+	if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("task service returned status %d", resp.StatusCode)
 	}
 
 	return nil

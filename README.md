@@ -295,15 +295,17 @@ BASE_URL=http://localhost:8082
 # Media service base URL (required for auth-service avatar upload/delete functionality)
 MEDIA_BASE_URL=http://localhost:8082
 
-# Auth Service Configuration (required for auth-service email verification, profile updates, and token cleaning)
+# Auth Service Configuration (required for auth-service email verification, profile updates, token cleaning, and alphabet repeat functionality)
 # Verification URL for email verification links (required for registration flow and email updates)
 VERIFICATION_URL=http://localhost:8081/api/v6/auth/verify-email
 # Task service base URL for creating immediate tasks (required for sending verification emails and profile email updates)
 # Can use either IMMEDIATE_TASK_BASE_URL or TASK_BASE_URL (TASK_BASE_URL is used as fallback)
 IMMEDIATE_TASK_BASE_URL=http://localhost:8083/api/v6/tasks/immediate
 TASK_BASE_URL=http://localhost:8083/api/v6/tasks/immediate
-# Task service base URL for creating scheduled tasks (required for token cleaning task scheduling)
+# Task service base URL for creating scheduled tasks (required for token cleaning task scheduling and alphabet repeat functionality)
 SCHEDULED_TASK_BASE_URL=http://localhost:8083/api/v6/tasks/scheduled
+# Learn service base URL (required for alphabet repeat functionality - constructing drop marks endpoint URL)
+LEARN_SERVICE_BASE_URL=http://localhost:8080
 
 # Task Service Configuration (required for task-service)
 # Redis Configuration
@@ -380,6 +382,7 @@ migrate -path services/task-service/migrations -database "mysql://user:password@
 3. `000003_create_user_settings_table` - Creates user_settings table for user preferences
 4. `000004_add_avatar_to_users_table` - Adds avatar column to users table (VARCHAR(500), nullable)
 5. `000005_add_active_to_users_table` - Adds active column to users table (BOOLEAN, default: FALSE) for email verification
+6. `000006_add_alphabet_repeat_to_user_settings` - Adds alphabet_repeat column to user_settings table (VARCHAR(20), default: "in question") for alphabet repeating functionality
 
 **Learn Service Migrations:**
 1. `000001_create_characters_table` - Creates characters table for hiragana/katakana characters
@@ -461,6 +464,7 @@ The task API will be available at `http://localhost:8083`
 - auth-service requires `MEDIA_BASE_URL` and `API_KEY` environment variables to be set for avatar upload/delete functionality.
 - auth-service requires `IMMEDIATE_TASK_BASE_URL` (or `TASK_BASE_URL`) for sending verification emails and profile email updates, and `SCHEDULED_TASK_BASE_URL` with `API_KEY` for token cleaning task scheduling functionality.
 - auth-service requires `VERIFICATION_URL` environment variable for email verification links.
+- auth-service requires `LEARN_SERVICE_BASE_URL` environment variable for alphabet repeat functionality (constructing drop marks endpoint URL).
 - task-service requires Redis to be running and configured via `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD`, and `REDIS_DB` environment variables.
 
 ## Docker Deployment
@@ -567,19 +571,29 @@ docker-compose down -v
   - Body: `{ "password": "NewPassword123!" }`
   - Password must meet password requirements (see Password Requirements section)
   - Returns: 204 No Content on success
+- `PUT /api/v6/profile/repeat-flag` - Update alphabet repeat flag
+  - Body: `{ "flag": "repeat" }`
+  - Valid flag values: `"in question"` (default), `"ignore"`, or `"repeat"`
+  - Behavior:
+    - When set to `"repeat"`: Creates a scheduled task in task-service to drop user marks daily at midnight (cron: "0 0 * * *")
+    - When changed from `"repeat"` to another value: Deletes the scheduled task for the user
+  - Returns: 204 No Content on success
+  - Note: Requires task-service to be running and configured with `SCHEDULED_TASK_BASE_URL` and `API_KEY` environment variables
 
 #### User Settings (Requires Authentication)
 - `GET /api/v6/settings` - Get user settings for the authenticated user
-  - Returns: User settings including word counts, alphabet learn count, and language preference
+  - Returns: User settings including word counts, alphabet learn count, language preference, and alphabet repeat flag
 - `PATCH /api/v6/settings` - Update user settings
-  - Body: `{ "newWordCount": 20, "oldWordCount": 20, "alphabetLearnCount": 10, "language": "en" }`
+  - Body: `{ "newWordCount": 20, "oldWordCount": 20, "alphabetLearnCount": 10, "language": "en", "alphabetRepeat": "in question" }`
   - At least one field must be provided
+  - `alphabetRepeat` can be: `"in question"` (default), `"ignore"`, or `"repeat"`
   - Returns: 204 No Content on success
 - `GET /api/v6/profile/settings` - Get user settings (via profile handler)
-  - Returns: User settings including word counts, alphabet learn count, and language preference
+  - Returns: User settings including word counts, alphabet learn count, language preference, and alphabet repeat flag
 - `PATCH /api/v6/profile/settings` - Update user settings (via profile handler)
-  - Body: `{ "newWordCount": 20, "oldWordCount": 20, "alphabetLearnCount": 10, "language": "en" }`
+  - Body: `{ "newWordCount": 20, "oldWordCount": 20, "alphabetLearnCount": 10, "language": "en", "alphabetRepeat": "in question" }`
   - At least one field must be provided
+  - `alphabetRepeat` can be: `"in question"` (default), `"ignore"`, or `"repeat"`
   - Returns: 204 No Content on success
 
 #### Admin Endpoints (Requires Authentication & Admin Role)
@@ -607,6 +621,7 @@ docker-compose down -v
     - `oldWordCount` (optional): Old word count (10-40)
     - `alphabetLearnCount` (optional): Alphabet learn count (5-15)
     - `language` (optional): Language preference (`en`, `ru`, `de`)
+    - `alphabetRepeat` (optional): Alphabet repeat flag (`"in question"`, `"ignore"`, or `"repeat"`)
     - `avatar` (optional): Avatar image file
   - Returns: 204 No Content on success
   - Note: Avatar upload integrates with media-service. Old avatar is automatically deleted when uploading a new one.
@@ -674,10 +689,25 @@ docker-compose down -v
 
 #### Test Results (Requires Authentication)
 - `POST /api/v6/test-results/{hiragana|katakana}/{reading|writing|listening}` - Submit test results
-  - Body: `{ "results": [{ "characterId": 1, "passed": true }, ...] }`
+  - Body: `{ "results": [{ "characterId": 1, "passed": true }, ...], "repeat": "in question" }`
   - Test types: `reading`, `writing`, or `listening`
+  - `repeat` (optional): Alphabet repeat preference - `"in question"` (default), `"ignore"`, or `"repeat"`
+  - Returns: `{ "message": "test results submitted successfully", "askForRepeat": true/false }`
+  - **askForRepeat flag**: When `repeat` is `"in question"`, the system checks if the user has maximum marks (1.0) for all characters in all categories (hiragana/katakana reading/writing/listening). If true, `askForRepeat` is set to `true` to prompt the user about alphabet repetition.
 - `GET /api/v6/test-results/history` - Get user's learning history
   - Returns: All learning history records for the authenticated user
+
+#### Test Results (Requires API Key)
+- `GET /api/v6/test-results/drop-marks/{userId}` - Drop user marks
+  - Headers:
+    - `X-API-Key`: API key for service-to-service authentication (required)
+  - Path Parameters:
+    - `userId`: User ID whose marks should be lowered
+  - Behavior:
+    - Lowers all CharacterLearnHistory results by 0.01 for all records belonging to the user
+    - Affects all 6 result fields: hiragana/katakana reading/writing/listening
+  - Returns: 200 OK on success
+  - Note: This endpoint is typically called by a scheduled task for alphabet repetition functionality
 
 #### Dictionary / Words (Requires Authentication)
 - `GET /api/v6/words?newCount={10-40}&oldCount={10-40}&locale={en|ru|de}` - Get word list
@@ -941,6 +971,15 @@ The task-service consists of three sub-services:
   - Body: `{ "userId": 1, "emailSlug": "reminder-email", "url": "http://example.com/webhook", "content": "data", "cron": "0 9 * * *" }`
   - Returns: Task ID and success message
   - Note: At least one of `emailSlug` or `url` must be provided. Cron expression follows standard cron format.
+  - **Duplicate Prevention**: If a task with the same `userId` and `url` already exists, the endpoint returns success without creating a duplicate task.
+- `DELETE /api/v6/tasks/scheduled/by-user` - Delete scheduled tasks by user ID
+  - Headers:
+    - `X-API-Key`: API key for service-to-service authentication (required)
+  - Body: `{ "userId": 1 }`
+  - Behavior:
+    - Deletes all scheduled tasks for the specified user from both database and Redis ZSET
+  - Returns: 204 No Content on success
+  - Note: Used by auth-service when user changes alphabet repeat flag from "repeat" to another value
 
 #### Admin Endpoints (Requires Authentication & Admin Role)
 
@@ -1108,6 +1147,7 @@ All integration tests automatically set up test data, run tests in isolation, an
 - `old_word_count` - Number of old words to show (10-40, default: 20)
 - `alphabet_learn_count` - Number of characters for alphabet tests (5-15, default: 10)
 - `language` - Preferred language for translations (`en`, `ru`, or `de`, default: `en`)
+- `alphabet_repeat` - Alphabet repeat preference (`"in question"`, `"ignore"`, or `"repeat"`, default: `"in question"`)
 - `created_at` - Timestamp
 - `updated_at` - Timestamp
 

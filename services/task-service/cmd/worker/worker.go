@@ -216,13 +216,8 @@ func (w *Worker) HandleScheduledTask(ctx context.Context, t *asynq.Task) error {
 
 	// If URL is provided and doesn't start with "completed:", make HTTP request
 	if task.URL != "" && !strings.HasPrefix(task.URL, "completed:") {
-		url := task.URL
-		if task.UserID != nil {
-			url = fmt.Sprintf("%s/%d", url, *task.UserID)
-		}
-
 		// Create HTTP GET request
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, task.URL, nil)
 		if err != nil {
 			return fmt.Errorf("failed to create request: %w", err)
 		}

@@ -45,6 +45,14 @@ type ProfileService interface {
 	//
 	// If some error occurs during password update, the error will be returned.
 	UpdatePassword(ctx context.Context, userId int, password string) error
+	// UpdateRepeatFlag updates the repeat flag
+	//
+	// "userId" parameter is used to update the repeat flag by user ID.
+	// "flag" parameter is used to update the repeat flag.
+	// "r" parameter is used to construct the URL for the drop marks endpoint.
+	//
+	// If some error occurs during repeat flag update, the error will be returned.
+	UpdateRepeatFlag(ctx context.Context, userId int, flag string, r *http.Request) error
 }
 
 // UserSettingsService is the interface that wraps methods for user settings business logic
@@ -90,6 +98,7 @@ func (h *ProfileHandler) RegisterRoutes(r chi.Router, authMiddleware func(http.H
 		r.Put("/password", h.UpdatePassword)
 		r.Get("/settings", h.GetUserSettings)
 		r.Patch("/settings", h.UpdateUserSettings)
+		r.Put("/repeat-flag", h.UpdateRepeatFlag)
 	})
 }
 
@@ -359,11 +368,9 @@ func (h *ProfileHandler) UpdateUserSettings(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// Validate that at least one field is provided
-	if req.NewWordCount == nil && req.OldWordCount == nil && req.AlphabetLearnCount == nil && req.Language == nil {
-		h.Logger.Error("at least one field must be provided")
-		h.RespondError(w, http.StatusBadRequest, "at least one field must be provided")
-		return
+	// Because user should update Repeat flag in separate endpoint, we need to ensure that it is not provided here
+	if req.AlphabetRepeat != "" {
+		req.AlphabetRepeat = ""
 	}
 
 	// Update user settings
@@ -377,6 +384,55 @@ func (h *ProfileHandler) UpdateUserSettings(w http.ResponseWriter, r *http.Reque
 			errMsg == "oldWordCount must be between 10 and 40" ||
 			errMsg == "alphabetLearnCount must be between 5 and 15" ||
 			(len(errMsg) >= 16 && errMsg[:16] == "invalid language") {
+			statusCode = http.StatusBadRequest
+		}
+		h.RespondError(w, statusCode, err.Error())
+		return
+	}
+
+	// Return 204 No Content
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// UpdateRepeatFlagRequest represents a request to update repeat flag
+type UpdateRepeatFlagRequest struct {
+	Flag string `json:"flag"`
+}
+
+// UpdateRepeatFlag handles PUT /profile/repeat-flag
+// @Summary Update repeat flag
+// @Description Update alphabet repeat flag for the authenticated user. Requires authentication.
+// @Tags profile
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param flag body UpdateRepeatFlagRequest true "Repeat flag: 'in question', 'ignore', or 'repeat'"
+// @Success 204 "No Content"
+// @Failure 400 {object} map[string]string "Bad request - invalid flag value"
+// @Failure 401 {object} map[string]string "Unauthorized - authentication required"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Router /profile/repeat-flag [put]
+func (h *ProfileHandler) UpdateRepeatFlag(w http.ResponseWriter, r *http.Request) {
+	// Extract userID from auth middleware context
+	userID, ok := middleware.GetUserID(r.Context())
+	if !ok {
+		h.Logger.Error("user ID not found in context")
+		h.RespondError(w, http.StatusUnauthorized, "user ID not found in context")
+		return
+	}
+
+	// Parse request body
+	var req UpdateRepeatFlagRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.Logger.Error("failed to decode request body", zap.Error(err))
+		h.RespondError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	if err := h.profileService.UpdateRepeatFlag(r.Context(), userID, req.Flag, r); err != nil {
+		h.Logger.Error("failed to update repeat flag", zap.Error(err))
+		statusCode := http.StatusInternalServerError
+		if strings.Contains(err.Error(), "invalid") {
 			statusCode = http.StatusBadRequest
 		}
 		h.RespondError(w, statusCode, err.Error())

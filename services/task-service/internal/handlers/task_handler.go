@@ -33,6 +33,13 @@ type ScheduledTaskService interface {
 	//
 	// If some error occurs during scheduled task creation, the error will be returned.
 	Create(ctx context.Context, req *models.CreateScheduledTaskRequest) (int, error)
+	// DeleteByUserID deletes all scheduled tasks for a user
+	//
+	// "ctx" parameter is used to specify the context.
+	// "userID" parameter is used to identify the user.
+	//
+	// If some error occurs during task deletion, the error will be returned.
+	DeleteByUserID(ctx context.Context, userID int) error
 }
 
 // TaskHandler handles task creation requests
@@ -66,6 +73,7 @@ func (h *TaskHandler) RegisterRoutes(r chi.Router) {
 	r.Route("/tasks", func(r chi.Router) {
 		r.Post("/immediate", h.CreateImmediateTask)
 		r.Post("/scheduled", h.CreateScheduledTask)
+		r.Delete("/scheduled/by-user", h.DeleteScheduledTaskByUserId)
 	})
 }
 
@@ -133,4 +141,38 @@ func (h *TaskHandler) CreateScheduledTask(w http.ResponseWriter, r *http.Request
 		"message": "scheduled task created successfully",
 		"id":      taskID,
 	})
+}
+
+// DeleteScheduledTaskByUserIdRequest represents a request to delete scheduled tasks by user ID
+type DeleteScheduledTaskByUserIdRequest struct {
+	UserId int `json:"userId"`
+}
+
+// DeleteScheduledTaskByUserId handles DELETE /tasks/scheduled/by-user
+// @Summary Delete scheduled tasks by user ID
+// @Description Delete all scheduled tasks for a specific user. Requires API key authentication.
+// @Tags tasks
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param request body DeleteScheduledTaskByUserIdRequest true "Delete scheduled tasks request"
+// @Success 204 "No Content"
+// @Failure 400 {object} map[string]string "Bad request - invalid request body"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Router /tasks/scheduled/by-user [delete]
+func (h *TaskHandler) DeleteScheduledTaskByUserId(w http.ResponseWriter, r *http.Request) {
+	var req DeleteScheduledTaskByUserIdRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.RespondError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	// Delete scheduled tasks by user ID
+	if err := h.scheduledTaskService.DeleteByUserID(r.Context(), req.UserId); err != nil {
+		h.Logger.Error("failed to delete scheduled tasks by user ID", zap.Error(err))
+		h.RespondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }

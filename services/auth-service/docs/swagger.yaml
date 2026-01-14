@@ -15,6 +15,11 @@ definitions:
       email:
         type: string
     type: object
+  handlers.UpdateRepeatFlagRequest:
+    properties:
+      flag:
+        type: string
+    type: object
   handlers.UpdateUserRequest:
     properties:
       email:
@@ -48,6 +53,16 @@ definitions:
       username:
         type: string
     type: object
+  models.RepeatType:
+    enum:
+    - in question
+    - ignore
+    - repeat
+    type: string
+    x-enum-varnames:
+    - RepeatTypeInQuestion
+    - RepeatTypeIgnore
+    - RepeatTypeRepeat
   models.Role:
     enum:
     - 1
@@ -74,6 +89,8 @@ definitions:
     properties:
       alphabetLearnCount:
         type: integer
+      alphabetRepeat:
+        $ref: '#/definitions/models.RepeatType'
       language:
         $ref: '#/definitions/models.Language'
       newWordCount:
@@ -99,6 +116,10 @@ definitions:
       alphabetLearnCount:
         description: 'Default: 10'
         type: integer
+      alphabetRepeat:
+        allOf:
+        - $ref: '#/definitions/models.RepeatType'
+        description: 'Default: "in question"'
       id:
         type: integer
       language:
@@ -118,6 +139,8 @@ definitions:
     properties:
       alphabetLearnCount:
         type: integer
+      alphabetRepeat:
+        $ref: '#/definitions/models.RepeatType'
       language:
         $ref: '#/definitions/models.Language'
       newWordCount:
@@ -127,6 +150,8 @@ definitions:
     type: object
   models.UserWithSettingsResponse:
     properties:
+      active:
+        type: boolean
       avatar:
         type: string
       email:
@@ -426,6 +451,10 @@ paths:
       - description: Language (en, ru, de)
         in: formData
         name: language
+        type: string
+      - description: Alphabet repeat (in question, ignore, repeat)
+        in: formData
+        name: alphabetRepeat
         type: string
       - description: Avatar image (optional)
         in: formData
@@ -931,6 +960,47 @@ paths:
       security:
       - ApiKeyAuth: []
       summary: Update user password
+      tags:
+      - profile
+  /profile/repeat-flag:
+    put:
+      consumes:
+      - application/json
+      description: Update alphabet repeat flag for the authenticated user. Requires
+        authentication.
+      parameters:
+      - description: 'Repeat flag: ''in question'', ''ignore'', or ''repeat'''
+        in: body
+        name: flag
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.UpdateRepeatFlagRequest'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad request - invalid flag value
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized - authentication required
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Update repeat flag
       tags:
       - profile
   /settings:

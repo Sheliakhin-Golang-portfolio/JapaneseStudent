@@ -132,7 +132,7 @@ func TestImmediateTaskService_Create(t *testing.T) {
 		{
 			name: "invalid user ID",
 			req: &models.CreateImmediateTaskRequest{
-				UserID:    0,
+				UserID:    -1, // Negative user ID should fail validation
 				EmailSlug: "test-slug",
 				Content:   "test@example.com;John",
 			},

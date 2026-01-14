@@ -264,7 +264,7 @@ func TestCourseRepository_GetAll(t *testing.T) {
 			setupMock: func(mock sqlmock.Sqlmock) {
 				rows := sqlmock.NewRows([]string{"slug", "title", "complexity_level", "total_lessons", "completed_lessons"}).
 					AddRow("test-course", "Test Course", "Beginner", 10, 5)
-				mock.ExpectQuery(`SELECT.*WHERE title LIKE \?.*LIMIT \? OFFSET \?`).
+				mock.ExpectQuery(`SELECT.*FROM courses c.*WHERE c\.title LIKE \?.*GROUP BY.*ORDER BY.*LIMIT \? OFFSET \?`).
 					WithArgs(1, "%test%", 10, 0).
 					WillReturnRows(rows)
 			},

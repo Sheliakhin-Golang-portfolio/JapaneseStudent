@@ -73,7 +73,7 @@ services:
       IMMEDIATE_TASK_BASE_URL: ${IMMEDIATE_TASK_BASE_URL:-http://task-api:8083/api/v6/tasks/immediate}
       SCHEDULED_TASK_BASE_URL: ${SCHEDULED_TASK_BASE_URL:-http://task-api:8083/api/v6/tasks/scheduled}
       IS_DOCKER_CONTAINER: true # We set it to true for docker container to ignore host
-      AUTH_SERVICE_BASE_URL: http://auth-service:8081 # We set it to the base URL of the auth service for docker container to use inner bridge network
+      LEARN_SERVICE_BASE_URL: ${LEARN_SERVICE_BASE_URL:-http://learn-service:8080} # We set it to the base URL of the learn service for docker container to use inner bridge network
     ports:
       - "${AUTH_SERVICE_PORT:-8081}:8081"
     depends_on:

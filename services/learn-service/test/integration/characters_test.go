@@ -125,7 +125,7 @@ func setupTestRouter(db *sql.DB, logger *zap.Logger) chi.Router {
 	svc := services.NewCharactersService(repo, historyRepo)
 	charHandler := handlers.NewCharactersHandler(svc, logger)
 
-	testResultSvc := services.NewTestResultService(historyRepo)
+	testResultSvc := services.NewTestResultService(historyRepo, repo)
 	testResultHandler := handlers.NewTestResultHandler(testResultSvc, logger)
 
 	wordRepo := repositories.NewWordRepository(db)
