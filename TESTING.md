@@ -1,5 +1,18 @@
 # Testing Guide
 
+## Quick Start
+
+To run all tests:
+
+```bash
+go test ./...
+```
+
+Some tests require running infrastructure services (MariaDB and Redis).
+If required services are not running, integration tests will fail.
+
+Infrastructure services can be started using Docker Compose as described in `RUNNING.md`.
+
 This document describes the comprehensive testing strategy, implementation status, and how to run tests for the JapaneseStudent backend.
 
 ## Overview
@@ -1342,3 +1355,9 @@ The test suite provides excellent coverage of:
 - Integration between components
 
 All tests are well-documented, maintainable, and follow consistent patterns throughout the codebase.
+
+## Notes for Reviewers
+
+- Tests prioritize correctness and integration confidence over exhaustive coverage
+- Not all edge cases are covered intentionally
+- The test suite reflects real-world backend testing trade-offs
