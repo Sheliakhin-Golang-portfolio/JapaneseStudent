@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"mime/multipart"
 
-	"github.com/japanesestudent/learn-service/internal/models"
+	"github.com/Sheliakhin-Golang-portfolio/JapaneseStudent/learn-service/internal/models"
 )
 
 // AdminWordRepository is the interface that wraps methods for Word table data access

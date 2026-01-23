@@ -1,4 +1,4 @@
-module github.com/japanesestudent/task-service
+module github.com/Sheliakhin-Golang-portfolio/JapaneseStudent/services/task-service
 
 go 1.24.0
 
@@ -9,7 +9,7 @@ require (
 	github.com/go-sql-driver/mysql v1.9.3
 	github.com/golang-migrate/migrate/v4 v4.19.1
 	github.com/hibiken/asynq v0.24.1
-	github.com/japanesestudent/libs v0.0.0
+	github.com/Sheliakhin-Golang-portfolio/JapaneseStudent/libs v0.0.0
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/swaggo/http-swagger v1.3.4
 	go.uber.org/zap v1.27.1
@@ -54,4 +54,4 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/japanesestudent/libs => ../../libs
+replace github.com/Sheliakhin-Golang-portfolio/JapaneseStudent/libs => ../../libs

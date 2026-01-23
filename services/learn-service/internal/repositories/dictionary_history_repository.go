@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/japanesestudent/learn-service/internal/models"
+	"github.com/Sheliakhin-Golang-portfolio/JapaneseStudent/services/learn-service/internal/models"
 )
 
 // dictionaryHistoryRepository implements DictionaryHistoryRepository

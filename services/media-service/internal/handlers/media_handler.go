@@ -9,8 +9,8 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/japanesestudent/libs/handlers"
-	"github.com/japanesestudent/media-service/internal/models"
+	"github.com/Sheliakhin-Golang-portfolio/JapaneseStudent/libs/handlers"
+	"github.com/Sheliakhin-Golang-portfolio/JapaneseStudent/services/media-service/internal/models"
 	"go.uber.org/zap"
 )
 

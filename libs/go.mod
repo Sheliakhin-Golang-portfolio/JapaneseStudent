@@ -1,4 +1,4 @@
-module github.com/japanesestudent/libs
+module github.com/Sheliakhin-Golang-portfolio/JapaneseStudent/libs
 
 go 1.24.0
 

@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/japanesestudent/auth-service/internal/services"
-	"github.com/japanesestudent/libs/handlers"
+	"github.com/Sheliakhin-Golang-portfolio/JapaneseStudent/services/auth-service/internal/services"
+	"github.com/Sheliakhin-Golang-portfolio/JapaneseStudent/libs/handlers"
 	"go.uber.org/zap"
 )
 

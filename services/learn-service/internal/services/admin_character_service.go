@@ -9,7 +9,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/japanesestudent/learn-service/internal/models"
+	"github.com/Sheliakhin-Golang-portfolio/JapaneseStudent/services/learn-service/internal/models"
 )
 
 // CharactersRepository is the interface that wraps methods for Characters table data access

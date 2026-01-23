@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/japanesestudent/learn-service/internal/models"
+	"github.com/Sheliakhin-Golang-portfolio/JapaneseStudent/learn-service/internal/models"
 	"github.com/stretchr/testify/assert"
 )
 

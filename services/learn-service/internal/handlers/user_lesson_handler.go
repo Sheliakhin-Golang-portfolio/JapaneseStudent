@@ -6,9 +6,9 @@ import (
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/japanesestudent/learn-service/internal/models"
-	authMiddleware "github.com/japanesestudent/libs/auth/middleware"
-	"github.com/japanesestudent/libs/handlers"
+	"github.com/Sheliakhin-Golang-portfolio/JapaneseStudent/learn-service/internal/models"
+	authMiddleware "github.com/Sheliakhin-Golang-portfolio/JapaneseStudent/libs/auth/middleware"
+	"github.com/Sheliakhin-Golang-portfolio/JapaneseStudent/libs/handlers"
 	"go.uber.org/zap"
 )
 

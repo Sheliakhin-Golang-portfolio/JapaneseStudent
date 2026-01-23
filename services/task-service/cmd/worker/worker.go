@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/hibiken/asynq"
-	"github.com/japanesestudent/task-service/internal/models"
-	"github.com/japanesestudent/task-service/internal/services"
+	"github.com/Sheliakhin-Golang-portfolio/JapaneseStudent/services/task-service/internal/models"
+	"github.com/Sheliakhin-Golang-portfolio/JapaneseStudent/services/task-service/internal/services"
 	"go.uber.org/zap"
 	"gopkg.in/mail.v2"
 )

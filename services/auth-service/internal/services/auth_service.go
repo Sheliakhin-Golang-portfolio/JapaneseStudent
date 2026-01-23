@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/japanesestudent/auth-service/internal/models"
-	"github.com/japanesestudent/libs/auth/service"
+	"github.com/Sheliakhin-Golang-portfolio/JapaneseStudent/services/auth-service/internal/models"
+	"github.com/Sheliakhin-Golang-portfolio/JapaneseStudent/libs/auth/service"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 )

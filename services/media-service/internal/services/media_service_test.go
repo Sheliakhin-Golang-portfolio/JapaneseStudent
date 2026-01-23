@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/japanesestudent/media-service/internal/models"
+	"github.com/Sheliakhin-Golang-portfolio/JapaneseStudent/services/media-service/internal/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

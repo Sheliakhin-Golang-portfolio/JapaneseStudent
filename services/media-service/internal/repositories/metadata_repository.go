@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/japanesestudent/media-service/internal/models"
+	"github.com/Sheliakhin-Golang-portfolio/JapaneseStudent/services/media-service/internal/models"
 )
 
 // metadataRepository implements metadata repository operations

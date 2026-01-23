@@ -10,8 +10,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-redis/redis/v8"
 	"github.com/hibiken/asynq"
-	"github.com/japanesestudent/libs/handlers"
-	"github.com/japanesestudent/task-service/internal/models"
+	"github.com/Sheliakhin-Golang-portfolio/JapaneseStudent/libs/handlers"
+	"github.com/Sheliakhin-Golang-portfolio/JapaneseStudent/services/task-service/internal/models"
 	"go.uber.org/zap"
 )
 

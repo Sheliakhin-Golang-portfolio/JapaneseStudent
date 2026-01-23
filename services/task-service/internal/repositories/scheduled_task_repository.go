@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/japanesestudent/task-service/internal/models"
+	"github.com/Sheliakhin-Golang-portfolio/JapaneseStudent/services/task-service/internal/models"
 )
 
 type scheduledTaskRepository struct {

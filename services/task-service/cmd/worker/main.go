@@ -13,9 +13,9 @@ import (
 	"github.com/go-redis/redis/v8"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/hibiken/asynq"
-	"github.com/japanesestudent/libs/config"
-	"github.com/japanesestudent/libs/logger"
-	"github.com/japanesestudent/task-service/internal/repositories"
+	"github.com/Sheliakhin-Golang-portfolio/JapaneseStudent/libs/config"
+	"github.com/Sheliakhin-Golang-portfolio/JapaneseStudent/libs/logger"
+	"github.com/Sheliakhin-Golang-portfolio/JapaneseStudent/services/task-service/internal/repositories"
 	"go.uber.org/zap"
 )
 

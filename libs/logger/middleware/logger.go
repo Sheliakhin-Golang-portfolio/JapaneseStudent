@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/japanesestudent/libs/middlewares"
+	"github.com/Sheliakhin-Golang-portfolio/JapaneseStudent/libs/middlewares"
 	"go.uber.org/zap"
 )
 

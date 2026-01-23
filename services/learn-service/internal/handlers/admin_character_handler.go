@@ -7,8 +7,8 @@ import (
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/japanesestudent/learn-service/internal/models"
-	"github.com/japanesestudent/libs/handlers"
+	"github.com/Sheliakhin-Golang-portfolio/JapaneseStudent/learn-service/internal/models"
+	"github.com/Sheliakhin-Golang-portfolio/JapaneseStudent/libs/handlers"
 	"go.uber.org/zap"
 )
 

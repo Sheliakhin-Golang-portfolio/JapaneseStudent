@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/japanesestudent/learn-service/internal/models"
+	"github.com/Sheliakhin-Golang-portfolio/JapaneseStudent/learn-service/internal/models"
 )
 
 // CourseRepository defines methods for course data access

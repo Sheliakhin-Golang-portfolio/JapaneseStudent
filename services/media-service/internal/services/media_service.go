@@ -6,8 +6,8 @@ import (
 	"io"
 	"os"
 
-	"github.com/japanesestudent/media-service/internal/models"
-	"github.com/japanesestudent/media-service/internal/storage"
+	"github.com/Sheliakhin-Golang-portfolio/JapaneseStudent/services/media-service/internal/models"
+	"github.com/Sheliakhin-Golang-portfolio/JapaneseStudent/services/media-service/internal/storage"
 )
 
 // Storage defines the interface for file storage operations

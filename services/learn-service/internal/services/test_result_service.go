@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/japanesestudent/learn-service/internal/models"
+	"github.com/Sheliakhin-Golang-portfolio/JapaneseStudent/learn-service/internal/models"
 )
 
 // CharacterLearnHistoryRepository is the interface that wraps methods for CharacterLearnHistory table data access

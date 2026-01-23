@@ -7,7 +7,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/japanesestudent/learn-service/internal/models"
+	"github.com/Sheliakhin-Golang-portfolio/JapaneseStudent/learn-service/internal/models"
 )
 
 type charactersRepository struct {

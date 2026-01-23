@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/japanesestudent/libs/auth/service"
+	"github.com/Sheliakhin-Golang-portfolio/JapaneseStudent/libs/auth/service"
 )
 
 // RoleMiddleware validates JWT access token and checks if user's role is >= requiredRole

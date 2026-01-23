@@ -1,4 +1,4 @@
-module github.com/japanesestudent/learn-service
+module github.com/Sheliakhin-Golang-portfolio/JapaneseStudent/services/learn-service
 
 go 1.24.0
 
@@ -9,14 +9,14 @@ require (
 	github.com/go-sql-driver/mysql v1.9.3
 	github.com/golang-migrate/migrate/v4 v4.19.1
 	github.com/google/uuid v1.6.0 // indirect
-	github.com/japanesestudent/libs v0.0.0
+	github.com/Sheliakhin-Golang-portfolio/JapaneseStudent/libs v0.0.0
 	github.com/joho/godotenv v1.5.1 // indirect
 	github.com/stretchr/testify v1.10.0
 	github.com/swaggo/http-swagger v1.3.4
 	go.uber.org/zap v1.27.1
 )
 
-replace github.com/japanesestudent/libs => ../../libs
+replace github.com/Sheliakhin-Golang-portfolio/JapaneseStudent/libs => ../../libs
 
 require (
 	filippo.io/edwards25519 v1.1.0 // indirect

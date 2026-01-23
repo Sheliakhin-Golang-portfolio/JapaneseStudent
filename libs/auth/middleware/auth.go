@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/japanesestudent/libs/auth/service"
+	"github.com/Sheliakhin-Golang-portfolio/JapaneseStudent/libs/auth/service"
 )
 
 type contextKey string

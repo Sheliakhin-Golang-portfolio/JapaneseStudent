@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/japanesestudent/auth-service/internal/models"
+	"github.com/Sheliakhin-Golang-portfolio/JapaneseStudent/services/auth-service/internal/models"
 )
 
 // userRepository implements UserRepository

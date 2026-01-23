@@ -1,4 +1,4 @@
-module github.com/japanesestudent/auth-service
+module github.com/Sheliakhin-Golang-portfolio/JapaneseStudent/services/auth-service
 
 go 1.24.0
 
@@ -8,7 +8,7 @@ require (
 	github.com/go-chi/httprate v0.15.0
 	github.com/go-sql-driver/mysql v1.9.3
 	github.com/golang-migrate/migrate/v4 v4.19.1
-	github.com/japanesestudent/libs v0.0.0
+	github.com/Sheliakhin-Golang-portfolio/JapaneseStudent/libs v0.0.0
 	github.com/stretchr/testify v1.10.0
 	github.com/swaggo/http-swagger v1.3.4
 	github.com/swaggo/swag v1.16.6
@@ -43,4 +43,4 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/japanesestudent/libs => ../../libs
+replace github.com/Sheliakhin-Golang-portfolio/JapaneseStudent/libs => ../../libs
