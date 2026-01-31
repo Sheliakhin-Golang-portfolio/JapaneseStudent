@@ -75,8 +75,7 @@ All detailed documentation from the original README has been preserved and moved
 
 ---
 
-## Project Status
+## License
 
-This project is developed for portfolio and learning purposes.  
-The focus is correctness, clarity, and realistic backend patterns.
-NOT FOR COMMERTIAL USE!
+This project is developed for educational and portfolio purposes.
+Licensed under the Apache License 2.0.
