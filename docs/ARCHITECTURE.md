@@ -30,7 +30,9 @@ The system is composed of multiple Go services communicating over HTTP and async
 
 ```mermaid
 graph TB
-    User[👤 End User] Admin[👤 Admin] Tutor[👤 Tutor]
+    User[👤 End User]
+    Admin[👤 Admin]
+    Tutor[👤 Tutor]
     System[JapaneseStudent Backend]
     SMTP[📧 SMTP Server]
     
