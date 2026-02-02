@@ -71,7 +71,7 @@ All detailed documentation from the original README has been preserved and moved
 - [API Documentation](docs/API.md)
 - [Running Locally & Environment Variables](docs/RUNNING.md)
 - [Shared Libraries](docs/LIBS.md)
-- [Testing](TESTING.md)
+- [Testing](docs/TESTING.md)
 
 ---
 
